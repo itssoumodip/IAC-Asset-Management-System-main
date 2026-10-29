@@ -63,9 +63,25 @@ export class TicketDomain extends AssetDomain {
     return camel(row);
   }
   async tickets(req: AuthRequest, query: any) {
-    const p = requestPage(query, ['created_at', 'id']);
+    const { ownership: requestedOwnership, ...filters } = query;
+    const ownership = z
+      .enum(['ANY', 'MINE', 'UNASSIGNED'])
+      .default('ANY')
+      .parse(requestedOwnership);
+    const p = requestPage(filters, ['created_at', 'id']);
+    if (ownership !== 'ANY' && p.ownerId)
+      throw new UnprocessableEntityException('Choose ownership or ownerId, not both');
     const values: any[] = [];
     const where = [ticketScope(req.user, values)];
+    if (ownership !== 'ANY') {
+      if (!staff(req.user))
+        throw new ForbiddenException('Team ownership filters require support access');
+      if (ownership === 'UNASSIGNED') where.push('t.owner_id IS NULL');
+      else {
+        values.push(req.user.id);
+        where.push(`t.owner_id=$${values.length}`);
+      }
+    }
     for (const [key, col] of [
       ['status', 'status'],
       ['category', 'category'],
@@ -91,7 +107,7 @@ export class TicketDomain extends AssetDomain {
     values.push(p.limit + 1);
     return page(
       await this.db.query(
-        `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''} FROM tickets t WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC,t.id DESC LIMIT $${values.length}`,
+        `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''},to_char(t.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at FROM tickets t WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC,t.id DESC LIMIT $${values.length}`,
         values,
       ),
       p.limit,
@@ -156,10 +172,22 @@ export class TicketDomain extends AssetDomain {
         photoCount: images.length,
       });
       const recipients = await this.adminRecipients(c);
-      await this.db.notify(c, `ticket:${row.id}:created`, 'TICKET_CREATED', recipients, {
-        subject: `IAC support ticket #${row.ticket_number} created`,
-        text: 'A support ticket has been created. Sign in to the IAC Asset portal to view the ticket.',
-      });
+      await this.db.notify(
+        c,
+        `ticket:${row.id}:created`,
+        'TICKET_CREATED',
+        recipients,
+        {
+          subject: `IAC support ticket #${row.ticket_number} created`,
+          text: 'A support ticket has been created. Sign in to the IAC Asset portal to view the ticket.',
+        },
+        {
+          kind: 'TICKET',
+          entityId: row.id,
+          title: `Support ticket #${row.ticket_number} created`,
+          message: 'A new ticket is ready for support triage.',
+        },
+      );
       return { ...(await this.ticket(req, row.id, c)), notificationState: 'QUEUED' };
     });
   }
@@ -190,7 +218,7 @@ export class TicketDomain extends AssetDomain {
     values.push(p.limit + 1);
     const result = page(
       await this.db.query(
-        `SELECT u.id,u.ticket_id,u.kind,u.visibility,u.body,u.old_status,u.new_status,u.created_at FROM ticket_updates u WHERE ${where.join(' AND ')} ORDER BY u.created_at,u.id LIMIT $${values.length}`,
+        `SELECT u.id,u.ticket_id,u.kind,u.visibility,u.body,u.old_status,u.new_status,u.created_at,to_char(u.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at FROM ticket_updates u WHERE ${where.join(' AND ')} ORDER BY u.created_at,u.id LIMIT $${values.length}`,
         values,
       ),
       p.limit,
@@ -233,10 +261,22 @@ export class TicketDomain extends AssetDomain {
           c,
         );
         const recipients = staff(req.user) ? [reporter.email] : await this.staffRecipients(c);
-        await this.db.notify(c, `ticket-update:${row.id}`, 'TICKET_REPLY', recipients, {
-          subject: `IAC support ticket #${before.ticketNumber} updated`,
-          text: 'A public reply has been added to your support ticket. Sign in to read the reply.',
-        });
+        await this.db.notify(
+          c,
+          `ticket-update:${row.id}`,
+          'TICKET_REPLY',
+          recipients,
+          {
+            subject: `IAC support ticket #${before.ticketNumber} updated`,
+            text: 'A public reply has been added to your support ticket. Sign in to read the reply.',
+          },
+          {
+            kind: 'TICKET',
+            entityId: ticketId,
+            title: `Support ticket #${before.ticketNumber} updated`,
+            message: 'A public reply was added. Open the ticket to read it.',
+          },
+        );
       }
       return { ...camel(row), ticketVersion: after.version };
     });
@@ -273,6 +313,29 @@ export class TicketDomain extends AssetDomain {
       await this.db.audit(c, req.user, 'ticket', ticketId, 'TICKET_OWNER_CHANGED', {
         ownerId: data.ownerId,
       });
+      if (data.ownerId) {
+        const [owner] = await this.db.query(
+          'SELECT email FROM users WHERE id=$1',
+          [data.ownerId],
+          c,
+        );
+        await this.db.notify(
+          c,
+          `ticket:${ticketId}:owner:v${before.version + 1}`,
+          'TICKET_OWNER',
+          [owner.email],
+          {
+            subject: `Support ticket #${before.ticketNumber} assigned to you`,
+            text: 'Open the portal to review your support assignment.',
+          },
+          {
+            kind: 'TICKET',
+            entityId: ticketId,
+            title: `Support ticket #${before.ticketNumber} assigned to you`,
+            message: 'Review the support queue and next action.',
+          },
+        );
+      }
       return this.ticket(req, ticketId, c);
     });
   }
@@ -306,7 +369,7 @@ export class TicketDomain extends AssetDomain {
         from: before.status,
         to: data.status,
       });
-      if (complete) {
+      {
         const [reporter] = await this.db.query(
           'SELECT u.email FROM users u JOIN tickets t ON t.reporter_id=u.id WHERE t.id=$1',
           [ticketId],
@@ -314,12 +377,22 @@ export class TicketDomain extends AssetDomain {
         );
         await this.db.notify(
           c,
-          `ticket:${ticketId}:completed`,
-          'TICKET_COMPLETED',
+          `ticket:${ticketId}:status:v${before.version + 1}`,
+          complete ? 'TICKET_COMPLETED' : 'TICKET_STATUS',
           [reporter.email],
           {
-            subject: `IAC support ticket #${before.ticketNumber} completed`,
-            text: 'Your support ticket was completed. Sign in to review the resolution. For follow-up, create a related ticket.',
+            subject: `IAC support ticket #${before.ticketNumber}: ${data.status}`,
+            text: complete
+              ? 'Your support ticket was completed. Sign in to review the resolution. For follow-up, create a related ticket.'
+              : 'Your support ticket status changed. Sign in to review the current state.',
+          },
+          {
+            kind: 'TICKET',
+            entityId: ticketId,
+            title: `Support ticket #${before.ticketNumber}: ${data.status}`,
+            message: complete
+              ? 'Review the resolution in your ticket.'
+              : 'Review the current status in your ticket.',
           },
         );
       }

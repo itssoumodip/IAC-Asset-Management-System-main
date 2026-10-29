@@ -16,6 +16,9 @@ COPY --from=build /app/apps/web/package.json apps/web/package.json
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY apps/api/db apps/api/db
+COPY scripts/verify-runtime.mjs scripts/verify-runtime.mjs
+# Fail the actual runtime image build if a native/optional parser dependency is missing.
+RUN node scripts/verify-runtime.mjs
 USER node
 EXPOSE 3000
 CMD ["node","apps/api/dist/main.js"]

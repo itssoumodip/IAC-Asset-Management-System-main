@@ -274,6 +274,37 @@ describe('ticket photos integration', { skip: !connection, concurrency: false },
     assert.equal((await get(other, `/tickets/${created.body.id}/photos/2`)).status, 404);
   });
 
+  it('invoice JSON budget reports its actual limit and does not trust a cookie-name substring', async () => {
+    const path = `${base}/finance/assets/${asset.id}/invoices`;
+    const oversized = await fetch(path, {
+      method: 'POST',
+      headers: { ...headers(admin), 'Content-Type': 'application/json', 'If-Match': '"1"' },
+      body: JSON.stringify({ pad: 'y'.repeat(6 * 1024 * 1024) }),
+    });
+    assert.equal(oversized.status, 413);
+    assert.equal(
+      (await oversized.json()).error.message,
+      'Request exceeds the 6 MB JSON upload limit',
+    );
+    const misleading = await fetch(path, {
+      method: 'POST',
+      headers: {
+        Origin: configuration().origin,
+        Cookie: `other_${configuration().sessionCookie}=not-a-session`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ pad: 'y'.repeat(100000) }),
+    });
+    assert.equal(misleading.status, 413);
+    assert.equal((await misleading.json()).error.message, 'Request exceeds the 64 KB limit');
+    const within = await fetch(path, {
+      method: 'POST',
+      headers: { ...headers(admin), 'Content-Type': 'application/json', 'If-Match': '"1"' },
+      body: JSON.stringify({ pad: 'y'.repeat(5_700_000) }),
+    });
+    assert.equal(within.status, 422);
+  });
+
   it('body limit', async () => {
     const big = JSON.stringify(
       ticketBody(asset.id, { description: 'x'.repeat(10), pad: 'y'.repeat(1_400_000) }),

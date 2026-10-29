@@ -2,6 +2,7 @@ import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { TicketDomain } from './domain-tickets';
+import { configuration } from './config';
 import { AuthRequest, assertVersion, requireRole } from './security';
 import {
   assetInput,
@@ -355,8 +356,8 @@ export class ImportDomain extends TicketDomain {
         });
       else {
         const users = await this.db.query(
-          `SELECT u.id FROM users u JOIN approved_emails e ON e.email=u.email JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL`,
-          [identity.email],
+          `SELECT u.id FROM users u JOIN approved_emails e ON e.email=u.email JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL AND u.portal_notice_version=$2`,
+          [identity.email, configuration().noticeVersion],
           c,
         );
         if (users.length === 1) custodianId = users[0].id;
@@ -549,6 +550,15 @@ export class ImportDomain extends TicketDomain {
             "INSERT INTO asset_movements(asset_id,kind,to_assignment_id,reason,actor_id) VALUES($1,'ASSIGN',$2,'Approved import of current custody',$3)",
             [asset.id, assignment.id, req.user.id],
             c,
+          );
+          await this.db.workflowNotify(
+            c,
+            `assignment:${assignment.id}:created`,
+            'ASSIGNMENT',
+            assignment.id,
+            [employee.email],
+            `Verify imported asset ${asset.asset_code}`,
+            'Imported current custody needs your acknowledgement.',
           );
           await this.db.notify(
             c,

@@ -261,7 +261,7 @@ export class DataTransferService {
     ).map((row) => row.role_code);
     if (
       session.scope !== 'APP' ||
-      (roles.some((role) => ['ADMIN', 'IT_ADMIN'].includes(role)) && !session.mfa_verified_at)
+      (roles.some((role) => ['ADMIN', 'IT_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(role)) && !session.mfa_verified_at)
     )
       throw new HttpException('MFA verification is required', 403);
     if (!user.portal_accepted_at || user.portal_notice_version !== configuration().noticeVersion)

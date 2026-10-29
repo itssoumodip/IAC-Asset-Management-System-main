@@ -315,7 +315,7 @@ export function UserAdmin() {
                 key: 'roles',
                 type: 'list',
                 required: true,
-                options: ['EMPLOYEE', 'IT_ADMIN', 'ADMIN'],
+                options: ['EMPLOYEE', 'IT_ADMIN', 'FINANCE', 'EXECUTIVE', 'ADMIN'],
               },
               { key: 'state', required: true, options: ['ACTIVE', 'DISABLED'] },
               { key: 'designation' },
@@ -344,7 +344,7 @@ export function UserAdmin() {
             </Field>
             <fieldset>
               <legend>Roles</legend>
-              {(['EMPLOYEE', 'IT_ADMIN', 'ADMIN'] as Role[]).map((role) => (
+              {(['EMPLOYEE', 'IT_ADMIN', 'FINANCE', 'EXECUTIVE', 'ADMIN'] as Role[]).map((role) => (
                 <label className="checkbox" key={role}>
                   <input
                     type="checkbox"

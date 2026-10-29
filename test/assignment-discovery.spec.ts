@@ -124,6 +124,11 @@ async function mockApi(page: Page, { admin = true, empty = false, stale = false 
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
+    if (
+      method === 'GET' &&
+      (path === '/api/v1/notifications/unread-count' || path === '/notifications/unread-count')
+    )
+      return route.fulfill({ json: { unreadCount: 0 } });
     const json = (body: unknown, status = 200) => route.fulfill({ status, json: body });
     if (method === 'GET' && path === '/api/v1/me')
       return json(
@@ -268,9 +273,7 @@ test('Admin transfer excludes the current custodian and requires an explicit rea
   await expect(page.getByRole('heading', { name: 'Transfer custody', exact: true })).toBeVisible();
   const recipient = page.getByLabel('Approved employee', { exact: true });
   await recipient.click();
-  await expect(page.getByRole('option', { name: /Synthetic Current Custodian/ })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole('option', { name: /Synthetic Current Custodian/ })).toHaveCount(0);
   await page.getByRole('option', { name: /Synthetic Recipient/ }).click();
   const confirm = page.getByRole('button', { name: 'Confirm transfer', exact: true });
   await expect(confirm).toBeDisabled();
@@ -319,10 +322,9 @@ test('Empty assignment chooser explains inventory prerequisites without offering
   await expect(
     page.getByRole('heading', { name: 'No assets ready for assignment', exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Create asset', exact: true }).first()).toHaveAttribute(
-    'href',
-    '/assets/new',
-  );
+  await expect(
+    page.getByRole('link', { name: 'Create asset', exact: true }).first(),
+  ).toHaveAttribute('href', '/assets/new');
   await expect(
     page.getByRole('link', { name: 'Import review', exact: true }).last(),
   ).toHaveAttribute('href', '/admin/imports');
@@ -377,4 +379,16 @@ test('A recipient who loses portal eligibility during review cannot be submitted
   await expect(confirm).toBeDisabled();
   expect(state.writes).toEqual([]);
   expect(state.unexpected).toEqual([]);
+});
+
+test('obsolete portal notice acceptance is not an eligible custody recipient', async ({ page }) => {
+  const state = await mockApi(page);
+  state.users[0].portalNoticeVersion = 'obsolete';
+  await page.goto(`/assets/${assetId}/assign`);
+  await page.getByLabel('Approved employee', { exact: true }).click();
+  await expect(page.getByRole('option', { name: /Synthetic Recipient/ })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Confirm assignment', exact: true }),
+  ).toBeDisabled();
+  expect(state.writes).toEqual([]);
 });

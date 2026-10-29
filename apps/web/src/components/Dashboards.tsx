@@ -6,6 +6,7 @@ import { hasRole, isStaff, useSession } from '../session';
 import type { Asset, Ticket } from '../types';
 import { Badge, Empty, ErrorNotice, Loading, Metric, PageTitle, Panel } from './ui';
 import { useReferences, ReferenceBadge } from './References';
+import { ExecutiveDashboard, FinanceQueue } from './Finance';
 import { AdminInsights } from './AdminInsights';
 interface Summary {
   role?: string;
@@ -43,6 +44,8 @@ function DashboardListSkeleton({ kind, horizontal = false }: { kind: 'equipment'
 export function UserDashboard() {
   const { user } = useSession();
   if (hasRole(user, 'ADMIN')) return <AdminDashboard />;
+  if (hasRole(user, 'FINANCE')) return <FinanceQueue />;
+  if (hasRole(user, 'EXECUTIVE')) return <ExecutiveDashboard />;
   if (isStaff(user)) return <ITDashboard />;
   return <EmployeeDashboard />;
 }

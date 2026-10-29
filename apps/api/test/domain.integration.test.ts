@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
+import { NotificationsService } from '../src/notifications';
 import { register42Headers, resolveImportEmail, sourceHeaders } from '../src/domain-import';
 import type { AuthRequest } from '../src/security';
 
@@ -226,6 +227,13 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     );
     const current = await service.asset(request(employee), asset.id);
     assert.equal(current.status, 'Assigned');
+    const inbox = new NotificationsService(db);
+    assert(
+      (await inbox.workflow(request(admin))).items.some((n) => n.title === 'Assignment accepted'),
+    );
+    assert(
+      (await inbox.workflow(request(employee))).items.some((n) => n.path === '/equipment/mine'),
+    );
   });
   it('creates scoped tickets and queues new-ticket emails only to verified Admin recipients', async () => {
     await service.updateGroup(request(admin), 'ADMIN', {
@@ -243,11 +251,30 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     });
     assert.equal(ticket.status, 'OPEN');
     assert.equal(ticket.notificationState, 'QUEUED');
+    const workflow = await db.query(
+      'SELECT user_id,entity_id FROM workflow_notifications WHERE event_key=$1',
+      [`ticket:${ticket.id}:created`],
+    );
+    assert(workflow.some((n) => n.user_id === admin.id));
+    assert(!workflow.some((n) => n.user_id === itAdmin.id));
+    const inbox = new NotificationsService(db);
+    assert(
+      (await inbox.workflow(request(admin))).items.some((n) => n.path === `/tickets/${ticket.id}`),
+    );
+
     const notifications = await db.query(
       'SELECT d.recipient FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
       [`ticket:${ticket.id}:created`],
     );
-    assert.deepEqual(notifications.map((r) => r.recipient).sort(), [admin.email]);
+    const expectedAdmins = await db.query(
+      `SELECT DISTINCT u.email FROM users u WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='ADMIN')`,
+    );
+    assert.deepEqual(
+      notifications.map((r) => r.recipient).sort(),
+      expectedAdmins.map((r) => r.email).sort(),
+    );
+    assert.ok(notifications.some((r) => r.recipient === admin.email));
+    assert.ok(!notifications.some((r) => r.recipient === itAdmin.email));
     const reported = await service.createTicket(request(other), {
       assetId: asset.id,
       subject: 'Non-holder report',

@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "scope": "Synthetic loopback logical dump and disposable restore; no worker or SMTP dispatch started",
+  "tableCounts": {
+    "schema_migrations": "18",
+    "users": "1109",
+    "assets": "433",
+    "assignments": "142",
+    "assignment_events": "204",
+    "asset_movements": "187",
+    "tickets": "190",
+    "ticket_updates": "202",
+    "asset_finance": "33",
+    "asset_finance_events": "657",
+    "audit_events": "19009",
+    "notification_outbox": "481",
+    "email_deliveries": "14990",
+    "email_attempts": "16768",
+    "asset_photos": "37",
+    "ticket_photos": "73"
+  },
+  "allSelectedRowDigestsMatch": true,
+  "integrityChecks": 3,
+  "financeTriggerPresent": true,
+  "financeMutationRejected": true,
+  "limits": "Not production PITR, encrypted-backup proof, key recovery, RPO/RTO guarantee or disaster recovery certification"
+}

@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import type { PropsWithChildren } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from './api';
-import type { User } from './types';
+import type { User, Role } from './types';
 interface SessionState {
   user?: User;
   loading: boolean;
@@ -36,7 +36,7 @@ export function useSession() {
   if (!value) throw new Error('Session provider missing');
   return value;
 }
-export function hasRole(user: User | undefined, role: 'ADMIN' | 'EMPLOYEE' | 'IT_ADMIN') {
+export function hasRole(user: User | undefined, role: Role) {
   return user?.roles.includes(role) ?? false;
 }
 export function isStaff(user: User | undefined) {

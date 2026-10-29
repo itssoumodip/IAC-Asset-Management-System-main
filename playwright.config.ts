@@ -7,15 +7,30 @@ export default defineConfig({
   timeout: 45000,
   use: {
     baseURL,
+    serviceWorkers: 'block',
+    reducedMotion: 'reduce',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video:
+      process.env.IAC_RECORD_DEMO === '1'
+        ? { mode: 'on', size: { width: 1280, height: 800 } }
+        : 'off',
   },
   projects: [
     {
       name: process.env.CI ? 'chromium' : 'edge',
       use: {
         ...devices['Desktop Chrome'],
-        ...(process.env.CI ? {} : { channel: 'msedge' as const }),
+        ...(process.env.PLAYWRIGHT_CHROME_EXECUTABLE
+          ? {
+              launchOptions: {
+                executablePath: process.env.PLAYWRIGHT_CHROME_EXECUTABLE,
+                ...(process.env.IAC_RECORD_DEMO === '1' ? { slowMo: 500 } : {}),
+              },
+            }
+          : process.env.CI
+            ? {}
+            : { channel: 'msedge' as const }),
       },
     },
   ],

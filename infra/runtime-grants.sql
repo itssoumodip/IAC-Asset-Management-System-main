@@ -16,3 +16,13 @@ GRANT UPDATE ON SEQUENCE asset_number_seq TO iac_runtime;
 GRANT INSERT ON ticket_photos,asset_label_prints TO iac_runtime;
 -- No DELETE on assets/custody/tickets; no UPDATE/DELETE on immutable evidence.
 -- Reapply explicit grants after new migrations. Do not grant schema ownership.
+
+GRANT INSERT,UPDATE ON asset_finance TO iac_runtime;
+GRANT INSERT ON asset_finance_events TO iac_runtime;
+
+GRANT INSERT ON finance_invoice_evidence TO iac_runtime;
+
+GRANT INSERT ON workflow_notifications,workflow_notification_reads TO iac_runtime;
+
+GRANT INSERT,UPDATE ON stocktake_runs TO iac_runtime;
+GRANT INSERT ON stocktake_expected,stocktake_observations TO iac_runtime;

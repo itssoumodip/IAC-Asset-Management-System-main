@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { LifecyclePage } from './components/Lifecycle';
+import { StocktakePage } from './components/Stocktake';
+import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -21,6 +23,9 @@ import { MasterControl } from './components/MasterControl';
 import { PushAnnouncements } from './components/PushAnnouncements';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
 import { useAction } from './hooks';
+import { EquipmentPeople, PersonEquipment } from './components/Equipment';
+import { DeliveryHealth } from './components/DeliveryHealth';
+import { FinanceQueue, FinanceDetail, ExecutiveDashboard } from './components/Finance';
 function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnly?: boolean }) {
   const { user, loading, error } = useSession();
   const location = useLocation();
@@ -168,6 +173,28 @@ function NavIcon({ name }: { name: NavIconName }) {
 function Shell() {
   const { user } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 650px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 650px)');
+    const change = () => {
+      setMobile(media.matches);
+      setMenuOpen(false);
+    };
+    media.addEventListener('change', change);
+    return () => media.removeEventListener('change', change);
+  }, []);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+        menuButton.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [menuOpen]);
   const [logoutError, setLogoutError] = useState<unknown>();
   const [signingOut, setSigningOut] = useState(false);
   const client = useQueryClient();
@@ -192,7 +219,21 @@ function Shell() {
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <aside id="mobile-nav" className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
+      {mobile && menuOpen ? (
+        <button
+          className="nav-scrim"
+          aria-label="Close navigation"
+          onClick={() => {
+            setMenuOpen(false);
+            menuButton.current?.focus();
+          }}
+        />
+      ) : null}
+      <aside
+        id="mobile-nav"
+        inert={mobile && !menuOpen ? true : undefined}
+        className={`sidebar ${menuOpen ? 'is-open' : ''}`}
+      >
         <Link to="/dashboard" className="brand">
           <BrandMark />
           <span className="brand-text">
@@ -202,24 +243,59 @@ function Shell() {
         </Link>
         <p className="nav-label">Workspace</p>
         <nav aria-label="Main navigation" onClick={() => setMenuOpen(false)}>
+          {hasRole(user, 'ADMIN') || hasRole(user, 'FINANCE') ? (
+            <NavLink to="/equipment/people">
+              <span className="nav-icon">
+                <NavIcon name="people" />
+              </span>
+              People &amp; equipment
+            </NavLink>
+          ) : hasRole(user, 'EMPLOYEE') ? (
+            <NavLink to="/equipment/mine">
+              <span className="nav-icon">
+                <NavIcon name="assets" />
+              </span>
+              My equipment
+            </NavLink>
+          ) : null}
           <NavLink to="/dashboard">
             <span className="nav-icon">
               <NavIcon name="overview" />
             </span>
             Overview
           </NavLink>
-          <NavLink to="/assets">
-            <span className="nav-icon">
-              <NavIcon name="assets" />
-            </span>
-            {hasRole(user, 'ADMIN') ? 'Asset catalog' : 'Assets'}
-          </NavLink>
-          <NavLink to="/tickets">
-            <span className="nav-icon">
-              <NavIcon name="tickets" />
-            </span>
-            {isStaff(user) ? 'Support desk' : 'My tickets'}
-          </NavLink>
+          {hasRole(user, 'ADMIN') || hasRole(user, 'EMPLOYEE') || hasRole(user, 'IT_ADMIN') ? (
+            <NavLink to="/assets">
+              <span className="nav-icon">
+                <NavIcon name="assets" />
+              </span>
+              {hasRole(user, 'ADMIN') ? 'Asset catalog' : 'Assets'}
+            </NavLink>
+          ) : null}
+          {hasRole(user, 'ADMIN') || hasRole(user, 'EMPLOYEE') || hasRole(user, 'IT_ADMIN') ? (
+            <NavLink to="/tickets">
+              <span className="nav-icon">
+                <NavIcon name="tickets" />
+              </span>
+              {isStaff(user) ? 'Support desk' : 'My tickets'}
+            </NavLink>
+          ) : null}
+          {hasRole(user, 'ADMIN') || hasRole(user, 'FINANCE') ? (
+            <NavLink to="/finance">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Finance review
+            </NavLink>
+          ) : null}
+          {hasRole(user, 'ADMIN') || hasRole(user, 'FINANCE') || hasRole(user, 'EXECUTIVE') ? (
+            <NavLink to="/executive">
+              <span className="nav-icon">
+                <NavIcon name="overview" />
+              </span>
+              Executive overview
+            </NavLink>
+          ) : null}
           <NavLink
             to="/notifications"
             aria-label={
@@ -277,11 +353,19 @@ function Shell() {
                 </span>
                 People &amp; access
               </NavLink>
+              <NavLink to="/admin/lifecycle">Lifecycle attention</NavLink>
+              <NavLink to="/admin/stocktake">Physical stocktake</NavLink>
               <NavLink to="/admin/imports">
                 <span className="nav-icon">
                   <NavIcon name="imports" />
                 </span>
                 Import review
+              </NavLink>
+              <NavLink to="/admin/deliveries">
+                <span className="nav-icon">
+                  <NavIcon name="audit" />
+                </span>
+                Email delivery
               </NavLink>
               <NavLink to="/admin/audit">
                 <span className="nav-icon">
@@ -303,6 +387,7 @@ function Shell() {
           <button
             type="button"
             className="menu-button"
+            ref={menuButton}
             onClick={() => setMenuOpen(!menuOpen)}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
@@ -368,18 +453,20 @@ function Profile() {
     }
     const emailChanged = newEmail.trim().toLowerCase() !== user?.email;
     const passwordChanged = newPassword.length > 0;
-    const result = await profileAction.mutateAsync({
-      path: '/me/profile',
-      method: 'PATCH',
-      version: user?.version,
-      body: {
-        displayName: displayName.trim(),
-        designation: designation.trim() || null,
-        ...(emailChanged || cancelPendingEmail ? { newEmail } : {}),
-        ...(passwordChanged ? { newPassword } : {}),
-        ...(emailChanged || cancelPendingEmail || passwordChanged ? { currentPassword } : {}),
-      },
-    }).catch(() => undefined);
+    const result = await profileAction
+      .mutateAsync({
+        path: '/me/profile',
+        method: 'PATCH',
+        version: user?.version,
+        body: {
+          displayName: displayName.trim(),
+          designation: designation.trim() || null,
+          ...(emailChanged || cancelPendingEmail ? { newEmail } : {}),
+          ...(passwordChanged ? { newPassword } : {}),
+          ...(emailChanged || cancelPendingEmail || passwordChanged ? { currentPassword } : {}),
+        },
+      })
+      .catch(() => undefined);
     if (result) {
       setSaved(result.message);
       setCurrentPassword('');
@@ -392,36 +479,106 @@ function Profile() {
   return (
     <section className="panel profile-panel">
       <h1>Account details</h1>
-      <p className="muted">Update your profile. Role and department changes are managed by an administrator.</p>
+      <p className="muted">
+        Update your profile. Role and department changes are managed by an administrator.
+      </p>
       <ErrorNotice error={profileAction.error} />
-      {saved ? <p className="notice success" role="status">{saved}</p> : null}
+      {saved ? (
+        <p className="notice success" role="status">
+          {saved}
+        </p>
+      ) : null}
       <form className="form-stack" onSubmit={(event) => void saveProfile(event)}>
         <Field label="Name" htmlFor="profile-name">
-          <input id="profile-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={120} />
+          <input
+            id="profile-name"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            required
+            maxLength={120}
+          />
         </Field>
-        <Field label="Work email" htmlFor="profile-email" hint={user?.pendingEmail ? `Pending confirmation: ${user.pendingEmail}` : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'}>
-          <input id="profile-email" type="email" value={newEmail} onChange={(event) => { setNewEmail(event.target.value); setCancelPendingEmail(false); }} required maxLength={254} />
+        <Field
+          label="Work email"
+          htmlFor="profile-email"
+          hint={
+            user?.pendingEmail
+              ? `Pending confirmation: ${user.pendingEmail}`
+              : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'
+          }
+        >
+          <input
+            id="profile-email"
+            type="email"
+            value={newEmail}
+            onChange={(event) => {
+              setNewEmail(event.target.value);
+              setCancelPendingEmail(false);
+            }}
+            required
+            maxLength={254}
+          />
         </Field>
         {user?.pendingEmail && !cancelPendingEmail ? (
-          <button className="button secondary" type="button" onClick={() => { setNewEmail(user.email); setCancelPendingEmail(true); }}>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => {
+              setNewEmail(user.email);
+              setCancelPendingEmail(true);
+            }}
+          >
             Cancel pending email change
           </button>
         ) : null}
-        {newEmail.trim().toLowerCase() !== user?.email || cancelPendingEmail || newPassword.length > 0 ? (
+        {newEmail.trim().toLowerCase() !== user?.email ||
+        cancelPendingEmail ||
+        newPassword.length > 0 ? (
           <Field label="Current password" htmlFor="profile-current-password">
-            <input id="profile-current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
+            <input
+              id="profile-current-password"
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+              autoComplete="current-password"
+            />
           </Field>
         ) : null}
-        <Field label="New password" htmlFor="profile-new-password" hint="Leave blank to keep your current password. Use at least 12 characters.">
-          <input id="profile-new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={12} autoComplete="new-password" />
+        <Field
+          label="New password"
+          htmlFor="profile-new-password"
+          hint="Leave blank to keep your current password. Use at least 12 characters."
+        >
+          <input
+            id="profile-new-password"
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            minLength={12}
+            autoComplete="new-password"
+          />
         </Field>
         {newPassword ? (
           <Field label="Confirm new password" htmlFor="profile-confirm-password">
-            <input id="profile-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={12} autoComplete="new-password" />
+            <input
+              id="profile-confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+              minLength={12}
+              autoComplete="new-password"
+            />
           </Field>
         ) : null}
         <Field label="Designation" htmlFor="profile-designation">
-          <input id="profile-designation" value={designation} onChange={(event) => setDesignation(event.target.value)} maxLength={120} />
+          <input
+            id="profile-designation"
+            value={designation}
+            onChange={(event) => setDesignation(event.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field label="Department" htmlFor="profile-department">
           <input id="profile-department" value={user?.department ?? 'Not set'} readOnly />
@@ -469,6 +626,12 @@ export function App() {
         <Route element={<Guard />}>
           <Route element={<Shell />}>
             <Route path="/dashboard" element={<UserDashboard />} />
+            <Route path="/equipment/people" element={<EquipmentPeople />} />
+            <Route path="/equipment/people/:id" element={<PersonEquipment />} />
+            <Route path="/equipment/mine" element={<PersonEquipment />} />
+            <Route path="/finance" element={<FinanceQueue />} />
+            <Route path="/finance/:id" element={<FinanceDetail />} />
+            <Route path="/executive" element={<ExecutiveDashboard />} />
             <Route path="/assets" element={<AssetList />} />
             <Route path="/a/:assetCode" element={<ScanPage />} />
             <Route path="/assets/:id" element={<AssetDetail />} />
@@ -492,7 +655,11 @@ export function App() {
               <Route path="/assets/:id/assign" element={<AssignmentForm />} />
               <Route path="/master-control" element={<MasterControl />} />
               <Route path="/admin/users" element={<UserAdmin />} />
+              <Route path="/admin/lifecycle" element={<LifecyclePage />} />
+              <Route path="/admin/stocktake" element={<StocktakePage />} />
+              <Route path="/admin/stocktake/:id" element={<StocktakePage />} />
               <Route path="/admin/imports" element={<ImportsView />} />
+              <Route path="/admin/deliveries" element={<DeliveryHealth />} />
               <Route path="/admin/audit" element={<AuditView />} />
             </Route>
           </Route>

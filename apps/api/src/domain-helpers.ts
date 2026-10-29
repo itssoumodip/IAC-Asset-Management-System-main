@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Actor, AuthRequest } from './security';
 import { Db } from './db';
+import { configuration } from './config';
 
 export const text = (max = 5000) => z.string().trim().min(1).max(max);
 export const uuid = z.string().uuid();
@@ -82,6 +83,22 @@ export const assetInput = z
     commentType: optionalText(),
   })
   .strict();
+// Shared financial metadata for Finance review and immutable approval evidence.
+export const financialKeys = [
+  'purchaseCost',
+  'purchaseDate',
+  'currency',
+  'invoiceNumber',
+  'supplier',
+  'residualValue',
+  'depreciationMethod',
+  'usefulLifeYears',
+  'insurancePolicyNumber',
+  'insuranceExpiry',
+] as const;
+export const financialShape = Object.fromEntries(
+  financialKeys.map((key) => [key, assetInput.shape[key]]),
+) as Pick<typeof assetInput.shape, (typeof financialKeys)[number]>;
 export const assetPatch = assetInput.partial().extend({ reason: text() }).strict();
 export const ticketInput = z
   .object({
@@ -177,11 +194,17 @@ export function page(rows: any[], limit: number, fields: string[]) {
   const items = rows.slice(0, limit);
   const last = items.at(-1);
   return {
-    items: items.map(camel),
+    items: items.map((row) =>
+      camel(Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith('cursor_')))),
+    ),
     nextCursor: hasMore
       ? Buffer.from(
           JSON.stringify(
-            fields.map((f) => (last[f] instanceof Date ? last[f].toISOString() : String(last[f]))),
+            fields.map(
+              (f) =>
+                last[`cursor_${f}`] ??
+                (last[f] instanceof Date ? last[f].toISOString() : String(last[f])),
+            ),
           ),
         ).toString('base64url')
       : null,
@@ -409,12 +432,17 @@ export async function validateAsset(db: Db, data: any, c: PoolClient, previous?:
       'Terminal assets require disposal date and evidence reference',
     );
 }
-export async function eligibleEmployee(db: Db, userId: string, c: PoolClient, allowInvited = false) {
+export async function eligibleEmployee(
+  db: Db,
+  userId: string,
+  c: PoolClient,
+  allowInvited = false,
+) {
   return found(
     (
       await db.query(
-        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
-        [userId, allowInvited],
+        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL AND u.portal_notice_version=$3)) FOR SHARE OF u`,
+        [userId, allowInvited, configuration().noticeVersion],
         c,
       )
     )[0],

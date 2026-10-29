@@ -1,0 +1,84 @@
+{
+  "restrictedRuntimeRole": true,
+  "scope": "20 concurrent local HTTP readers over50000synthetic assets and1000Finance records; one synthetic Finance approval through restricted-role HTTP before the read workload; no concurrent mutation workload, files, production traffic or SMTP",
+  "durationMs": 10088.670312,
+  "totalRequests": 2410,
+  "errorCount": 0,
+  "results": [
+    {
+      "path": "/assets?limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 302,
+      "medianMs": 81.62451800000008,
+      "p95Ms": 106.79932199999985,
+      "maxMs": 179.15725199999974
+    },
+    {
+      "path": "/assets?q=25000&limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 302,
+      "medianMs": 110.11827600000106,
+      "p95Ms": 155.96704500000033,
+      "maxMs": 231.1195389999998
+    },
+    {
+      "path": "/finance/queue?state=SUBMITTED&limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 301,
+      "medianMs": 64.51739300000008,
+      "p95Ms": 90.51641300000028,
+      "maxMs": 175.0429919999999
+    },
+    {
+      "path": "/finance/executive-summary",
+      "expected": 200,
+      "errors": 0,
+      "requests": 301,
+      "medianMs": 171.8085859999992,
+      "p95Ms": 224.32493799999975,
+      "maxMs": 300.6093579999997
+    },
+    {
+      "path": "/finance/assets/122de130-bcf2-4162-ad98-453a9f70d40f/history",
+      "expected": 200,
+      "errors": 0,
+      "requests": 301,
+      "medianMs": 82.46414199999981,
+      "p95Ms": 108.59144300000025,
+      "maxMs": 224.42772600000012
+    },
+    {
+      "path": "/equipment/people",
+      "expected": 403,
+      "errors": 0,
+      "requests": 301,
+      "medianMs": 48.34459799999968,
+      "p95Ms": 69.54738999999972,
+      "maxMs": 98.32514599999968
+    },
+    {
+      "path": "/finance/queue",
+      "expected": 403,
+      "errors": 0,
+      "requests": 301,
+      "medianMs": 47.993859999999586,
+      "p95Ms": 71.91323499999999,
+      "maxMs": 104.93797500000005
+    },
+    {
+      "path": "/finance/assets/122de130-bcf2-4162-ad98-453a9f70d40f",
+      "expected": 403,
+      "errors": 0,
+      "requests": 301,
+      "medianMs": 49.00170900000012,
+      "p95Ms": 72.71102100000007,
+      "maxMs": 133.44087399999967
+    }
+  ],
+  "financeEvidenceUnchanged": true,
+  "limits": "Local PostgreSQL14/Node24 warm run. Not sustained production capacity, WAN latency, write contention, attachment/import load, availability or an SLA.",
+  "restrictedFinanceHttpApprovalVerified": true
+}

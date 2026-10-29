@@ -85,6 +85,7 @@ function canTransfer(asset: Asset) {
 export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean }) {
   const { user } = useSession();
   const manage = hasRole(user, 'ADMIN');
+  const support = hasRole(user, 'IT_ADMIN');
   const [params, setParams] = useSearchParams();
   const refs = useReferences();
   const filters = {
@@ -117,13 +118,23 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
       ) : null}
       <PageTitle
         eyebrow={manage ? 'INVENTORY / ASSETS' : 'MY WORKSPACE / ASSETS'}
-        title={assignmentMode ? 'Assign an asset' : manage ? 'Asset catalog' : 'Your assets'}
+        title={
+          assignmentMode
+            ? 'Assign an asset'
+            : manage
+              ? 'Asset catalog'
+              : support
+                ? 'Available assets'
+                : 'Your assets'
+        }
         description={
           assignmentMode
             ? 'Choose an In Store asset below, then select an eligible employee and confirm the handover.'
             : manage
               ? 'One register. Clear custody. Every asset accounted for.'
-              : 'Review the equipment assigned to you and confirm its details.'
+              : support
+                ? 'Equipment assigned to you or linked to support tickets. Custody and financial details remain restricted.'
+                : 'Review the equipment assigned to you and confirm its details.'
         }
         action={
           manage ? (
@@ -287,7 +298,12 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                       <div className="actions">
                         {manage && canAssign(asset) ? (
                           <Link
-                            to={`/assets/${asset.id}/assign`}
+                            to={
+                              `/assets/${asset.id}/assign` +
+                              (params.get('person')
+                                ? '?person=' + encodeURIComponent(params.get('person')!)
+                                : '')
+                            }
                             className="table-link"
                             aria-label={`Assign ${asset.assetCode}`}
                           >
@@ -929,6 +945,13 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     ];
     for (const name of allowed) {
       const value = values[name];
+      // Editing a catalog note must not re-submit unchanged Finance-controlled
+      // fields. The API remains authoritative for actual financial changes.
+      if (baseline) {
+        const original = baseline[name as keyof Asset];
+        const normalized = original == null ? '' : String(original);
+        if ((value?.trim() ?? '') === normalized.trim()) continue;
+      }
       if (value?.trim()) body[name] = value.trim();
       else if (
         baseline &&
@@ -1294,20 +1317,32 @@ export function AssignmentForm() {
   const navigate = useNavigate();
   const asset = useQuery({ queryKey: ['asset', id], queryFn: () => api<Asset>(`/assets/${id}`) });
   const employees = usePages<User>('/users', { state: 'ACTIVE', role: 'EMPLOYEE' });
-  const [userId, setUserId] = useState('');
+  const personId = params.get('person');
+  const presetPerson = useQuery({
+    queryKey: ['assignment-person', personId],
+    enabled: !!personId,
+    queryFn: () => api<{ items: User[] }>(`/users?id=${encodeURIComponent(personId!)}`),
+  });
+  const [userId, setUserId] = useState(params.get('person') || '');
   const [note, setNote] = useState('');
   const action = useAction();
   const items =
-    employees.data?.pages
-      .flatMap((page) => page.items)
-      .filter(
-        (user) =>
-          user.state === 'ACTIVE' &&
-          user.emailVerifiedAt &&
-          user.portalAcceptedAt &&
-          user.roles.includes('EMPLOYEE') &&
-          user.id !== asset.data?.currentAssignment?.userId,
-      ) ?? [];
+    [
+      ...new Map(
+        [
+          ...(presetPerson.data?.items ?? []),
+          ...(employees.data?.pages.flatMap((page) => page.items) ?? []),
+        ].map((u) => [u.id, u]),
+      ).values(),
+    ].filter(
+      (user) =>
+        user.state === 'ACTIVE' &&
+        user.emailVerifiedAt &&
+        user.portalAcceptedAt &&
+        user.portalNoticeVersion === (user.currentNoticeVersion ?? '1') &&
+        user.roles.includes('EMPLOYEE') &&
+        user.id !== asset.data?.currentAssignment?.userId,
+    ) ?? [];
   const [baseline, setBaseline] = useState<{ id: string; transfer: boolean; version: number }>();
   const selectedEmployee = items.find((employee) => employee.id === userId);
   const custodyAvailable =
@@ -1343,7 +1378,12 @@ export function AssignmentForm() {
       })
       .then(() => true)
       .catch(() => false);
-    if (result) navigate(`/assets/${id}`);
+    if (result)
+      navigate(
+        params.get('person')
+          ? `/equipment/people/${encodeURIComponent(params.get('person')!)}`
+          : `/assets/${id}`,
+      );
   }
   return (
     <>
@@ -1361,6 +1401,7 @@ export function AssignmentForm() {
           void employees.refetch();
         }}
       />
+      <ErrorNotice error={presetPerson.error} retry={() => void presetPerson.refetch()} />
       <ErrorNotice error={action.error} retry={() => window.location.reload()} />
       {asset.isPending ? (
         <Loading />
@@ -1425,6 +1466,21 @@ export function AssignmentForm() {
                   })),
                 ]}
               />
+              {personId && selectedEmployee ? (
+                <div className="notice">
+                  <p>
+                    Selected from their equipment workspace: {selectedEmployee.displayName} ·{' '}
+                    {selectedEmployee.email}. Confirm this recipient before assigning.
+                  </p>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => choose(selectedEmployee.id)}
+                  >
+                    Use this person for this item
+                  </button>
+                </div>
+              ) : null}
               <p id="assignment-eligibility" className="muted">
                 Recipients must be Active, have a verified email, accept portal access and hold the
                 Employee role. Manage invitations and roles in{' '}

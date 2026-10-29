@@ -301,7 +301,8 @@ export function AuthScreen({ mode }: { mode: AuthMode }) {
           )}
         </div>
         <div className="auth-note">
-          Admin and IT accounts use two-step verification. Your access is managed by IAC.
+          Admin, IT, Finance and Executive accounts use two-step verification. Your access is
+          managed by IAC.
         </div>
       </div>
     </AccessLayout>
@@ -469,7 +470,9 @@ export function SecurityScreen() {
     <AccessLayout>
       <div className="auth-card">
         <h1>Two-step verification</h1>
-        <p className="muted">Admin and IT access requires an authenticator app.</p>
+        <p className="muted">
+          Admin, IT, Finance and Executive access requires an authenticator app.
+        </p>
         <ErrorNotice error={error} />
         {codes.length ? (
           <>

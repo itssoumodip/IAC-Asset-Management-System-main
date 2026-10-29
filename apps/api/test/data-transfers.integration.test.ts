@@ -250,7 +250,7 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
           'POST',
           input(
             'tickets',
-            Array.from({ length: 51 }, () => ({ subject: 'Example' })),
+            Array.from({ length: 501 }, () => ({ subject: 'Example' })),
           ),
         )
       ).status,
@@ -275,9 +275,9 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     );
     const large = input(
       'tickets',
-      Array.from({ length: 13 }, () => ({ description: 'x'.repeat(4600) })),
+      Array.from({ length: 500 }, () => ({ description: 'x'.repeat(5000), subject: 'x'.repeat(5000), category: 'x'.repeat(5000) })),
     );
-    assert.equal((await admin.browser.request('/transfers/preview', 'POST', large)).status, 422);
+    assert.equal((await admin.browser.request('/transfers/preview', 'POST', large)).status, 413);
     const [{ previews }] = await db.query('SELECT count(*)::int AS previews FROM data_transfers');
     const forbidden = await admin.browser.request(
       '/transfers/preview',
@@ -299,7 +299,7 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
       {
         action: 'CREATE',
         code: `${tag}-preview`,
-        name: '  Synthetic department  ',
+        name: `  Synthetic department ${tag}  `,
         active: 'true',
       },
       { action: 'CREATE', code: `${tag}-invalid`, name: '', active: 'true' },
@@ -320,7 +320,11 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     assert.equal(stored.actor_id, admin.id);
     assert.equal(stored.source_filename, 'synthetic.csv');
     assert.equal(stored.source_sha256, 'a'.repeat(64));
-    assert.equal((await commit(admin, batch)).status, 409);
+    const committed = await commit(admin, batch);
+    assert.equal(committed.status, 201);
+    assert.equal(committed.data.rowCount, 1);
+    assert.equal(committed.data.skippedCount, 1);
+    assert.equal((await db.query('SELECT id FROM departments WHERE code=$1',[rows[1]!.code])).length,0);
   });
   it('commits atomically, returns one stored receipt on repeats, binds the actor and protects source payload', async () => {
     const rows = [1, 2].map((index) => ({
@@ -522,9 +526,11 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     assert.equal(duplicate.valid, false);
     assert.match(duplicate.rows[1].errors[0], /more than once/);
     assert.deepEqual(await counts(), beforeCounts);
-    const batch = await preview(admin, 'people', [
-      { action: 'INVITE', email, displayName: 'Synthetic invited employee' },
-    ]);
+    const response = await admin.browser.request('/transfers/preview', 'POST', {
+      ...input('people', [{ action: 'INVITE', email, displayName: 'Synthetic invited employee' }]), sendEmails: true,
+    });
+    assert.equal(response.status, 201);
+    const batch = response.data;
     assert.equal(batch.valid, true);
     assert.deepEqual(await counts(), beforeCounts);
     assert.equal((await db.query('SELECT id FROM users WHERE email=$1', [email])).length, 0);

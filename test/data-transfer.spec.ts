@@ -77,6 +77,11 @@ async function mockApi(page: Page, { admin = false, failFirstCommit = false } = 
       url = new URL(request.url()),
       path = url.pathname,
       method = request.method();
+    if (
+      method === 'GET' &&
+      (path === '/api/v1/notifications/unread-count' || path === '/notifications/unread-count')
+    )
+      return route.fulfill({ json: { unreadCount: 0 } });
     const json = async (body: unknown, status = 200) => route.fulfill({ status, json: body });
     if (method === 'GET' && path === '/api/v1/me')
       return json(
@@ -132,7 +137,10 @@ async function mockApi(page: Page, { admin = false, failFirstCommit = false } = 
     }
     if (method === 'GET' && /^\/api\/v1\/assets\/[^/]+$/.test(path)) {
       const asset = assets.find((a) => a.id === path.split('/').pop());
-      return json(asset ?? { error: { code: 'NOT_FOUND', message: 'Asset not found' } }, asset ? 200 : 404);
+      return json(
+        asset ?? { error: { code: 'NOT_FOUND', message: 'Asset not found' } },
+        asset ? 200 : 404,
+      );
     }
     if (method === 'GET' && path === `/api/v1/tickets/${ticketId}`) return json(state.ticket);
     if (method === 'GET' && path === `/api/v1/tickets/${ticketId}/updates`)
@@ -189,7 +197,7 @@ async function mockApi(page: Page, { admin = false, failFirstCommit = false } = 
             version: 1,
           },
         );
-        return json({ rowCount: 2, state: 'COMMITTED' });
+        return json({ rowCount: 2, skippedCount: 0, state: 'COMMITTED' });
       }
       if (
         admin &&
@@ -273,7 +281,7 @@ test('Admin bulk CSV preview requires explicit confirmation; expired preview can
     },
   });
   expect(state.writes[0].body.sha256).toMatch(/^[a-f0-9]{64}$/);
-  const apply = page.getByRole('button', { name: 'Apply validated import', exact: true });
+  const apply = page.getByRole('button', { name: 'Apply 2 valid rows', exact: true });
   await expect(apply).toBeDisabled();
   await page.getByRole('checkbox', { name: /I reviewed these changes and authorize/ }).check();
   await apply.click();
@@ -294,7 +302,7 @@ test('Admin bulk CSV preview requires explicit confirmation; expired preview can
   await page.getByRole('checkbox', { name: /I reviewed these changes and authorize/ }).check();
   await apply.click();
   await expect(page.getByRole('status')).toHaveText(
-    '2 records imported. Changes saved with an audit trail.',
+    '2 records imported. 0 invalid rows skipped. Changes saved with an audit trail.',
   );
   expect(
     state.writes.filter((write) => write.path.endsWith('/commit')).map((write) => write.body),

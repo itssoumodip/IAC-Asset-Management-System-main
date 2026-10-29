@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import QrScanner from 'qr-scanner';
 import { assetPathFromScan } from '../scan-url';
 
@@ -61,11 +62,18 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
 
   useEffect(() => {
     if (!open) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.classList.add('camera-scanner-open');
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.documentElement.classList.remove('camera-scanner-open');
+      window.removeEventListener('keydown', onKey);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -78,42 +86,39 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
     navigate(`/a/${encodeURIComponent(code)}`);
   }
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Scan asset label"
-      className="fixed inset-0 z-[60] flex flex-col bg-black text-white"
+      className="camera-scanner-dialog"
     >
-      <div className="flex items-center justify-between p-3">
+      <div className="camera-scanner-header">
         <strong>Scan asset label</strong>
         <button type="button" className="button secondary small" onClick={onClose}>
           Close
         </button>
       </div>
-      <div className="relative min-h-0 flex-1">
-        <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+      <div className="camera-scanner-video">
+        <video ref={videoRef} className="camera-scanner-stream" muted playsInline />
         {cameraError ? (
-          <p role="alert" className="absolute inset-x-0 top-0 bg-black/70 p-3 text-sm">
+          <p role="alert" className="camera-scanner-error">
             Camera unavailable. Type the asset ID below instead.
           </p>
         ) : null}
         {notice ? (
-          <p
-            role="alert"
-            className="absolute inset-x-0 bottom-0 bg-black/70 p-3 text-center text-sm"
-          >
+          <p role="alert" className="camera-scanner-notice">
             {notice}
           </p>
         ) : null}
       </div>
-      <form onSubmit={submitTyped} className="flex gap-2 bg-white p-3 text-ink">
+      <form onSubmit={submitTyped} className="camera-scanner-form">
         <label className="sr-only" htmlFor="scan-asset-id">
           Type the asset ID
         </label>
         <input
           id="scan-asset-id"
-          className="min-h-11 flex-1 rounded-md border border-sheet-edge px-3"
+          className="camera-scanner-input"
           placeholder="Type the asset ID"
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
@@ -124,7 +129,8 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
           Go
         </button>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

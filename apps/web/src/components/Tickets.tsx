@@ -53,10 +53,17 @@ export function TicketList() {
   const [params, setParams] = useSearchParams();
   const status = params.get('status') ?? '';
   const priority = params.get('priority') ?? '';
-  const query = usePages<Ticket>('/tickets', {
+  const category = params.get('category') ?? '';
+  const search = params.get('q') ?? '';
+  const ownership = staff ? (params.get('ownership') ?? 'ANY') : 'ANY';
+  const filters = {
     status: status || undefined,
     priority: priority || undefined,
-  });
+    category: category || undefined,
+    q: search || undefined,
+    ownership: ownership === 'ANY' ? undefined : ownership,
+  };
+  const query = usePages<Ticket>('/tickets', filters);
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   function filter(name: string, value: string) {
     const next = new URLSearchParams(params);
@@ -84,19 +91,14 @@ export function TicketList() {
         name="tickets"
         columns={ticketExportColumns}
         load={async () =>
-          (
-            await fetchAllPages('/tickets', {
-              status: status || undefined,
-              priority: priority || undefined,
-            })
-          ).map((item) =>
+          (await fetchAllPages('/tickets', filters)).map((item) =>
             Object.fromEntries(ticketExportColumns.map((key) => [key, item[key] ?? ''])),
           )
         }
       />
       <BulkTransfer module="tickets" />
       <Panel>
-        <div className="filter-bar">
+        <div className="filter-bar ticket-triage-filters">
           <Field label="Status" htmlFor="ticket-status-filter">
             <ReferenceSelect
               refs={refs.data}
@@ -121,6 +123,40 @@ export function TicketList() {
               includeInactive
             />
           </Field>
+          <Field label="Category" htmlFor="ticket-category-filter">
+            <ReferenceSelect
+              refs={refs.data}
+              kind="TICKET_CATEGORY"
+              id="ticket-category-filter"
+              value={category}
+              onChange={(v) => filter('category', v)}
+              required={false}
+              allowEmpty
+              includeInactive
+            />
+          </Field>
+          <Field label="Search subject or ticket number" htmlFor="ticket-search-filter">
+            <input
+              id="ticket-search-filter"
+              value={search}
+              onChange={(e) => filter('q', e.target.value)}
+              maxLength={100}
+              placeholder="Search support requests"
+            />
+          </Field>
+          {staff ? (
+            <Field label="Ownership" htmlFor="ticket-ownership-filter">
+              <select
+                id="ticket-ownership-filter"
+                value={ownership}
+                onChange={(e) => filter('ownership', e.target.value)}
+              >
+                <option value="ANY">Any owner</option>
+                <option value="MINE">Assigned to me</option>
+                <option value="UNASSIGNED">Unassigned</option>
+              </select>
+            </Field>
+          ) : null}
           <p className="muted filter-hint">
             {staff
               ? 'Public replies notify the employee. Internal notes stay with your team.'

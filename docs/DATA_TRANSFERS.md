@@ -163,3 +163,7 @@ Loading reconciliation, review controls or correction tables clears Finance and 
 Apply migration 007 with `npm run db:migrate`; production operators must reapply [runtime-grants.sql](../infra/runtime-grants.sql). The restricted transfer table retains submitted provenance and the committed receipt. Include it in approved backup/retention procedures. No import/export action changes SMTP configuration.
 
 Generic bulk REST routes are `GET /api/v1/transfers/definitions`, `POST /api/v1/transfers/preview` and `POST /api/v1/transfers/:id/commit` with `{confirmed:true}` for Apply. Normal session, MFA, portal and CSRF checks remain in force. Register staging/review/commit continues to use `/api/v1/imports`; single-form imports continue to use the original business endpoint only after Save/Submit. See [API.md](API.md) for the full route contract.
+
+### Financial drafts and review
+
+Admin may import financial draft values for new catalog records. They are not approved values. Explicit submission to a separate Finance reviewer is still needed. After submission, financial catalog edits are blocked, including insurance metadata; Finance checks and approves corrections.

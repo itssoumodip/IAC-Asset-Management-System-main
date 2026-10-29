@@ -1,0 +1,7 @@
+# Lifecycle attention and recovery planning
+
+Admin's Lifecycle attention page is a read-only operational queue. Warranty/AMC views show recorded dates due in 30 or 90 days, already expired dates, or missing dates. Date windows use the organization's Asia/Kolkata calendar, include both endpoints, and include all asset statuses. AMC only applies when the asset says it applies. Coverage is recorded evidence, not confirmation from a vendor. The page does not renew, purchase, send reminders or choose a recipient/cadence policy.
+
+Equipment recovery planning lists current outstanding custody, including users whose accounts are disabled or whose Employee role changed. This closes a discoverability gap in an Employee-only directory. It is not a list of confirmed leavers. Open a person's current equipment and use the existing per-item reason/version-checked return flow after physical recovery. No bulk return, account disable, HR offboarding, legal release or employee liability action is inferred. Returned items disappear from the current outstanding list while their custody history stays on the asset.
+
+Both queues use paged live database reads and Admin-only access. This first slice is attention and recovery preparation, not a complete offboarding case/signoff workflow or automated expiry notification service. Company owners, reminder recipients, cadence, lead times, escalation and closure authority remain policy gates.

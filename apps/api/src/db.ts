@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient, types } from 'pg';
 types.setTypeParser(1082, (value) => value);
+import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { configuration, encrypt, requestContext } from './config';
@@ -16,6 +17,10 @@ export class Db implements OnModuleDestroy {
       max: 10,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
+      // Server-side cancellation bounds active work even if the browser disconnects.
+      statement_timeout: 30000,
+      lock_timeout: 5000,
+      idle_in_transaction_session_timeout: 30000,
       ...(process.env.DATABASE_SSL === 'true' ? { ssl: { rejectUnauthorized: true } } : {}),
     });
     this.pool.on('error', () => process.stderr.write('Database pool connection error\n'));
@@ -80,7 +85,23 @@ export class Db implements OnModuleDestroy {
     template: string,
     recipients: string[],
     data: { subject: string; text: string },
+    workflow?: {
+      kind: 'TICKET' | 'FINANCE_REVIEW' | 'FINANCE_RESULT';
+      entityId: string;
+      title: string;
+      message: string;
+    },
   ): Promise<void> {
+    if (workflow)
+      await this.workflowNotify(
+        client,
+        eventKey,
+        workflow.kind,
+        workflow.entityId,
+        recipients,
+        workflow.title,
+        workflow.message,
+      );
     const rows = await this.query(
       'INSERT INTO notification_outbox(event_key,template,payload) VALUES($1,$2,$3) ON CONFLICT(event_key) DO NOTHING RETURNING id',
       [
@@ -92,7 +113,7 @@ export class Db implements OnModuleDestroy {
     );
     if (!rows[0]) return;
     for (const recipient of new Set(recipients.map((v) => v.trim().toLowerCase()))) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
+      if (!z.email().max(254).safeParse(recipient).success)
         throw new Error('Invalid notification recipient');
       await this.query(
         'INSERT INTO email_deliveries(outbox_id,recipient) VALUES($1,$2) ON CONFLICT DO NOTHING',
@@ -100,6 +121,30 @@ export class Db implements OnModuleDestroy {
         client,
       );
     }
+  }
+  async workflowNotify(
+    client: PoolClient,
+    eventKey: string,
+    kind: 'ASSIGNMENT' | 'TICKET' | 'FINANCE_REVIEW' | 'FINANCE_RESULT',
+    entityId: string,
+    recipients: string[],
+    title: string,
+    message: string,
+  ) {
+    await this.query(
+      `INSERT INTO workflow_notifications(event_key,user_id,kind,entity_id,title,message)
+      SELECT $1,u.id,$2,$3,$4,$5 FROM users u WHERE lower(u.email)=ANY($6::text[]) AND u.state IN ('ACTIVE','INVITED')
+      ON CONFLICT(event_key,user_id)DO NOTHING`,
+      [
+        eventKey,
+        kind,
+        entityId,
+        title,
+        message,
+        [...new Set(recipients.map((v) => v.trim().toLowerCase()))],
+      ],
+      client,
+    );
   }
   async onModuleDestroy() {
     await this.pool.end();

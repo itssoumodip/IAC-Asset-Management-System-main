@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
+import { api, queryString } from '../api';
 import { useAction } from '../hooks';
 import { Empty, ErrorNotice, Loading, PageTitle, Panel } from './ui';
 
@@ -9,7 +9,7 @@ interface Announcement {
   id: string;
   title: string;
   message: string;
-  path: '/dashboard' | '/assets' | '/tickets' | '/notifications';
+  path: string;
   audience: 'ALL' | 'ADMIN' | 'DEPARTMENT';
   departmentName: string | null;
   createdAt: string;
@@ -21,12 +21,18 @@ interface Inbox {
   items: Announcement[];
   total: number;
   unreadCount: number;
+  nextCursor: string | null;
 }
 
-export function useNotificationInbox() {
-  return useQuery({
-    queryKey: ['notification-inbox'],
-    queryFn: () => api<Inbox>('/notifications'),
+export function useNotificationInbox(filter: 'ALL' | 'UNREAD' = 'ALL') {
+  return useInfiniteQuery({
+    queryKey: ['notification-inbox', filter],
+    initialPageParam: '',
+    queryFn: ({ pageParam, signal }) =>
+      api<Inbox>('/notifications' + queryString({ filter, cursor: pageParam || undefined }), {
+        signal,
+      }),
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: 15_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
@@ -44,18 +50,31 @@ export function useUnreadNotificationCount() {
 }
 
 export function NotificationsPage() {
-  const inbox = useNotificationInbox();
-  const action = useAction<{ read: boolean }>();
   const [filter, setFilter] = useState<'ALL' | 'UNREAD'>('ALL');
-  const visibleItems = inbox.data?.items.filter((item) => filter === 'ALL' || !item.read) ?? [];
+  const inbox = useNotificationInbox(filter);
+  const workflow = useInfiniteQuery({
+    queryKey: ['workflow-notifications', filter],
+    initialPageParam: '',
+    queryFn: ({ pageParam, signal }) =>
+      api<Inbox>(
+        '/notifications/workflow' + queryString({ filter, cursor: pageParam || undefined }),
+        { signal },
+      ),
+    getNextPageParam: (p) => p.nextCursor ?? undefined,
+    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+  });
+  const action = useAction<{ read: boolean }>();
+  const visibleItems = inbox.data?.pages.flatMap((page) => page.items) ?? [];
+  const counts = inbox.data?.pages[0];
 
   return (
     <>
       <PageTitle
         title="Notifications"
-        description="Notices from your IT team, shared with your account or department."
+        description="Workflow updates for your account and notices from your IT team. Email delivery is tracked separately."
         action={
-          inbox.data?.unreadCount ? (
+          counts?.unreadCount ? (
             <button
               type="button"
               className="button secondary"
@@ -69,29 +88,109 @@ export function NotificationsPage() {
           ) : undefined
         }
       />
+      <Panel title="Workflow updates">
+        <div role="group" aria-label="Filter workflow notifications">
+          <button
+            type="button"
+            className="button secondary small"
+            aria-pressed={filter === 'ALL'}
+            onClick={() => setFilter('ALL')}
+          >
+            All workflow updates
+          </button>
+          <button
+            type="button"
+            className="button secondary small"
+            aria-pressed={filter === 'UNREAD'}
+            onClick={() => setFilter('UNREAD')}
+          >
+            Unread workflow updates
+          </button>
+        </div>
+        <ErrorNotice error={workflow.error} retry={() => void workflow.refetch()} />
+        {workflow.isPending ? <Loading /> : null}
+        <p>
+          {workflow.data?.pages[0]?.unreadCount ?? 0} unread workflow updates. In-app updates do not
+          depend on successful email delivery.
+        </p>
+        {workflow.data?.pages[0]?.unreadCount ? (
+          <button
+            type="button"
+            className="button secondary small"
+            disabled={action.isPending}
+            onClick={() =>
+              action.mutate({ path: '/notifications/workflow/read-all', method: 'POST', body: {} })
+            }
+          >
+            Mark all workflow updates as read
+          </button>
+        ) : null}
+        {workflow.data?.pages
+          .flatMap((p) => p.items)
+          .map((item) => (
+            <article className="notification-card" key={item.id}>
+              <h2>{item.title}</h2>
+              <p>{item.message}</p>
+              <p className="muted">
+                {new Date(item.createdAt).toLocaleString()} · {item.read ? 'Read' : 'Unread'}
+              </p>
+              <div className="notification-actions">
+                {!item.read ? (
+                  <button
+                    type="button"
+                    className="button text small"
+                    disabled={action.isPending}
+                    onClick={() =>
+                      action.mutate({
+                        path: `/notifications/workflow/${item.id}/read`,
+                        method: 'POST',
+                        body: {},
+                      })
+                    }
+                  >
+                    Mark workflow as read
+                  </button>
+                ) : null}
+                <Link className="button secondary small" to={item.path}>
+                  Open workflow
+                </Link>
+              </div>
+            </article>
+          ))}
+        {workflow.data?.pages[0]?.total === 0 ? (
+          <p>No workflow updates visible for your current access.</p>
+        ) : null}
+        {workflow.hasNextPage ? (
+          <button
+            className="button secondary"
+            disabled={workflow.isFetchingNextPage}
+            onClick={() => void workflow.fetchNextPage()}
+          >
+            Load more workflow updates
+          </button>
+        ) : null}
+      </Panel>
       <ErrorNotice error={inbox.error} retry={() => void inbox.refetch()} />
       <ErrorNotice error={action.error} />
       {inbox.isPending ? <Loading label="Loading notifications…" /> : null}
-      {inbox.data && inbox.data.items.length === 0 ? (
+      {counts && counts.total === 0 ? (
         <Panel className="notification-empty-panel">
-          <Empty title="No announcements yet">
+          <Empty title="No team announcements yet">
             New messages from your IT team will appear here.
           </Empty>
         </Panel>
       ) : null}
-      {inbox.data?.items.length ? (
+      {counts?.total ? (
         <section className="notification-inbox" aria-label="Announcements">
           <div className="notification-inbox-heading">
             <div>
               <span className="eyebrow">YOUR INBOX</span>
               <p className="notification-summary">
-                {inbox.data.unreadCount
-                  ? `${inbox.data.unreadCount} unread`
-                  : 'You’re all caught up'}
+                {counts!.unreadCount ? `${counts!.unreadCount} unread` : 'You’re all caught up'}
               </p>
             </div>
             <span className="muted">
-              {inbox.data.total} {inbox.data.total === 1 ? 'notice' : 'notices'}
+              {counts!.total} {counts!.total === 1 ? 'notice' : 'notices'}
             </span>
           </div>
           <div className="notification-filters" role="group" aria-label="Filter notifications">
@@ -101,7 +200,7 @@ export function NotificationsPage() {
               aria-pressed={filter === 'ALL'}
               onClick={() => setFilter('ALL')}
             >
-              All <span>{inbox.data.total}</span>
+              All <span>{counts!.total}</span>
             </button>
             <button
               type="button"
@@ -109,7 +208,7 @@ export function NotificationsPage() {
               aria-pressed={filter === 'UNREAD'}
               onClick={() => setFilter('UNREAD')}
             >
-              Unread <span>{inbox.data.unreadCount}</span>
+              Unread <span>{counts!.unreadCount}</span>
             </button>
           </div>
           {visibleItems.length === 0 ? (
@@ -193,8 +292,14 @@ export function NotificationsPage() {
               </div>
             </article>
           ))}
-          {filter === 'ALL' && inbox.data.total > inbox.data.items.length ? (
-            <p className="muted">Showing the latest {inbox.data.items.length} announcements.</p>
+          {inbox.hasNextPage ? (
+            <button
+              className="button secondary"
+              disabled={inbox.isFetchingNextPage}
+              onClick={() => void inbox.fetchNextPage()}
+            >
+              {inbox.isFetchingNextPage ? 'Loading…' : 'Load more notifications'}
+            </button>
           ) : null}
         </section>
       ) : null}

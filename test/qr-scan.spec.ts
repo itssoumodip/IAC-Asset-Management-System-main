@@ -74,6 +74,11 @@ async function mockApi(page: Page, options: Options = {}) {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api/v1', '');
     const method = request.method();
+    if (
+      method === 'GET' &&
+      (path === '/api/v1/notifications/unread-count' || path === '/notifications/unread-count')
+    )
+      return route.fulfill({ json: { unreadCount: 0 } });
     if (method !== 'GET') {
       state.writes.push({
         method,

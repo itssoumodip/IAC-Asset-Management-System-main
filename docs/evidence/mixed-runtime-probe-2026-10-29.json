@@ -1,0 +1,96 @@
+{
+  "restrictedRuntimeRole": true,
+  "mixed": {
+    "durationMs": 7301.681039000001,
+    "readers": 10,
+    "readCount": 307,
+    "mutationCount": 38,
+    "writeP95Ms": 3770.398208999999,
+    "failures": 0,
+    "financeApprovals": 25,
+    "invoiceExtractions": 6,
+    "stocktakeExpected": 50000,
+    "observations": 5,
+    "persistedReconciled": true
+  },
+  "scope": "20 concurrent local HTTP readers over50000synthetic assets and1000Finance records; optional restricted-role run first performs one synthetic Finance approval; followed by optional bounded mixed approval/invoice/stocktake workload; no production traffic or SMTP",
+  "durationMs": 10077.771362,
+  "totalRequests": 2336,
+  "errorCount": 0,
+  "results": [
+    {
+      "path": "/assets?limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 81.85117600000012,
+      "p95Ms": 113.80973400000039,
+      "maxMs": 222.50877300000002
+    },
+    {
+      "path": "/assets?q=25000&limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 110.14759800000138,
+      "p95Ms": 150.7071719999999,
+      "maxMs": 219.449024
+    },
+    {
+      "path": "/finance/queue?state=SUBMITTED&limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 66.52059000000008,
+      "p95Ms": 95.09852299999875,
+      "maxMs": 219.62550599999986
+    },
+    {
+      "path": "/finance/executive-summary",
+      "expected": 200,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 183.65036599999985,
+      "p95Ms": 232.66711899999973,
+      "maxMs": 353.238523
+    },
+    {
+      "path": "/finance/assets/911d129e-fc92-4ad2-9f0e-06898731c753/history",
+      "expected": 200,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 84.01325900000029,
+      "p95Ms": 110.35471000000052,
+      "maxMs": 248.8199550000004
+    },
+    {
+      "path": "/equipment/people",
+      "expected": 403,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 49.53894599999967,
+      "p95Ms": 73.53508899999997,
+      "maxMs": 152.68249700000024
+    },
+    {
+      "path": "/finance/queue",
+      "expected": 403,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 49.539247000000614,
+      "p95Ms": 75.20538999999917,
+      "maxMs": 152.202761
+    },
+    {
+      "path": "/finance/assets/911d129e-fc92-4ad2-9f0e-06898731c753",
+      "expected": 403,
+      "errors": 0,
+      "requests": 292,
+      "medianMs": 50.80573000000004,
+      "p95Ms": 76.0046199999997,
+      "maxMs": 192.29483600000003
+    }
+  ],
+  "financeEvidenceUnchangedByReads": true,
+  "limits": "Local PostgreSQL14/Node24 warm run. Optional mixed slice is small and bounded, not sustained production capacity, WAN latency, broad write contention, large photos/imports, availability or an SLA."
+}

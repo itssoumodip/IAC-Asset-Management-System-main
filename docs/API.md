@@ -209,3 +209,32 @@ Deactivate it with `PATCH /master-data/CATEGORY/Therapy%20Devices`, `If-Match: "
 ```json
 {"active":false,"reason":"Replaced by the revised classification"}
 ```
+
+## Invoice evidence
+
+- `POST /finance/assets/:id/invoices`: Admin/Finance, CSRF and asset `If-Match` required. JSON `{filename,data}` with canonical base64 PDF/XLSX up to 4 MiB. Returns evidence ID/hash and suggested values. Does not update the asset or approve it. Per-asset cap 50 distinct files, duplicate bytes reuse the same ID.
+- `GET /finance/assets/:id/invoices`: Admin/Finance private evidence metadata and extraction.
+- `GET /finance/assets/:id/invoices/:evidence`: Admin/Finance authenticated attachment download, no-store/nosniff.
+- Finance review accepts optional `invoiceEvidenceId` for a same-asset retained file. Approval history records its immutable ID/hash.
+
+See `INVOICE_EVIDENCE.md` for formats, limits, review and operational gates.
+
+## Workflow inbox
+
+`GET /notifications/workflow` accepts `filter=ALL|UNREAD`, `limit` (1-100) and opaque `cursor`. Returns account-scoped workflow notices with actual permitted target paths, counts and `nextCursor`. `POST /notifications/workflow/:id/read` and `POST /notifications/workflow/read-all` require CSRF. Repeated reads are idempotent; another user's or currently inaccessible notice is 404. `/notifications/unread-count` includes announcements and workflows. See `WORKFLOW_NOTIFICATIONS.md` for recipient rules, event coverage and limits.
+
+Executive summary includes `activity`, 12 zero-filled Monday-start Kolkata weeks with `approvalEvents`, `ticketsCreated`, `ticketsCompleted`, and `partialWeek`. It counts recorded events, including repeat approvals of an amended asset, not purchases, money or historical backlog. Scope definitions travel with the response. No ticket/private invoice text or user identity is returned.
+
+## Stocktake
+
+Admin only: `GET/POST /stocktake`, `GET /stocktake/:id` (after asset-code cursor, limit), `POST /stocktake/:id/observations` (assetCode, outcome SEEN/NOT_FOUND/MISMATCH, note, UUID requestKey), `POST /stocktake/:id/close` (reason), `GET /stocktake/:id/assets/:asset/history` (after observation-ID cursor, limit). Mutations require CSRF, observations/close require run If-Match. Create freezes a snapshot and optionally accepts departmentId/locationId. No inventory/custody/Finance mutations follow from observations. See `STOCKTAKE.md`.
+
+## Lifecycle attention
+
+Admin-only `GET /lifecycle/expiry` supports window DUE30/DUE90/EXPIRED/MISSING, after asset-code cursor and limit. `GET /lifecycle/recovery` supports name/email q, after user-ID cursor and limit. Both are read-only, live and scoped. No automatic renewal/reminder/return or account/HR mutation. See `LIFECYCLE_ATTENTION.md`.
+
+## Admin financial draft and independent Finance review (29 October update)
+
+Admin may enter initial purchase, invoice, residual, depreciation-method and insurance metadata in asset create/edit and operational import. New values are drafts, not Finance approval. Admin explicitly submits the current asset version; saving alone does not route it to Finance. IT_ADMIN alone cannot create inventory. After any Finance submission exists, Admin catalog changes to financial values are blocked; Finance review handles corrections. This includes insurance fields as well as cost, purchase date, invoice, supplier, residual, method and useful life.
+
+A separate FINANCE reviewer checks/edits and approves the financial section. Required approval values remain cost, purchase date, invoice number, supplier and reason. Optional residual, configured method, useful life and insurance fields are nullable. Currency remains INR. No depreciation calculation is added. Return cannot change financial values. Complete approved financial metadata is retained in immutable Finance event details. Self-approval, stale-version checks and prior approved acquisition-cost snapshot protection remain.

@@ -119,7 +119,7 @@ test('the final active Admin cannot be disabled or have its Admin role removed',
     const service = new AuthService(db);
     const req = { user: { id: user.id, roles: ['ADMIN'] }, get: () => '"1"' } as any;
     await assert.rejects(
-      service.editUser(req, user.id, changes),
+      service.editUser(req, user.id, { ...changes, reason: 'Synthetic final-admin regression' }),
       (error: any) => error.status === 409,
     );
     assert.ok(sqlStatements.some((sql) => sql.includes('pg_advisory_xact_lock')));
@@ -128,4 +128,15 @@ test('the final active Admin cannot be disabled or have its Admin role removed',
       false,
     );
   }
+});
+
+
+test('admin account edits require a reason before database mutation', async () => {
+  const { AuthService } = await import('../src/auth');
+  let touched = false;
+  const service = new AuthService({ tx: async () => { touched = true; } } as any);
+  await assert.rejects(service.editUser({ user: { roles: ['ADMIN'] } } as any,
+    '00000000-0000-4000-8000-000000000002', { state: 'DISABLED' }),
+    (error: any) => error.issues?.some((issue: any) => issue.message.includes('reason')));
+  assert.equal(touched, false);
 });

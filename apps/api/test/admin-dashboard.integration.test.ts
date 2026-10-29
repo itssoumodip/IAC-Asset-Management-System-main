@@ -6,6 +6,7 @@ import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/main';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
+import { AdminDashboardService } from '../src/admin-dashboard';
 import { configuration, hash, signedCsrf, token } from '../src/config';
 import type { AuthRequest } from '../src/security';
 
@@ -169,6 +170,47 @@ describe('admin dashboard integration', { skip: !connection, concurrency: false 
     assert.ok(Array.isArray(body.recentActivity));
   });
 
+  it('dashboard totals and breakdowns share a snapshot during a concurrent catalog write', async () => {
+    const original = db.query.bind(db);
+    let inserted = false;
+    db.query = async (sql: string, values: any[] = [], client?: any) => {
+      const rows = await original(sql, values, client);
+      if (!inserted && sql.includes('AS total_assets')) {
+        inserted = true;
+        const writer = await db.pool.connect();
+        try {
+          await writer.query(
+            `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,department_id,created_by) VALUES('IAC-IT-'||lpad(nextval('asset_number_seq')::text,6,'0'),$1,$2,'Synthetic dashboard snapshot race',$3,'In Store',$4,$5,$6,$7)`,
+            [
+              laptop.category,
+              laptop.assetType,
+              laptop.ownershipType,
+              laptop.condition,
+              laptop.riskLevel,
+              departmentId,
+              admin.id,
+            ],
+          );
+        } finally {
+          writer.release();
+        }
+      }
+      return rows;
+    };
+    let snapshot: any;
+    try {
+      snapshot = await new AdminDashboardService(db).summary(req(admin), { departmentId });
+    } finally {
+      db.query = original;
+    }
+    assert.equal(inserted, true);
+    assert.equal(
+      snapshot.statusCounts.reduce((n: number, r: any) => n + r.count, 0),
+      snapshot.kpis.totalAssets,
+    );
+    const current = await new AdminDashboardService(db).summary(req(admin), { departmentId });
+    assert.equal(current.kpis.totalAssets, snapshot.kpis.totalAssets + 1);
+  });
   it('is admin only and validates filters', async () => {
     assert.equal((await dashboard(employee)).status, 403);
     assert.equal((await dashboard(itAdmin)).status, 403);

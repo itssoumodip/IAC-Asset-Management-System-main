@@ -1,0 +1,82 @@
+{
+  "scope": "20 concurrent local HTTP readers over50000synthetic assets and1000submitted Finance records; no mutation workload, files, production traffic or SMTP",
+  "durationMs": 10062.303327,
+  "totalRequests": 3004,
+  "errorCount": 0,
+  "results": [
+    {
+      "path": "/assets?limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 376,
+      "medianMs": 67.39639400000124,
+      "p95Ms": 92.11526400000002,
+      "maxMs": 168.4333630000001
+    },
+    {
+      "path": "/assets?q=25000&limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 376,
+      "medianMs": 89.95627000000013,
+      "p95Ms": 128.66163400000005,
+      "maxMs": 212.94778399999996
+    },
+    {
+      "path": "/finance/queue?state=SUBMITTED&limit=25",
+      "expected": 200,
+      "errors": 0,
+      "requests": 376,
+      "medianMs": 54.39682300000004,
+      "p95Ms": 77.41128499999968,
+      "maxMs": 161.85102799999981
+    },
+    {
+      "path": "/finance/executive-summary",
+      "expected": 200,
+      "errors": 0,
+      "requests": 376,
+      "medianMs": 125.21720499999992,
+      "p95Ms": 166.3757529999998,
+      "maxMs": 237.864329
+    },
+    {
+      "path": "/finance/assets/75464e1f-660a-4d7f-a8c1-9a6404e31220/history",
+      "expected": 200,
+      "errors": 0,
+      "requests": 375,
+      "medianMs": 66.76302000000032,
+      "p95Ms": 89.05334599999969,
+      "maxMs": 166.725909
+    },
+    {
+      "path": "/equipment/people",
+      "expected": 403,
+      "errors": 0,
+      "requests": 375,
+      "medianMs": 38.998602000000574,
+      "p95Ms": 60.724756000000525,
+      "maxMs": 106.60131500000011
+    },
+    {
+      "path": "/finance/queue",
+      "expected": 403,
+      "errors": 0,
+      "requests": 375,
+      "medianMs": 39.66054600000007,
+      "p95Ms": 60.46199499999966,
+      "maxMs": 104.82757000000015
+    },
+    {
+      "path": "/finance/assets/75464e1f-660a-4d7f-a8c1-9a6404e31220",
+      "expected": 403,
+      "errors": 0,
+      "requests": 375,
+      "medianMs": 40.246909000001324,
+      "p95Ms": 60.62306299999909,
+      "maxMs": 105.36269599999991
+    }
+  ],
+  "financeEvidenceUnchanged": true,
+  "limits": "Local PostgreSQL14/Node24 warm run. Not sustained production capacity, WAN latency, write contention, attachment/import load, availability or an SLA."
+}

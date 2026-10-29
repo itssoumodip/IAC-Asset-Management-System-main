@@ -53,6 +53,11 @@ async function mockApi(page: Page, onInvitation: (route: Route) => Promise<void>
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const method = request.method();
+    if (
+      method === 'GET' &&
+      (path === '/api/v1/notifications/unread-count' || path === '/notifications/unread-count')
+    )
+      return route.fulfill({ json: { unreadCount: 0 } });
     if (method === 'GET' && path === '/api/v1/me') {
       await route.fulfill({ json: session });
     } else if (method === 'GET' && path === '/api/v1/users') {
@@ -60,7 +65,7 @@ async function mockApi(page: Page, onInvitation: (route: Route) => Promise<void>
     } else if (method === 'GET' && path === '/api/v1/transfers/definitions') {
       await route.fulfill({ json: { items: [] } });
     } else if (method === 'GET' && path === '/api/v1/references') {
-      await route.fulfill({ json: { items: [] } });
+      await route.fulfill({ json: { departments: [], locations: [], values: [] } });
     } else if (method === 'GET' && path === '/api/v1/auth/csrf') {
       await route.fulfill({ json: { csrfToken: 'synthetic-csrf-token' } });
     } else if (method === 'POST' && path === '/api/v1/invitations') {

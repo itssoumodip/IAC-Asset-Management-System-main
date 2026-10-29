@@ -10,9 +10,23 @@ if [ -f .env.production ]; then
 fi
 
 read -r -p "Domain (e.g. assets.indiaautismcenter.org or 13-233-45-67.sslip.io): " DOMAIN
+if [[ ! "$DOMAIN" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || [[ "$DOMAIN" != *.* ]] || [[ "$DOMAIN" == *..* ]]; then
+  echo 'Enter a hostname only, without a scheme, path or whitespace.' >&2
+  exit 1
+fi
+
 read -r -p "Sender email (e.g. it@indiaautismcenter.org): " MAIL
+if [[ ! "$MAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+  echo 'Enter a single valid sender email address.' >&2
+  exit 1
+fi
 read -r -s -p "Google app password (typing is hidden): " SMTPPW
 echo
+SMTPPW=${SMTPPW// /}
+if [[ ! "$SMTPPW" =~ ^[A-Za-z0-9]{16}$ ]]; then
+  echo 'Google app password must contain 16 letters or digits; spaces are allowed between groups.' >&2
+  exit 1
+fi
 
 secret() { openssl rand -hex 32; }
 
@@ -36,8 +50,6 @@ ENV
 
 echo
 echo "Created .env.production"
-echo "Save these keys in a password manager now (losing TOTP_ENCRYPTION_KEY breaks MFA logins):"
-echo "--------------------------------------------------------------------------------"
-grep -E "PASSWORD|KEY|SECRET" .env.production | grep -v "^SMTP_PASSWORD"
-echo "--------------------------------------------------------------------------------"
+echo "Secrets were saved privately and were not printed. Store .env.production in an approved secret manager."
+echo "Keep the encryption keys safe; losing them can prevent MFA login and queued-email decryption."
 echo "Next: docker compose --env-file .env.production -f infra/docker-compose.prod.yml up -d --build"

@@ -12,7 +12,7 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
       c,
     );
     await db.query(
-      `UPDATE email_deliveries d SET state='DEAD',last_error_code='EXPIRED' FROM notification_outbox o WHERE d.outbox_id=o.id AND d.state IN ('PENDING','LEASED') AND o.expires_at<now()`,
+      `UPDATE email_deliveries d SET state='DEAD',leased_until=NULL,lease_token=NULL,last_error_code='EXPIRED' FROM notification_outbox o WHERE d.outbox_id=o.id AND d.state IN ('PENDING','LEASED') AND o.expires_at<now()`,
       [],
       c,
     );
@@ -29,15 +29,98 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
     return row;
   });
   if (!delivery) return false;
-  const [outbox] = await db.query('SELECT payload FROM notification_outbox WHERE id=$1', [
-    delivery.outbox_id,
-  ]);
+  const [outbox] = await db.query(
+    'SELECT payload,template,event_key FROM notification_outbox WHERE id=$1',
+    [delivery.outbox_id],
+  );
+  // A resend or completed authentication flow invalidates its previous link before
+  // the original outbox expiry. Never dispatch a link already known to be inactive.
+  if (['INVITE', 'VERIFY_EMAIL', 'RESET_PASSWORD', 'EMAIL_CHANGE'].includes(outbox.template)) {
+    const [active] = await db.query(
+      "SELECT 1 FROM auth_tokens WHERE 'auth:'||id::text=$1 AND purpose=$2 AND consumed_at IS NULL AND expires_at>now()",
+      [outbox.event_key, outbox.template],
+    );
+    if (!active) {
+      await db.tx(async (c) => {
+        const stopped = await db.query(
+          "UPDATE email_deliveries SET state='DEAD',last_error_code='AUTH_TOKEN_INACTIVE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED' RETURNING id",
+          [delivery.id, lease],
+          c,
+        );
+        if (stopped.length)
+          await db.audit(c, null, 'EMAIL_DELIVERY', delivery.id, 'EMAIL_AUTH_TOKEN_INACTIVE', {
+            template: outbox.template,
+          });
+      });
+      return true;
+    }
+  }
+  if (['FINANCE_SUBMITTED', 'FINANCE_APPROVED', 'FINANCE_RETURNED'].includes(outbox.template)) {
+    const role = outbox.template === 'FINANCE_SUBMITTED' ? 'FINANCE' : 'ADMIN';
+    const [eligible] = await db.query(
+      `SELECT 1 FROM workflow_notifications n JOIN users u ON u.id=n.user_id JOIN user_roles r ON r.user_id=u.id WHERE n.event_key=$3 AND n.kind=$4 AND u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2`,
+      [
+        delivery.recipient,
+        role,
+        outbox.event_key,
+        outbox.template === 'FINANCE_SUBMITTED' ? 'FINANCE_REVIEW' : 'FINANCE_RESULT',
+      ],
+    );
+    if (!eligible) {
+      await db.tx(async (c) => {
+        await db.query(
+          "UPDATE email_deliveries SET state='DEAD',last_error_code='RECIPIENT_INELIGIBLE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED'",
+          [delivery.id, lease],
+          c,
+        );
+        await db.audit(c, null, 'EMAIL_DELIVERY', delivery.id, 'EMAIL_RECIPIENT_INELIGIBLE', {
+          template: outbox.template,
+        });
+      });
+      return true;
+    }
+  }
+  if (
+    [
+      'TICKET_CREATED',
+      'TICKET_REPLY',
+      'TICKET_OWNER',
+      'TICKET_STATUS',
+      'TICKET_COMPLETED',
+    ].includes(outbox.template)
+  ) {
+    // Bind the queued address to its original workflow account. Reused email addresses
+    // must not inherit another account's pending notification.
+    const [eligible] = await db.query(
+      `SELECT 1 FROM workflow_notifications n JOIN users u ON u.id=n.user_id JOIN tickets t ON t.id=n.entity_id
+       WHERE n.event_key=$1 AND n.kind='TICKET' AND u.email=$2 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
+       AND (CASE WHEN $3='TICKET_CREATED' THEN EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='ADMIN')
+         WHEN $3='TICKET_OWNER' THEN t.owner_id=u.id AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code IN ('ADMIN','IT_ADMIN'))
+         ELSE t.reporter_id=u.id OR EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code IN ('ADMIN','IT_ADMIN')) END)`,
+      [outbox.event_key, delivery.recipient, outbox.template],
+    );
+    if (!eligible) {
+      await db.tx(async (c) => {
+        const stopped = await db.query(
+          "UPDATE email_deliveries SET state='DEAD',last_error_code='RECIPIENT_INELIGIBLE',leased_until=NULL,lease_token=NULL WHERE id=$1 AND lease_token=$2 AND state='LEASED' RETURNING id",
+          [delivery.id, lease],
+          c,
+        );
+        if (stopped.length)
+          await db.audit(c, null, 'EMAIL_DELIVERY', delivery.id, 'EMAIL_RECIPIENT_INELIGIBLE', {
+            template: outbox.template,
+          });
+      });
+      return true;
+    }
+  }
   let accepted = false,
     errorCode = 'SMTP_FAILURE',
     sentMessageId = `<${delivery.id}@iac.portal>`;
+  let transport: ReturnType<typeof nodemailer.createTransport> | undefined;
   try {
     const data = JSON.parse(decrypt(outbox.payload.ciphertext, 'AUTH_MAIL_ENCRYPTION_KEY'));
-    const transport = nodemailer.createTransport({
+    transport = nodemailer.createTransport({
       host: process.env.SMTP_HOST || '127.0.0.1',
       port: Number(process.env.SMTP_PORT || 1025),
       secure: process.env.SMTP_SECURE === 'true',
@@ -62,7 +145,6 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
       disableUrlAccess: true,
     });
     accepted = result.accepted?.length === 1;
-    transport.close();
     if (!accepted) errorCode = 'SMTP_REJECTED';
   } catch (error) {
     const code = (error as any)?.code;
@@ -71,6 +153,8 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
     )
       ? code
       : 'SMTP_FAILURE';
+  } finally {
+    transport?.close();
   }
   await db.tx(async (c) => {
     const [claimed] = await db.query(

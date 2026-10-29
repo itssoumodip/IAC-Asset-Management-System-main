@@ -166,6 +166,25 @@ export class AssetDomain extends MasterDomain {
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
       );
       assertVersion(req, before.version);
+      const financialFields = [
+        'purchaseCost',
+        'purchaseDate',
+        'currency',
+        'invoiceNumber',
+        'supplier',
+        'residualValue',
+        'depreciationMethod',
+        'usefulLifeYears',
+        'insurancePolicyNumber',
+        'insuranceExpiry',
+      ];
+      if (
+        financialFields.some((key) => key in changes) &&
+        (await this.db.query('SELECT 1 FROM asset_finance WHERE asset_id=$1', [assetId], c)).length
+      )
+        throw new ConflictException(
+          'Use the Finance submission and review workflow to change financial fields after submission',
+        );
       const merged = { ...camel(before), ...changes };
       await validateAsset(this.db, merged, c, camel(before));
       const [custody] = await this.db.query(
@@ -244,10 +263,20 @@ export class AssetDomain extends MasterDomain {
             [old.id, req.user.id, JSON.stringify({ reason: data.reason })],
             c,
           );
-          if (options.sendEmail !== false) await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', [old.email], {
-            subject: `Asset ${asset.asset_code} returned`,
-            text: 'Your custody record was closed. Sign in to review your assigned assets.',
-          });
+          await this.db.workflowNotify(
+            c,
+            `assignment:${old.id}:ended`,
+            'ASSIGNMENT',
+            old.id,
+            [old.email],
+            `Custody closed: ${asset.asset_code}`,
+            'This custody record was closed. Review your equipment list for current assignments.',
+          );
+          if (options.sendEmail !== false)
+            await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', [old.email], {
+              subject: `Asset ${asset.asset_code} returned`,
+              text: 'Your custody record was closed. Sign in to review your assigned assets.',
+            });
         }
         const row = await insertObject(
           this.db,
@@ -285,16 +314,26 @@ export class AssetDomain extends MasterDomain {
           reassign ? 'ASSET_REASSIGNED' : 'ASSET_ASSIGNED',
           { assetId, userId: user.id, priorAssignmentId: old?.id || null },
         );
-        if (options.sendEmail !== false) await this.db.notify(
+        await this.db.workflowNotify(
           c,
           `assignment:${row.id}:created`,
-          'ASSIGNMENT_CREATED',
+          'ASSIGNMENT',
+          row.id,
           [user.email],
-          {
-            subject: `Asset ${asset.asset_code} assigned`,
-            text: 'An asset has been assigned to you. Sign in to verify its details and accept or dispute the assignment.',
-          },
+          `Asset assigned: ${asset.asset_code}`,
+          'Review the equipment details and accept or dispute this assignment.',
         );
+        if (options.sendEmail !== false)
+          await this.db.notify(
+            c,
+            `assignment:${row.id}:created`,
+            'ASSIGNMENT_CREATED',
+            [user.email],
+            {
+              subject: `Asset ${asset.asset_code} assigned`,
+              text: 'An asset has been assigned to you. Sign in to verify its details and accept or dispute the assignment.',
+            },
+          );
         return {
           ...camel(row),
           assetVersion: updated.version,
@@ -359,6 +398,15 @@ export class AssetDomain extends MasterDomain {
         assetId: asset.id,
         reason: data.reason,
       });
+      await this.db.workflowNotify(
+        c,
+        `assignment:${assignmentId}:ended`,
+        'ASSIGNMENT',
+        assignmentId,
+        [row.email],
+        `Custody closed: ${asset.asset_code}`,
+        'This custody record was closed. Review your equipment list for current assignments.',
+      );
       await this.db.notify(c, `assignment:${assignmentId}:ended`, 'ASSIGNMENT_ENDED', [row.email], {
         subject: `Asset ${asset.asset_code} returned`,
         text: 'Your custody record was closed. Sign in to review your assigned assets.',
@@ -406,6 +454,30 @@ export class AssetDomain extends MasterDomain {
       await this.db.audit(c, req.user, 'assignment', assignmentId, 'ASSIGNMENT_ACKNOWLEDGED', {
         decision: data.decision,
       });
+      const registrars = await this.db.query(
+        "SELECT email FROM users u WHERE state='ACTIVE' AND email_verified_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='ADMIN')",
+        [],
+        c,
+      );
+      await this.db.notify(
+        c,
+        `assignment:${assignmentId}:ack:v${after.version}`,
+        'ASSIGNMENT_ACKNOWLEDGED',
+        registrars.map((u) => u.email),
+        {
+          subject: `Equipment assignment ${data.decision.toLowerCase()}`,
+          text: 'An employee responded to their equipment assignment. Open the portal to review the custody record.',
+        },
+      );
+      await this.db.workflowNotify(
+        c,
+        `assignment:${assignmentId}:ack:v${after.version}`,
+        'ASSIGNMENT',
+        assignmentId,
+        registrars.map((u) => u.email),
+        `Assignment ${data.decision.toLowerCase()}`,
+        'An employee responded to their custody record. Review the equipment record.',
+      );
       return camel(after);
     });
   }

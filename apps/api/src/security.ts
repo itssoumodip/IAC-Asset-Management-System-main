@@ -33,8 +33,9 @@ export interface Actor {
 export interface AuthRequest extends Request {
   user: Actor;
 }
-export const staff = (user: Pick<Actor, 'roles'>) =>
-  user.roles.some((r) => r === 'ADMIN' || r === 'IT_ADMIN');
+export const privileged = (user: Pick<Actor, 'roles'>) =>
+  user.roles.some((r) => ['ADMIN', 'IT_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r));
+export const staff = (user: Pick<Actor, 'roles'>) => user.roles.some(r => r === 'ADMIN' || r === 'IT_ADMIN');
 export function requireRole(req: AuthRequest, ...roles: string[]): void {
   if (!req.user.roles.some((r) => roles.includes(r)))
     throw new ForbiddenException('Insufficient permission');
@@ -85,7 +86,7 @@ export class SessionGuard implements CanActivate {
   async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest<AuthRequest>();
     req.user = await resolveSession(this.db, req);
-    if (req.user.sessionScope !== 'APP' || (staff(req.user) && !req.user.mfaVerifiedAt))
+    if (req.user.sessionScope !== 'APP' || (privileged(req.user) && !req.user.mfaVerifiedAt))
       throw new ForbiddenException('MFA enrollment or verification is required');
     if (
       !req.user.portalAcceptedAt ||

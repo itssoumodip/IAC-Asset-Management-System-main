@@ -99,7 +99,7 @@ export class DomainService extends ImportDomain {
     values.push(p.limit + 1);
     return page(
       await this.db.query(
-        `SELECT id,actor_id,actor_kind,entity_type,entity_id,action,changes,request_id,occurred_at FROM audit_events WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC,id DESC LIMIT $${values.length}`,
+        `SELECT id,actor_id,actor_kind,entity_type,entity_id,action,changes,request_id,occurred_at,to_char(occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_occurred_at FROM audit_events WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC,id DESC LIMIT $${values.length}`,
         values,
       ),
       p.limit,
