@@ -7,7 +7,7 @@ import type { Asset, Ticket } from '../types';
 import { Badge, Empty, ErrorNotice, Loading, Metric, PageTitle, Panel } from './ui';
 import { useReferences, ReferenceBadge } from './References';
 import { AdminInsights } from './AdminInsights';
-import { ExecutiveDashboard, useExecutive } from './ExecutiveDashboard';
+import { ExecutiveDashboard, TeamDashboard, useExecutive } from './ExecutiveDashboard';
 import { greeting, summaryLine, todayLabel } from '../executive';
 
 function Greeting({ line }: { line?: string }) {
@@ -59,6 +59,7 @@ function DashboardListSkeleton({ kind, horizontal = false }: { kind: 'equipment'
 export function UserDashboard() {
   const { user } = useSession();
   if (can(user, 'report.view')) return <AdminDashboard />;
+  if ((user?.teams ?? []).length > 0) return <TeamDashboard />;
   if (can(user, 'ticket.work')) return <ITDashboard />;
   return <EmployeeDashboard />;
 }

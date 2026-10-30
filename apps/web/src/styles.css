@@ -645,6 +645,77 @@ a.metric:hover {
   margin: 0;
   padding: 0 0 8px;
 }
+.row-list {
+  display: flex;
+  flex-direction: column;
+}
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #ebf0f5;
+}
+.row-item:last-child {
+  border-bottom: 0;
+}
+.row-item .checkbox {
+  margin: 0;
+}
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+.row-main strong {
+  display: block;
+}
+.row-main small {
+  display: block;
+  color: #8698a7;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.row-prefix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #7d92a3;
+}
+.row-prefix input {
+  width: 80px;
+}
+.row-prefix input[readonly] {
+  background: #f3f6f9;
+  color: #7d92a3;
+}
+.inline-create {
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e6edf3;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px 20px;
+}
+@media (max-width: 650px) {
+  .row-item {
+    flex-wrap: wrap;
+  }
+  .row-main {
+    flex-basis: 100%;
+  }
+}
+.team-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
 .field {
   display: flex;
   flex-direction: column;

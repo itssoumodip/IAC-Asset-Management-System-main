@@ -175,6 +175,17 @@ describe('team masters and memberships PostgreSQL integration', { skip: !connect
       status(404),
     );
   });
+  it('lead searches active colleagues to add, excluding current members', async () => {
+    const colleague = await make(['EMPLOYEE']);
+    const found = await teams.candidates(request(itLead), IT_TEAM_ID, { q: colleague.email });
+    assert.deepEqual(
+      found.items.map((p: any) => p.id),
+      [colleague.id],
+    );
+    const existing = await teams.candidates(request(itLead), IT_TEAM_ID, { q: itMember.email });
+    assert.equal(existing.items.length, 0);
+    await assert.rejects(teams.candidates(request(itMember), IT_TEAM_ID, {}), status(403));
+  });
   it('membership change revokes target sessions and is audited', async () => {
     const target = await make(['EMPLOYEE']);
     await db.query(

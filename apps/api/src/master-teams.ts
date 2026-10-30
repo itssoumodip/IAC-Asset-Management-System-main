@@ -74,7 +74,9 @@ export async function teamAndProjectLists(db: Db) {
               to_char(end_date,'YYYY-MM-DD') AS end_date,active,version
        FROM projects ORDER BY name,code`,
     ),
-    db.query('SELECT asset_type_code,requires_custodian FROM asset_type_policies ORDER BY 1'),
+    db.query(
+      `SELECT asset_type_code,requires_custodian,owning_team_id,handling_team_id FROM asset_type_policies ORDER BY 1`,
+    ),
     db.query('SELECT category_code,team_id FROM ticket_category_teams ORDER BY 1'),
   ]);
   return {

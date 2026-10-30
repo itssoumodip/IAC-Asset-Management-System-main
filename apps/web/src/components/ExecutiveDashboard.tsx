@@ -45,6 +45,25 @@ export function useExecutive() {
   });
 }
 
+export interface TeamDashboardData {
+  assetsByTeam: TeamStatusRow[];
+  needsAttention: {
+    pendingFinance: number;
+    leftHoldersWithAssets: number;
+    warrantyExpiring30: number;
+    amcExpiring30: number;
+  };
+  openTickets: number;
+  scopedTeamIds: string[] | 'ALL';
+}
+
+export function useTeamDashboard() {
+  return useQuery({
+    queryKey: ['dashboard', 'team'],
+    queryFn: ({ signal }) => api<TeamDashboardData>('/dashboard/team', { signal }),
+  });
+}
+
 const PALETTE = ['#1b6c80', '#2f70bb', '#a86f0c', '#5d5f60', '#8fb6c0', '#9db9dd', '#d9b877'];
 const plain = (n: number) => new Intl.NumberFormat('en-IN').format(n);
 
@@ -366,6 +385,108 @@ export function ExecutiveDashboard() {
           ])}
         />
       </Panel>
+    </div>
+  );
+}
+
+export function TeamDashboard() {
+  const { user } = useSession();
+  const query = useTeamDashboard();
+  const data = query.data;
+  if (query.isPending)
+    return (
+      <div className="admin-insights-skeleton">
+        <Loading label="Loading team dashboard…" />
+      </div>
+    );
+  if (!data) {
+    return (
+      <ErrorNotice
+        error={query.error}
+        retry={() => {
+          void query.refetch();
+        }}
+      />
+    );
+  }
+  const attention = data.needsAttention;
+  const teams = teamTotals(data.assetsByTeam);
+  const statuses = statusTotals(data.assetsByTeam);
+  return (
+    <div className="exec">
+      <Panel title="Needs attention">
+        <div className="metric-grid five">
+          <Metric
+            label="Pending Finance"
+            value={attention.pendingFinance}
+            detail="Assets awaiting finance review"
+            to="/finance"
+          />
+          <Metric
+            label="Holders who left"
+            value={attention.leftHoldersWithAssets}
+            detail="Assets to recover"
+          />
+          <Metric
+            label="Warranty ending"
+            value={attention.warrantyExpiring30}
+            detail="Within 30 days"
+            to="/assets"
+          />
+          <Metric
+            label="AMC ending"
+            value={attention.amcExpiring30}
+            detail="Within 30 days"
+            to="/assets"
+          />
+          <Metric
+            label="Open tickets"
+            value={data.openTickets}
+            detail="Open right now"
+            to="/tickets?status=OPEN"
+          />
+        </div>
+      </Panel>
+      <div className="dashboard-columns">
+        <Panel title="Assets by team">
+          <HBars
+            caption="Assets by owning team"
+            headers={['Team', 'Assets']}
+            format={plain}
+            rows={teams.map((team) => ({
+              label: team.label,
+              value: team.count,
+              to: `/assets?owningTeamId=${team.teamId}`,
+            }))}
+          />
+          <p className="muted small-text">
+            Purchase value:{' '}
+            {teams.map((team) => `${team.label} ${formatInr(team.value)}`).join(' · ') || '—'}
+          </p>
+        </Panel>
+        <Panel title="Assets by status">
+          <Pie
+            caption="Assets by status"
+            items={statuses.map((status) => ({ label: status.label, value: status.count }))}
+          />
+          <div className="exec-chips">
+            {statuses.map((status) => (
+              <Link key={status.label} to={`/assets?status=${encodeURIComponent(status.label)}`}>
+                {status.label}
+              </Link>
+            ))}
+          </div>
+        </Panel>
+      </div>
+      <p className="muted small-text">
+        Scoped to:{' '}
+        {data.scopedTeamIds === 'ALL'
+          ? 'all teams'
+          : data.scopedTeamIds.map((id) => {
+              const team = (user?.teams ?? []).find((t) => t.teamId === id);
+              return team ? team.teamCode : id;
+            }).join(', ')}
+      </p>
     </div>
   );
 }

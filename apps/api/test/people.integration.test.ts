@@ -146,6 +146,11 @@ describe('assignable people PostgreSQL integration', { skip: !connection, concur
     assert.equal(none.items.length, 0);
   });
 
+  it('accepts the limit query string the web client sends', async () => {
+    const result = await people.assignable(request(itMember), asset.id, { q: tag, limit: '25' });
+    assert.ok(Array.isArray(result.items));
+  });
+
   it('paginates with a cursor, 25 per page', async () => {
     for (let i = 0; i < 27; i++)
       await person('DIRECTORY', { name: `${tag} Page ${String(i).padStart(2, '0')}` });

@@ -1,17 +1,28 @@
-import { useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
 import { can, useSession } from '../session';
 import type { ProjectReference, TeamReference } from '../types';
 import { useReferences } from './References';
-import { Checkbox, Empty, ErrorNotice, Field, Loading, PageTitle, Panel, Select } from './ui';
+import {
+  Badge,
+  Checkbox,
+  Empty,
+  ErrorNotice,
+  Field,
+  Loading,
+  PageTitle,
+  Panel,
+  Select,
+} from './ui';
 
 /** Super Admin page: teams (with permanent code prefixes), projects/grants and room-held asset types. */
 export function TeamsAndProjects() {
   const refs = useReferences();
   const action = useAction();
+  const [adding, setAdding] = useState<'team' | 'project' | null>(null);
   const refresh = () => void refs.refetch();
   if (refs.isPending) return <Loading />;
   if (refs.error) return <ErrorNotice error={refs.error} retry={refresh} />;
@@ -21,6 +32,7 @@ export function TeamsAndProjects() {
   const assetTypes = data.values.filter((v) => v.kind === 'ASSET_TYPE' && v.active);
   const heldByPerson = (code: string) =>
     data.assetTypePolicies?.find((p) => p.assetTypeCode === code)?.requiresCustodian !== false;
+  const toggle = (kind: 'team' | 'project') => setAdding((open) => (open === kind ? null : kind));
   return (
     <>
       <PageTitle
@@ -29,30 +41,64 @@ export function TeamsAndProjects() {
         description="Teams own assets and set their code prefix. Projects and grants tag what was bought with them."
       />
       <ErrorNotice error={action.error} />
-      <Panel title="Teams">
-        <NewTeam onCreate={(body) => save('/master-data/teams', 'POST', body)} />
-        {(data.teams ?? []).map((team) => (
-          <TeamRow
-            key={team.id}
-            team={team}
-            onSave={(body) => save(`/master-data/teams/${team.id}`, 'PATCH', body, team.version)}
+      <Panel
+        title="Teams"
+        action={
+          <button className="button secondary small" type="button" onClick={() => toggle('team')}>
+            {adding === 'team' ? 'Cancel' : 'New team'}
+          </button>
+        }
+      >
+        {adding === 'team' ? (
+          <NewTeam
+            onCreate={(body) =>
+              save('/master-data/teams', 'POST', body).then(() => setAdding(null))
+            }
           />
-        ))}
-      </Panel>
-      <Panel title="Projects & grants">
-        <NewProject onCreate={(body) => save('/master-data/projects', 'POST', body)} />
-        {(data.projects ?? []).length ? (
-          (data.projects ?? []).map((project) => (
-            <ProjectRow
-              key={project.id}
-              project={project}
-              onSave={(body) =>
-                save(`/master-data/projects/${project.id}`, 'PATCH', body, project.version)
-              }
+        ) : null}
+        <div className="row-list">
+          {(data.teams ?? []).map((team) => (
+            <TeamRow
+              key={team.id}
+              team={team}
+              onSave={(body) => save(`/master-data/teams/${team.id}`, 'PATCH', body, team.version)}
             />
-          ))
+          ))}
+        </div>
+      </Panel>
+      <Panel
+        title="Projects & grants"
+        action={
+          <button
+            className="button secondary small"
+            type="button"
+            onClick={() => toggle('project')}
+          >
+            {adding === 'project' ? 'Cancel' : 'New project'}
+          </button>
+        }
+      >
+        {adding === 'project' ? (
+          <NewProject
+            onCreate={(body) =>
+              save('/master-data/projects', 'POST', body).then(() => setAdding(null))
+            }
+          />
+        ) : null}
+        {(data.projects ?? []).length ? (
+          <div className="row-list">
+            {(data.projects ?? []).map((project) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                onSave={(body) =>
+                  save(`/master-data/projects/${project.id}`, 'PATCH', body, project.version)
+                }
+              />
+            ))}
+          </div>
         ) : (
-          <Empty title="No projects yet" />
+          <Empty title="No projects yet">Add a project or grant to tag what it paid for.</Empty>
         )}
       </Panel>
       <Panel title="Ticket categories">
@@ -60,53 +106,62 @@ export function TeamsAndProjects() {
           New tickets go to the owning team of the linked asset. Otherwise they go to the team
           mapped here, or to IT when a category has no team.
         </p>
-        {data.values
-          .filter((v) => v.kind === 'TICKET_CATEGORY' && v.active)
-          .map((category) => (
-            <Select
-              key={category.code}
-              label={category.label}
-              htmlFor={`ticket-category-team-${category.code}`}
-              value={
-                data.ticketCategoryTeams?.find((m) => m.categoryCode === category.code)?.teamId ??
-                ''
-              }
-              onChange={(teamId) =>
-                teamId
-                  ? save(
-                      `/master-data/ticket-category-teams/${encodeURIComponent(category.code)}`,
-                      'PUT',
-                      { teamId, reason: 'Ticket routing changed in Teams & projects' },
-                    )
-                  : undefined
-              }
-              options={[
-                { value: '', label: 'IT (default)' },
-                ...(data.teams ?? []).filter((t) => t.active).map((t) => ({ value: t.id, label: t.name })),
-              ]}
-            />
-          ))}
+        <div className="form-grid">
+          {data.values
+            .filter((v) => v.kind === 'TICKET_CATEGORY' && v.active)
+            .map((category) => (
+              <Select
+                key={category.code}
+                label={category.label}
+                htmlFor={`ticket-category-team-${category.code}`}
+                value={
+                  data.ticketCategoryTeams?.find((m) => m.categoryCode === category.code)?.teamId ??
+                  ''
+                }
+                onChange={(teamId) =>
+                  teamId
+                    ? save(
+                        `/master-data/ticket-category-teams/${encodeURIComponent(category.code)}`,
+                        'PUT',
+                        { teamId, reason: 'Ticket routing changed in Teams & projects' },
+                      )
+                    : undefined
+                }
+                options={[
+                  { value: '', label: 'IT (default)' },
+                  ...(data.teams ?? [])
+                    .filter((t) => t.active)
+                    .map((t) => ({ value: t.id, label: t.name })),
+                ]}
+              />
+            ))}
+        </div>
       </Panel>
       <Panel title="Asset types kept by a person">
         <p className="muted">
           Untick types that live in a room, such as furniture or printers. Those need a location and
           may optionally be given to someone.
         </p>
-        {assetTypes.map((type) => (
-          <Checkbox
-            key={type.code}
-            label={`${type.label}: must be held by a person`}
-            checked={heldByPerson(type.code)}
-            onChange={(checked) =>
-              save(
-                `/master-data/ASSET_TYPE/${encodeURIComponent(type.code)}`,
-                'PATCH',
-                { requiresCustodian: checked, reason: 'Custody rule changed in Teams & projects' },
-                type.version,
-              )
-            }
-          />
-        ))}
+        <div className="check-grid">
+          {assetTypes.map((type) => (
+            <Checkbox
+              key={type.code}
+              label={type.label}
+              checked={heldByPerson(type.code)}
+              onChange={(checked) =>
+                save(
+                  `/master-data/ASSET_TYPE/${encodeURIComponent(type.code)}`,
+                  'PATCH',
+                  {
+                    requiresCustodian: checked,
+                    reason: 'Custody rule changed in Teams & projects',
+                  },
+                  type.version,
+                )
+              }
+            />
+          ))}
+        </div>
       </Panel>
     </>
   );
@@ -129,8 +184,11 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
     setForm({ code: '', name: '', prefix: '', reason: '', project: false });
   }
   return (
-    <form className="form-grid" onSubmit={submit}>
-      <Field label="New team code" htmlFor="team-code" hint="2-5 capital letters, permanent.">
+    <form className="form-grid inline-create" onSubmit={submit}>
+      <Field label="Team name" htmlFor="team-name">
+        <input id="team-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
+      </Field>
+      <Field label="Team code" htmlFor="team-code" hint="2-5 capital letters, permanent.">
         <input
           id="team-code"
           value={form.code}
@@ -138,11 +196,8 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
           maxLength={5}
         />
       </Field>
-      <Field label="New team name" htmlFor="team-name">
-        <input id="team-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
-      </Field>
       <Field
-        label="New team asset code prefix"
+        label="Asset code prefix"
         htmlFor="team-prefix"
         hint="New codes look like IAC-PREFIX-000001."
       >
@@ -153,7 +208,7 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
           maxLength={5}
         />
       </Field>
-      <Field label="Reason for new team" htmlFor="team-reason">
+      <Field label="Why is this team needed?" htmlFor="team-reason">
         <input
           id="team-reason"
           value={form.reason}
@@ -165,9 +220,11 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
         checked={form.project}
         onChange={(v) => set('project', v)}
       />
-      <button className="button" disabled={!ready}>
-        Create team
-      </button>
+      <div className="form-actions">
+        <button className="button" disabled={!ready}>
+          Create team
+        </button>
+      </div>
     </form>
   );
 }
@@ -175,19 +232,21 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
 function TeamRow({ team, onSave }: { team: TeamReference; onSave: (body: unknown) => unknown }) {
   const [prefix, setPrefix] = useState(team.assetCodePrefix);
   return (
-    <div className="form-grid" data-testid={`team-${team.code}`}>
-      <strong>
-        {team.name} ({team.code})
-      </strong>
-      <Field
-        label={`Asset code prefix for ${team.code}`}
-        htmlFor={`prefix-${team.id}`}
-        hint={team.prefixInUse ? 'Locked: assets already use this prefix.' : undefined}
-      >
+    <div className="row-item" data-testid={`team-${team.code}`}>
+      <div className="row-main">
+        <strong>{team.name}</strong>
+        <small>
+          Team code {team.code}
+          {team.requiresProject ? ' · needs a project tag' : ''}
+        </small>
+      </div>
+      <label className="row-prefix" htmlFor={`prefix-${team.id}`}>
+        <span>Code prefix</span>
         <input
           id={`prefix-${team.id}`}
           value={prefix}
           readOnly={team.prefixInUse}
+          title={team.prefixInUse ? 'Locked: assets already use this prefix.' : undefined}
           maxLength={5}
           onChange={(e) => setPrefix(e.target.value.toUpperCase())}
           onBlur={() =>
@@ -195,7 +254,7 @@ function TeamRow({ team, onSave }: { team: TeamReference; onSave: (body: unknown
             onSave({ assetCodePrefix: prefix, reason: 'Prefix changed before first use' })
           }
         />
-      </Field>
+      </label>
       <Checkbox
         label="Active"
         checked={team.active}
@@ -203,6 +262,9 @@ function TeamRow({ team, onSave }: { team: TeamReference; onSave: (body: unknown
           onSave({ active, reason: active ? 'Team reactivated' : 'Team retired' })
         }
       />
+      <Link to={`/team/${team.id}`} className="button secondary small">
+        Manage members
+      </Link>
     </div>
   );
 }
@@ -225,17 +287,17 @@ function NewProject({ onCreate }: { onCreate: (body: unknown) => Promise<unknown
     setForm(empty);
   }
   return (
-    <form className="form-grid" onSubmit={submit}>
-      <Field label="New project code" htmlFor="project-code">
+    <form className="form-grid inline-create" onSubmit={submit}>
+      <Field label="Project name" htmlFor="project-name">
+        <input id="project-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
+      </Field>
+      <Field label="Project code" htmlFor="project-code">
         <input
           id="project-code"
           value={form.code}
           onChange={(e) => set('code', e.target.value)}
           maxLength={40}
         />
-      </Field>
-      <Field label="New project name" htmlFor="project-name">
-        <input id="project-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
       </Field>
       <Field label="Funder" htmlFor="project-funder">
         <input
@@ -244,7 +306,14 @@ function NewProject({ onCreate }: { onCreate: (body: unknown) => Promise<unknown
           onChange={(e) => set('funder', e.target.value)}
         />
       </Field>
-      <Field label="Project start date" htmlFor="project-start">
+      <Field label="Why is this project needed?" htmlFor="project-reason">
+        <input
+          id="project-reason"
+          value={form.reason}
+          onChange={(e) => set('reason', e.target.value)}
+        />
+      </Field>
+      <Field label="Start date" htmlFor="project-start">
         <input
           id="project-start"
           type="date"
@@ -252,7 +321,7 @@ function NewProject({ onCreate }: { onCreate: (body: unknown) => Promise<unknown
           onChange={(e) => set('start', e.target.value)}
         />
       </Field>
-      <Field label="Project end date" htmlFor="project-end">
+      <Field label="End date (optional)" htmlFor="project-end">
         <input
           id="project-end"
           type="date"
@@ -261,16 +330,12 @@ function NewProject({ onCreate }: { onCreate: (body: unknown) => Promise<unknown
           onChange={(e) => set('end', e.target.value)}
         />
       </Field>
-      <Field label="Reason for new project" htmlFor="project-reason">
-        <input
-          id="project-reason"
-          value={form.reason}
-          onChange={(e) => set('reason', e.target.value)}
-        />
-      </Field>
-      <button className="button" disabled={!ready}>
-        Create project
-      </button>
+      <span />
+      <div className="form-actions">
+        <button className="button" disabled={!ready}>
+          Create project
+        </button>
+      </div>
     </form>
   );
 }
@@ -283,15 +348,17 @@ function ProjectRow({
   onSave: (body: unknown) => unknown;
 }) {
   return (
-    <div className="form-grid">
-      <strong>
-        {project.name} ({project.code})
-      </strong>
-      <span className="muted">
-        {project.startDate}
-        {project.endDate ? ` to ${project.endDate}` : ''}
-        {project.funder ? ` · ${project.funder}` : ''}
-      </span>
+    <div className="row-item">
+      <div className="row-main">
+        <strong>
+          {project.name} <span className="muted">({project.code})</span>
+        </strong>
+        <small>
+          {project.startDate}
+          {project.endDate ? ` to ${project.endDate}` : ''}
+          {project.funder ? ` · ${project.funder}` : ''}
+        </small>
+      </div>
       <Checkbox
         label="Active"
         checked={project.active}
@@ -310,6 +377,14 @@ interface Member {
   level: 'LEAD' | 'MEMBER';
 }
 
+interface Candidate {
+  id: string;
+  displayName: string;
+  email: string;
+  employeeCode: string | null;
+  designation: string | null;
+}
+
 /** Team page for its Leads (and Super Admins): add, promote or remove members. */
 export function TeamMembers() {
   const { teamId = '' } = useParams();
@@ -321,10 +396,24 @@ export function TeamMembers() {
     queryFn: ({ signal }) => api<{ items: Member[] }>(`/teams/${teamId}/members`, { signal }),
     enabled: allowed,
   });
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const candidates = useQuery({
+    queryKey: ['team-candidates', teamId, query],
+    queryFn: ({ signal }) =>
+      api<{ items: Candidate[] }>(
+        `/teams/${teamId}/candidates${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+        { signal },
+      ),
+    enabled: allowed,
+  });
   const action = useAction();
-  const [email, setEmail] = useState('');
+  const [personId, setPersonId] = useState('');
   const [level, setLevel] = useState('MEMBER');
-  const [reason, setReason] = useState('');
   if (!allowed)
     return (
       <Panel>
@@ -332,100 +421,136 @@ export function TeamMembers() {
       </Panel>
     );
   const team = refs.data?.teams?.find((t) => t.id === teamId);
+  const teamName = team?.name ?? 'this team';
+  const people = candidates.data?.items ?? [];
+  const person = people.find((p) => p.id === personId);
   const change = (path: string, method: 'POST' | 'PUT' | 'DELETE', body: unknown) =>
     action.mutateAsync({ path, method, body }).then(
       () => {
-        setReason('');
-        setEmail('');
+        setPersonId('');
         void members.refetch();
+        void candidates.refetch();
       },
       () => undefined,
     );
   return (
     <>
-      <PageTitle eyebrow="TEAM" title={team ? `${team.name} team` : 'Team members'} />
-      <ErrorNotice error={action.error ?? members.error} />
-      <Panel title="Change membership">
-        <p className="notice" role="note">
-          Saving signs that person out so the change applies straight away.
-        </p>
+      <PageTitle
+        eyebrow="TEAM"
+        title={team ? `${team.name} team` : 'Team members'}
+        description="Members can add and look after this team's assets. Leads can also manage who is in the team."
+      />
+      <ErrorNotice error={action.error ?? members.error ?? candidates.error} />
+      <Panel title="Add a person">
         <div className="form-grid">
-          <Field label="Reason for membership change" htmlFor="member-reason">
-            <input id="member-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-          </Field>
-          <Field label="Colleague email" htmlFor="member-email">
+          <Field label="Search people" htmlFor="member-search">
             <input
-              id="member-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="member-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, email or employee code"
+              maxLength={100}
+              autoComplete="off"
             />
           </Field>
+          <Select
+            label="Person"
+            htmlFor="member-person"
+            value={person ? personId : ''}
+            onChange={setPersonId}
+            disabled={candidates.isPending}
+            options={[
+              {
+                value: '',
+                label: candidates.isPending
+                  ? 'Loading…'
+                  : people.length
+                    ? 'Choose a person'
+                    : 'No one found',
+              },
+              ...people.map((p) => ({
+                value: p.id,
+                label: `${p.displayName}${p.employeeCode ? ` (${p.employeeCode})` : ''} · ${p.email}`,
+              })),
+            ]}
+          />
           <Select
             label="Level"
             htmlFor="member-level"
             value={level}
             onChange={setLevel}
             options={[
-              { value: 'MEMBER', label: 'Member' },
-              { value: 'LEAD', label: 'Lead' },
+              { value: 'MEMBER', label: 'Member: adds and looks after assets' },
+              { value: 'LEAD', label: 'Lead: also manages members and retires assets' },
             ]}
           />
-          <button
-            className="button"
-            type="button"
-            disabled={!email.trim() || !reason.trim() || action.isPending}
-            onClick={() =>
-              change(`/teams/${teamId}/members`, 'POST', {
-                email: email.trim(),
-                level,
-                reason: reason.trim(),
-              })
-            }
-          >
-            Add to team
-          </button>
+          <div className="form-actions">
+            <button
+              className="button"
+              type="button"
+              disabled={!person || action.isPending}
+              onClick={() =>
+                person &&
+                change(`/teams/${teamId}/members`, 'POST', {
+                  email: person.email,
+                  level,
+                  reason: `Added to ${teamName}`,
+                })
+              }
+            >
+              Add to team
+            </button>
+          </div>
         </div>
+        <p className="muted">
+          Only people with an active login are listed. They are signed out once so the new access
+          applies straight away.
+        </p>
       </Panel>
       <Panel title="Members">
         {members.isPending ? (
           <Loading />
         ) : members.data?.items.length ? (
-          members.data.items.map((m) => (
-            <div key={m.userId} className="form-grid">
-              <span>
-                <strong>{m.displayName}</strong> <span className="muted">{m.email}</span>
-              </span>
-              <span>{m.level === 'LEAD' ? 'Lead' : 'Member'}</span>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={!reason.trim()}
-                onClick={() =>
-                  change(`/teams/${teamId}/members/${m.userId}`, 'PUT', {
-                    level: m.level === 'LEAD' ? 'MEMBER' : 'LEAD',
-                    reason: reason.trim(),
-                  })
-                }
-              >
-                {m.level === 'LEAD' ? 'Make member' : 'Make lead'}
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={!reason.trim()}
-                onClick={() =>
-                  change(`/teams/${teamId}/members/${m.userId}`, 'DELETE', {
-                    reason: reason.trim(),
-                  })
-                }
-              >
-                Remove
-              </button>
-            </div>
-          ))
+          <div className="row-list">
+            {members.data.items.map((m) => (
+              <div key={m.userId} className="row-item">
+                <div className="row-main">
+                  <strong>{m.displayName}</strong>
+                  <small>{m.email}</small>
+                </div>
+                <Badge value={m.level} label={m.level === 'LEAD' ? 'Lead' : 'Member'} />
+                <button
+                  className="button secondary small"
+                  type="button"
+                  disabled={action.isPending}
+                  onClick={() =>
+                    change(`/teams/${teamId}/members/${m.userId}`, 'PUT', {
+                      level: m.level === 'LEAD' ? 'MEMBER' : 'LEAD',
+                      reason: m.level === 'LEAD' ? 'Changed to member' : 'Made lead',
+                    })
+                  }
+                >
+                  {m.level === 'LEAD' ? 'Make member' : 'Make lead'}
+                </button>
+                <button
+                  className="button secondary small"
+                  type="button"
+                  disabled={action.isPending}
+                  onClick={() =>
+                    window.confirm(`Remove ${m.displayName} from ${teamName}?`) &&
+                    change(`/teams/${teamId}/members/${m.userId}`, 'DELETE', {
+                      reason: `Removed from ${teamName}`,
+                    })
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
         ) : (
-          <Empty title="No members yet" />
+          <Empty title="No members yet">Search for a person above and add them.</Empty>
         )}
       </Panel>
     </>

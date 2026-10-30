@@ -18,7 +18,12 @@ import { AuthRequest, SessionGuard } from './security';
 
 const LIMIT = 25;
 const query = z
-  .object({ q: z.string().trim().max(100).optional(), cursor: z.string().max(1000).optional() })
+  .object({
+    q: z.string().trim().max(100).optional(),
+    cursor: z.string().max(1000).optional(),
+    // The shared web pager always sends limit; the page size stays fixed at LIMIT.
+    limit: z.string().max(4).optional(),
+  })
   .strict();
 
 /** People who can be given custody of an asset (mirrors eligibleEmployee in domain-helpers). */

@@ -3,45 +3,44 @@
 All work is uncommitted on `main` (owner prefers no commits until asked).
 
 ## Built
-Sub-projects A–F: roles and teams, Zoho People sync, asset kits, ticket routing, Finance review with local OCR, executive dashboard. Specs: `docs/superpowers/specs/2026-10-29-*.md`. Detailed log and every decision made: `.superpowers/sdd/2026-10-29-roles-teams-ownership/progress.md`. Zoho setup: `docs/ZOHO_SETUP.md`.
+Sub-projects A–F: roles and teams, Zoho People sync, asset kits, ticket routing, Finance review with local OCR, executive dashboard. Specs: `docs/superpowers/specs/2026-10-29-*.md`. Detailed log and every decision made: `.superpowers/sdd/2026-10-29-roles-teams-ownership/progress.md`. Zoho setup: `docs/ZOHO_SETUP.md`. Migration 027 (department rules: `team_view_grants`, type→team/handling-team mapping) applied to both databases.
 
 ## Last change (not fully verified)
-Each team now sees only its own assets (`assetScope` in `apps/api/src/domain-helpers.ts`). Super Admin, Finance and Executive see all; employees see assets assigned to them. `team-permissions.integration.test.ts` passes. Four older assertions were flipped to expect 404 for another team's asset (`asset-photos` and `domain` integration tests). The full integration run was stopped before finishing.
+Each team now sees only its own assets (`assetScope` in `apps/api/src/domain-helpers.ts`). Super Admin, Finance and Executive see all; employees see assets assigned to them. `team-permissions.integration.test.ts` passes. Four older assertions were flipped to expect 404 for another team's asset (`asset-photos` and `domain` integration tests). Full integration run: 196 pass, only 3 known `data-transfers` failures remain.
 
-## Next steps
+## Completed: department rules (all 5)
+
+1. **Each team adds only its own asset types.** Migration 027 maps each asset type to owning/handling team (Printer→IT, Chair→ADM, etc.). `validateOwnership` in `domain-helpers.ts` rejects mismatched types with 422; Super Admin can override; PRJ may use ADM facility types. Web Add/Edit asset form (`apps/web/src/components/Assets.tsx`) offers only the selected owning team's types.
+
+2. **Shared viewing Admin↔Projects.** `team_view_grants` seeded ADM↔PRJ. `assetScope` extended to include assets owned by teams the user's teams may view (IT excluded). Edit/assign/retire stay owner-team-only (`assertCan` unchanged). Verified by `team-permissions.integration.test.ts`.
+
+3. **Facility tickets route to Admin.** `createTicket` in `domain-tickets.ts` routes by asset type's `handling_team_id`. Projects-owned chair ticket routes to Admin. Verified by ticket routing + team-permissions integration tests.
+
+4. **Team dashboard.** `GET /dashboard/team` endpoint in `executive-dashboard.ts` (reuses executive queries with team filter). `TeamDashboard` UI component in `ExecutiveDashboard.tsx`; `UserDashboard` routes team members to it. Verified by integration test.
+
+5. **Tests.** All type→team enforcement, shared viewing, ticket routing, and team dashboard tests pass in `team-permissions.integration.test.ts`.
+
+## Completed: make team access easy to give
+
+1. **People & access (`Admin.tsx`):** Teams section in each person's editor — lists current teams with level, add (team + Member/Lead + reason), change level, remove. Super Admin only. Changes revoke target sessions via API.
+2. **Teams & projects (`TeamAdmin.tsx`):** Manage members link on each team row to `/team/:teamId`.
+3. **Employee home (`Dashboards.tsx`):** `EmployeeDashboard` shows My assets (assigned count, list, pending confirmations, open tickets). Team members see `TeamDashboard` instead.
+4. **Add asset appears automatically** for team members via `asset.create` capability (no API change needed).
+
+## Remaining next steps
 1. Run `npm run test:integration`. Expect 3 known pre-existing failures in `data-transfers.integration.test.ts` (51-row limit, department preview, invite outbox). Anything else is new: fix it.
 2. Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
 3. Web: the asset catalog nav and other UI still gate on `asset.view_all`, which team members keep; only the server-side scope changed. Check that pages behave sensibly (another team's asset should show "not found").
 4. Not yet tested: Playwright browser specs, Docker image build, real Zoho data.
 
-## Planned next: make team access easy to give
-
-Only team members (Member or Lead of IT, Admin or Projects) can add assets; plain Employees only see their own. Today a Super Admin can't put someone in a team from People & access.
-
-1. **People & access (`apps/web/src/components/Admin.tsx`):** in each person's editor, add a **Teams** section. List their current teams with level, allow adding (team + Member/Lead + reason) and removing. Use the existing API: `POST /teams/:id/members` `{email, level, reason}`, `PUT /teams/:id/members/:userId` `{level, reason}`, `DELETE /teams/:id/members/:userId` `{reason}`. `GET /users` already returns `teams` per user. Super Admin only. Changes sign the person out so they take effect.
-2. **Teams & projects (`apps/web/src/components/TeamAdmin.tsx`):** add a **Manage members** link on each team row to `/team/:teamId`.
-3. **Employee home (`apps/web/src/components/Dashboards.tsx`):** add a **My assets** card: count of items held, the list (code, type, description), items awaiting confirmation, and open tickets. Use the existing assets list endpoint (employees already see only their own) and tickets list.
-4. Once someone is a team member, **Add asset** appears automatically (capability `asset.create` for that team). No API change is needed.
-5. Optional: move the **Teams & projects** page (`/admin/teams`) into **Master Control** as a tab, and remove its separate nav item. Its sections (projects/grants, room-held asset types, ticket category → team, rare new teams) are one-time setup.
-
-## Planned next: department rules (approved by owner)
-
-1. **Each team adds only its own kinds of items.** Map each asset category/type to a team in Master Control (e.g. Laptop, Desktop, Mouse, Printer → IT; Chair, Table, Kitchen, Light → Admin; Projects may use Admin's facility types for grant purchases). The Add/Edit asset form offers only the types mapped to the chosen owning team; the API rejects others with 422 `This asset type belongs to another team`. Super Admin can override.
-2. **Shared viewing between Admin and Projects.** Add a team-to-team "can view" setting (e.g. table `team_view_grants(viewer_team_id, owner_team_id)`), seeded ADM↔PRJ. Extend `assetScope` in `apps/api/src/domain-helpers.ts` to include assets owned by teams the user's teams may view. Viewing only: edit/assign/retire stay owner-team-only (`assertCan` on owning team is unchanged). IT is not shared: IT sees only IT; ADM/PRJ never see IT items.
-3. **Facility problems always go to Admin.** In ticket routing (`createTicket` in `apps/api/src/domain-tickets.ts`), when a ticket is about an asset, route by the asset type's handling team rather than the owning team. Facility types (chair, table, etc.) route to Admin even if Projects owns them; IT types route to IT. Add a "handled by team" field next to the type→team mapping in item 1 (default = mapped team, Admin for facility types). Non-asset tickets keep the category→team mapping.
-4. **Team dashboard.** For team members, show a dashboard of their teams' items, plus shared-view teams for ADM/PRJ: counts by status, value, items needing attention (pending Finance, warranty/AMC expiring, holders who left), and open tickets for their team. Reuse `apps/api/src/executive-dashboard.ts` queries with a team filter; new endpoint `GET /dashboard/team` (any team member, scoped to their teams).
-5. Tests: type→team enforcement; ADM user sees PRJ assets but cannot edit them; PRJ user cannot see IT assets; Projects-owned chair ticket routes to Admin; team dashboard counts only scoped items.
-
 ## Known gaps
-
 - 3 integration tests in `data-transfers.integration.test.ts` failed before this work began; leave them unless asked.
 - Zoho field names and the photo download (`mapZohoRecord`, `fetchPhoto` in `apps/api/src/zoho.ts`) are untested against real Zoho; verify after the first Sync now.
 - Scanned PDFs are not OCR'd (users are asked for a photo instead). The supplier guess is low confidence.
 - The Docker image build and Playwright browser specs have not been run since the last changes.
-- The production database user needs `infra/runtime-grants.sql` re-applied after migrations 017–025.
+- The production database user needs `infra/runtime-grants.sql` re-applied after migrations 017–025 (`team_view_grants` and `asset_type_policies` grants already present).
 
 ## Working rules (owner's preferences)
-
 - Do not commit or create branches unless the owner asks.
 - Write a failing test first, then the fix. Run the related test files, then the full suite once at the end.
 - Integration tests need the database running (see Environment) and use `TEST_DATABASE_URL` from `.env`.
@@ -49,4 +48,4 @@ Only team members (Member or Lead of IT, Admin or Projects) can add assets; plai
 
 ## Environment
 - Database runs on port 55120 (Windows reserved 55432). Start it with `docker compose --env-file .env -f infra/compose.local.yml up -d`.
-- App DB `iac_asset_management`; test DB `iac_asset_management_test`; both are migrated to 025.
+- App DB `iac_asset_management`; test DB `iac_asset_management_test`; both are migrated to 027.

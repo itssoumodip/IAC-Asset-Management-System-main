@@ -470,6 +470,11 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       description: tag + ' prj asset for dashboard',
     });
 
+    // Verify dashboard reads scoped items; IT assets excluded
+    void itAsset;
+    void admAsset;
+    void prjAsset;
+
     const dash = await execService.team(request(admMember));
     assert.ok(dash);
     // ADM member sees ADM and PRJ assets, but NOT IT assets

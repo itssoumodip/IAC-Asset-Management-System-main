@@ -1384,14 +1384,13 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   />
                 </Field>
               ))}
-              {['category', 'assetType', 'ownershipType', 'status', 'condition', 'riskLevel'].map(
+              {['category', 'ownershipType', 'status', 'condition', 'riskLevel'].map(
                 (name) => (
                   <Field
                     key={name}
                     label={
                       {
                         category: 'Category',
-                        assetType: 'Asset type',
                         ownershipType: 'Ownership type',
                         status: 'Status',
                         condition: 'Condition',
@@ -1411,6 +1410,64 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   </Field>
                 ),
               )}
+              {/* Asset type is filtered by the chosen owning team's type→team mapping. */}
+              <Field
+                key="assetType"
+                label="Asset type"
+                htmlFor="assetType"
+              >
+                <Select
+                  label=""
+                  htmlFor="assetType"
+                  value={values.assetType ?? ''}
+                  onChange={(value) => set('assetType', value)}
+                  required
+                  options={[
+                    { value: '', label: 'Select asset type' },
+                    ...(refs.data?.assetTypePolicies ?? [])
+                      .filter((policy) => {
+                        if (can(user, 'asset.change_team')) return true;
+                        if (!selectedTeam) return false;
+                        if (policy.owningTeamId === selectedTeam.id) return true;
+                        // Projects may use Admin's facility types for grant purchases.
+                        if (
+                          selectedTeam.code === 'PRJ' &&
+                          policy.owningTeamId ===
+                            teams.find((t) => t.code === 'ADM')?.id
+                        )
+                          return true;
+                        return false;
+                      })
+                      .filter((policy) => {
+                        const ref = refs.data?.values.find(
+                          (v) => v.kind === 'ASSET_TYPE' && v.code === policy.assetTypeCode,
+                        );
+                        return ref?.active ?? false;
+                      })
+                      .map((policy) => {
+                        const ref = refs.data?.values.find(
+                          (v) => v.kind === 'ASSET_TYPE' && v.code === policy.assetTypeCode,
+                        );
+                        return {
+                          value: policy.assetTypeCode,
+                          label: ref?.label ?? policy.assetTypeCode,
+                        };
+                      }),
+                    // When editing, keep the current type selectable even if the mapping changed.
+                    ...(baseline && baseline.assetType
+                      ? [
+                          {
+                            value: baseline.assetType,
+                            label:
+                              refs.data?.values.find(
+                                (v) => v.kind === 'ASSET_TYPE' && v.code === baseline.assetType,
+                              )?.label ?? baseline.assetType,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </Field>
               <Select
                 label="Department"
                 htmlFor="departmentId"

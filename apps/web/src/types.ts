@@ -197,6 +197,8 @@ export interface ProjectReference {
 export interface AssetTypePolicy {
   assetTypeCode: string;
   requiresCustodian: boolean;
+  owningTeamId?: string | null;
+  handlingTeamId?: string | null;
 }
 export interface References {
   values: ReferenceValue[];

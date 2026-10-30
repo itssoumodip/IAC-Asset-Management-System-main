@@ -44,6 +44,12 @@ export function UserAdmin() {
   const [state, setState] = useState('ACTIVE');
   const [resendingId, setResendingId] = useState<string>();
   const resendInFlight = useRef(false);
+  // Team membership management (Super Admin only)
+  const [teamToAdd, setTeamToAdd] = useState('');
+  const [teamLevel, setTeamLevel] = useState('MEMBER');
+  const [teamReason, setTeamReason] = useState('');
+  const [teamMessage, setTeamMessage] = useState('');
+  const teamAction = useAction<{ message?: string }>();
   const users = query.data?.pages.flatMap((page) => page.items) ?? [];
   async function approve(event: FormEvent) {
     event.preventDefault();
@@ -148,6 +154,69 @@ export function UserAdmin() {
     if (result) {
       setSelected(undefined);
       setMessage(result);
+    }
+  }
+  async function addToTeam() {
+    if (!selected || !teamToAdd || !teamReason.trim() || teamAction.isPending) return;
+    setTeamMessage('');
+    const result = await teamAction
+      .mutateAsync({
+        path: `/teams/${teamToAdd}/members`,
+        method: 'POST',
+        body: { email: selected.email, level: teamLevel, reason: teamReason.trim() },
+        idempotent: true,
+      })
+      .then((value) => value.message ?? 'Added to team.')
+      .catch((error) => {
+        setTeamMessage(error instanceof Error ? error.message : 'Could not add to team.');
+        return null;
+      });
+    if (result) {
+      setTeamMessage(result);
+      setTeamToAdd('');
+      setTeamLevel('MEMBER');
+      setTeamReason('');
+      void query.refetch();
+    }
+  }
+  async function changeTeamLevel(teamId: string, level: 'LEAD' | 'MEMBER') {
+    if (!selected || !teamReason.trim() || teamAction.isPending) return;
+    setTeamMessage('');
+    const result = await teamAction
+      .mutateAsync({
+        path: `/teams/${teamId}/members/${selected.id}`,
+        method: 'PUT',
+        body: { level, reason: teamReason.trim() },
+        idempotent: true,
+      })
+      .then((value) => value.message ?? 'Team level updated.')
+      .catch((error) => {
+        setTeamMessage(error instanceof Error ? error.message : 'Could not update team level.');
+        return null;
+      });
+    if (result) {
+      setTeamMessage(result);
+      void query.refetch();
+    }
+  }
+  async function removeFromTeam(teamId: string) {
+    if (!selected || !teamReason.trim() || teamAction.isPending) return;
+    setTeamMessage('');
+    const result = await teamAction
+      .mutateAsync({
+        path: `/teams/${teamId}/members/${selected.id}`,
+        method: 'DELETE',
+        body: { reason: teamReason.trim() },
+        idempotent: true,
+      })
+      .then((value) => value.message ?? 'Removed from team.')
+      .catch((error) => {
+        setTeamMessage(error instanceof Error ? error.message : 'Could not remove from team.');
+        return null;
+      });
+    if (result) {
+      setTeamMessage(result);
+      void query.refetch();
     }
   }
   return (
@@ -375,6 +444,102 @@ export function UserAdmin() {
                 })) ?? []),
               ]}
             />
+            <fieldset>
+              <legend>Teams</legend>
+              <p className="muted small-text">
+                Team membership gives this person access to team assets. Adding or removing a team
+                signs them out so the change takes effect straight away.
+              </p>
+              {teamMessage ? (
+                <div className="notice" role="status">{teamMessage}</div>
+              ) : null}
+              {(selected.teams ?? []).length ? (
+                <div className="form-grid">
+                  {(selected.teams ?? []).map((membership) => {
+                    const team = (refs.data?.teams ?? []).find((t) => t.id === membership.teamId);
+                    return (
+                      <div key={membership.teamId} className="form-grid">
+                        <span>
+                          <strong>{team ? team.name : membership.teamCode}</strong>
+                          <span className="cell-description">
+                            {membership.teamCode} · {membership.level === 'LEAD' ? 'Lead' : 'Member'}
+                          </span>
+                        </span>
+                        <Select
+                          label=""
+                          htmlFor={`team-level-${membership.teamId}`}
+                          value={membership.level}
+                          onChange={(value) =>
+                            void changeTeamLevel(membership.teamId, value as 'LEAD' | 'MEMBER')
+                          }
+                          options={[
+                            { value: 'MEMBER', label: 'Member' },
+                            { value: 'LEAD', label: 'Lead' },
+                          ]}
+                        />
+                        <button
+                          className="button secondary small"
+                          type="button"
+                          disabled={!teamReason.trim() || teamAction.isPending}
+                          onClick={() => void removeFromTeam(membership.teamId)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="muted small-text">Not a member of any team yet.</p>
+              )}
+              <div className="form-grid">
+                <Select
+                  label="Add to team"
+                  htmlFor="team-to-add"
+                  value={teamToAdd}
+                  onChange={setTeamToAdd}
+                  options={[
+                    { value: '', label: 'Select a team' },
+                    ...((refs.data?.teams ?? []).filter((t) => t.active).map((t) => ({
+                      value: t.id,
+                      label: `${t.name} (${t.code})`,
+                    })) ?? []),
+                  ]}
+                />
+                <Select
+                  label="Level"
+                  htmlFor="team-level-new"
+                  value={teamLevel}
+                  onChange={setTeamLevel}
+                  options={[
+                    { value: 'MEMBER', label: 'Member' },
+                    { value: 'LEAD', label: 'Lead' },
+                  ]}
+                />
+                <button
+                  className="button"
+                  type="button"
+                  disabled={
+                    !teamToAdd ||
+                    !teamReason.trim() ||
+                    (selected.teams ?? []).some((t) => t.teamId === teamToAdd) ||
+                    teamAction.isPending
+                  }
+                  onClick={addToTeam}
+                >
+                  Add to team
+                </button>
+              </div>
+              <Field label="Reason for team change" htmlFor="team-reason">
+                <textarea
+                  id="team-reason"
+                  value={teamReason}
+                  onChange={(event) => setTeamReason(event.target.value)}
+                  required
+                  maxLength={5000}
+                />
+              </Field>
+            </fieldset>
             <Field label="Reason for access change" htmlFor="access-reason">
               <textarea
                 id="access-reason"

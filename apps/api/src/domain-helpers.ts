@@ -216,15 +216,44 @@ export function page(rows: any[], limit: number, fields: string[]) {
 }
 /**
  * Super Admin, Finance and Executive see every asset. Team users see their own teams'
- * assets; anyone with the Employee role also sees assets currently assigned to them.
+ * assets plus assets owned by teams they have view_grants on (ADM<->PRJ shared viewing).
+ * IT is not shared: IT sees only IT; ADM/PRJ never see IT items. Anyone with the Employee
+ * role also sees assets currently assigned to them.
  */
 export function assetScope(actor: Actor, values: any[]) {
   if (actor.roles.some((r) => ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r))) return 'TRUE';
   const clauses: string[] = [];
   const teamIds = (actor.teams ?? []).map((t) => t.teamId);
-  if (teamIds.length) {
+  if (!teamIds.length) {
+    if (actor.roles.includes('EMPLOYEE')) {
+      values.push(actor.id);
+      clauses.push(
+        `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`,
+      );
+    }
+    return clauses.length ? `(${clauses.join(' OR ')})` : 'FALSE';
+  }
+  // IT sees only IT.
+  if (teamIds.includes(IT_TEAM_ID)) {
     values.push(teamIds);
     clauses.push(`a.owning_team_id=ANY($${values.length}::uuid[])`);
+  } else {
+    // Non-IT: own teams.
+    values.push(teamIds);
+    clauses.push(`a.owning_team_id=ANY($${values.length}::uuid[])`);
+    // Shared viewing via team_view_grants: viewer's teams can see owner's teams' assets.
+    // IT is excluded from shared viewing.
+    const viewerParamIdx = values.length + 1;
+    values.push(teamIds);
+    const itParamIdx = values.length + 1;
+    values.push(IT_TEAM_ID);
+    clauses.push(`
+      a.owning_team_id IN (
+        SELECT owner_team_id FROM team_view_grants
+        WHERE viewer_team_id = ANY($${viewerParamIdx}::uuid[])
+        AND owner_team_id <> $${itParamIdx}::uuid
+      )
+    `);
   }
   if (actor.roles.includes('EMPLOYEE')) {
     values.push(actor.id);

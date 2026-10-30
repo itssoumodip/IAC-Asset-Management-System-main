@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import { AuthRequest, SessionGuard } from './security';
 
 const putInput = z.object({ level: z.enum(['LEAD', 'MEMBER']), reason: text(1000) }).strict();
 const deleteInput = z.object({ reason: text(1000) }).strict();
+const candidateQuery = z.object({ q: z.string().trim().max(100).optional() }).strict();
 
 /** Team Leads (and Super Admins) manage who belongs to their team. */
 @Injectable()
@@ -51,7 +53,30 @@ export class TeamService {
     });
   }
 
-  /** Leads cannot browse the user directory, so they add colleagues by work email. */
+  /** Searchable active colleagues not yet in the team, so Leads pick a person instead of typing an email. */
+  async candidates(req: AuthRequest, teamId: string, raw: unknown) {
+    const { q } = parse(candidateQuery, raw ?? {});
+    id(teamId);
+    assertCan(req.user, 'team.manage_members', teamId);
+    const values: any[] = [teamId];
+    let search = '';
+    if (q) {
+      values.push(q);
+      search = `AND (strpos(lower(u.display_name),lower($2))>0 OR strpos(lower(u.email),lower($2))>0 OR strpos(lower(coalesce(u.employee_code,'')),lower($2))>0)`;
+    }
+    const items = await this.db.query(
+      `SELECT u.id,u.display_name,u.email,u.employee_code,u.designation
+       FROM users u
+       WHERE u.state='ACTIVE' AND u.merged_into_user_id IS NULL
+         AND NOT EXISTS(SELECT 1 FROM team_memberships m WHERE m.user_id=u.id AND m.team_id=$1)
+         ${search}
+       ORDER BY u.display_name,u.id LIMIT 25`,
+      values,
+    );
+    return { items: items.map(camel) };
+  }
+
+  /** Adds an active colleague by work email (the picker sends the chosen person's email). */
   async add(req: AuthRequest, teamId: string, body: unknown) {
     const { email, ...rest } = parse(putInput.extend({ email: z.string().trim().email() }), body);
     id(teamId);
@@ -130,6 +155,11 @@ export class TeamController {
   @Get(':id/members')
   members(@Req() req: AuthRequest, @Param('id') teamId: string) {
     return this.service.members(req, teamId);
+  }
+
+  @Get(':id/candidates')
+  candidates(@Req() req: AuthRequest, @Param('id') teamId: string, @Query() q: unknown) {
+    return this.service.candidates(req, teamId, q);
   }
 
   @Post(':id/members')
