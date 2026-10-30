@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "uvx",
+      "args": [
+        "code-review-graph",
+        "serve"
+      ],
+      "cwd": "E:\\Projects\\IAC-Asset-Management-System-main\\IAC-Asset-Management-System-main",
+      "type": "stdio"
+    }
+  }
+}

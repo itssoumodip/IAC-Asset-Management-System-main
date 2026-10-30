@@ -95,7 +95,7 @@ test.beforeAll(async () => {
     );
     await pool.query('INSERT INTO user_roles(user_id,role_code) VALUES($1,$2)', [
       id,
-      name === 'admin' ? 'ADMIN' : 'EMPLOYEE',
+      name === 'admin' ? 'SUPER_ADMIN' : 'EMPLOYEE',
     ]);
   }
   admin = await requests.newContext({ baseURL: origin });
@@ -428,7 +428,7 @@ test('Master Control rejects Employee access through browser and API', async ({ 
   try {
     const page = await context.newPage();
     await page.goto('/master-control');
-    await expect(page.getByRole('heading', { name: 'Admin access required', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Access required', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Master Control', exact: true })).toHaveCount(0);
   } finally {
     await context.close();

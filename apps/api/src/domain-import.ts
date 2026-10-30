@@ -2,7 +2,9 @@ import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { TicketDomain } from './domain-tickets';
-import { AuthRequest, assertVersion, requireRole } from './security';
+import { reconcileAssetCounters } from './domain-assets';
+import { AuthRequest, assertVersion } from './security';
+import { assertCan } from './policy';
 import {
   assetInput,
   camel,
@@ -15,6 +17,8 @@ import {
   text,
   validateAsset,
 } from './domain-helpers';
+
+const ASSET_CODE = /^IAC-[A-Z]{2,5}-\d{6}$/;
 
 export const sourceHeaders = [
   'Asset ID',
@@ -103,10 +107,7 @@ const correction = z
     fields: assetInput
       .partial()
       .extend({
-        assetCode: z
-          .string()
-          .regex(/^IAC-IT-\d{6}$/)
-          .optional(),
+        assetCode: z.string().regex(ASSET_CODE).optional(),
         custodianEmail: z.string().email().optional(),
       })
       .strict(),
@@ -117,10 +118,7 @@ const reviewInput = z
     reason: text(),
     acceptFinancePending: z.literal(true),
     rows: z.array(correction).max(500),
-    expectedAssetCodes: z
-      .array(z.string().regex(/^IAC-IT-\d{6}$/))
-      .min(1)
-      .max(500),
+    expectedAssetCodes: z.array(z.string().regex(ASSET_CODE)).min(1).max(500),
     expectedTotalCost: z.string().regex(/^\d{1,12}(\.\d{1,2})?$/),
     expectedUnknownPurchaseCost: z.number().int().min(0).max(500).default(0),
   })
@@ -187,7 +185,7 @@ function decimal(amount: bigint) {
 
 export class ImportDomain extends TicketDomain {
   async importBatch(req: AuthRequest, batchId: string, c?: PoolClient) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'asset.import');
     id(batchId);
     const row = found(
       (await this.db.query('SELECT * FROM import_batches WHERE id=$1', [batchId], c))[0],
@@ -206,7 +204,7 @@ export class ImportDomain extends TicketDomain {
     };
   }
   async stageImport(req: AuthRequest, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'asset.import');
     const data = parse(stageInput, body);
     if (new Date(data.exportedAt) > new Date())
       throw new UnprocessableEntityException('Export date cannot be in the future');
@@ -271,11 +269,26 @@ export class ImportDomain extends TicketDomain {
         candidate[key] =
           key === 'usefulLifeYears' ? Number(raw[header]) : String(raw[header]).trim();
     const code = corrections.assetCode || String(raw['Asset ID'] ?? '').trim();
-    if (!/^IAC-IT-\d{6}$/.test(code))
+    if (!ASSET_CODE.test(code))
       issues.push({
         code: 'INVALID_ASSET_ID',
-        message: 'Stable source Asset ID must match IAC-IT-nnnnnn',
+        message: 'Stable source Asset ID must match IAC-<TEAM>-nnnnnn',
       });
+    else {
+      // The code prefix names the owning team, e.g. IAC-ADM-000123 belongs to Admin.
+      const prefix = code.split('-')[1];
+      const [team] = await this.db.query(
+        'SELECT id FROM teams WHERE asset_code_prefix=$1',
+        [prefix],
+        c,
+      );
+      if (!team)
+        issues.push({
+          code: 'UNKNOWN_TEAM_PREFIX',
+          message: `No team uses the Asset ID prefix ${prefix}`,
+        });
+      else corrections = { ...corrections, owningTeamId: team.id };
+    }
     // Corrections cannot mutate the immutable source ID; a bad code stays quarantined.
     if (corrections.assetCode && corrections.assetCode !== String(raw['Asset ID'] ?? '').trim())
       issues.push({
@@ -387,7 +400,9 @@ export class ImportDomain extends TicketDomain {
     };
   }
   async reviewImport(req: AuthRequest, batchId: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'asset.import');
+    // Review approves pending Finance metadata, which only Finance-capable users may do.
+    assertCan(req.user, 'asset.finance_edit');
     id(batchId);
     const input = parse(reviewInput, body);
     return this.db.tx(async (c) => {
@@ -472,7 +487,7 @@ export class ImportDomain extends TicketDomain {
     });
   }
   async commitImport(req: AuthRequest, batchId: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'asset.import');
     id(batchId);
     const input = parse(z.object({ reviewed: z.literal(true) }).strict(), body);
     return idempotent(this.db, req, `POST /imports/${batchId}/commit`, input, async (c) => {
@@ -569,17 +584,8 @@ export class ImportDomain extends TicketDomain {
         });
         promoted++;
       }
-      // Sequence only advances, and allocation shares a transaction lock with imported-code reconciliation.
-      await this.db.query(
-        "SELECT pg_advisory_xact_lock(hashtextextended('iac-asset-sequence',0))",
-        [],
-        c,
-      );
-      await this.db.query(
-        "SELECT setval('asset_number_seq',greatest((SELECT last_value FROM asset_number_seq),(SELECT max(substring(asset_code from 8)::bigint) FROM assets)),true)",
-        [],
-        c,
-      );
+      // Counters only advance, under the same lock code allocation takes.
+      await reconcileAssetCounters(this.db, c);
       await this.db.query(
         "UPDATE import_batches SET state='COMMITTED',version=version+1,reconciliation=reconciliation || $2::jsonb WHERE id=$1",
         [batchId, JSON.stringify({ promoted, committedAt: new Date().toISOString() })],

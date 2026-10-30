@@ -1,5 +1,41 @@
-export type Role = 'ADMIN' | 'EMPLOYEE' | 'IT_ADMIN';
+export type Role = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE';
+export type Action =
+  | 'asset.view_all'
+  | 'asset.view_private'
+  | 'asset.create'
+  | 'asset.edit'
+  | 'asset.custody'
+  | 'asset.retire'
+  | 'asset.import'
+  | 'asset.label'
+  | 'asset.photo'
+  | 'asset.finance_edit'
+  | 'asset.change_team'
+  | 'team.manage_members'
+  | 'ticket.work'
+  | 'announcement.send'
+  | 'report.view'
+  | 'system.admin';
+export interface TeamMembership {
+  teamId: string;
+  teamCode: string;
+  level: 'LEAD' | 'MEMBER';
+}
+export interface Capabilities {
+  global: Action[];
+  teams: Record<string, Action[]>;
+}
 export type Page<T> = { items: T[]; nextCursor: string | null; totalCount?: number };
+export interface AssignablePerson {
+  id: string;
+  displayName: string;
+  email: string;
+  employeeCode: string | null;
+  designation: string | null;
+  department: string | null;
+  state: 'ACTIVE' | 'DIRECTORY';
+  hasPhoto: boolean;
+}
 export interface User {
   id: string;
   email: string;
@@ -9,7 +45,10 @@ export interface User {
   departmentId?: string | null;
   department?: string | null;
   roles: Role[];
-  state: 'INVITED' | 'ACTIVE' | 'DISABLED';
+  teams: TeamMembership[];
+  capabilities: Capabilities;
+  state: 'INVITED' | 'ACTIVE' | 'DISABLED' | 'DIRECTORY';
+  hasPhoto?: boolean;
   emailVerifiedAt: string | null;
   portalAcceptedAt: string | null;
   portalNoticeVersion?: string;
@@ -39,6 +78,8 @@ export interface Asset {
   description: string;
   category: string;
   assetType?: string;
+  owningTeamId?: string | null;
+  projectId?: string | null;
   status: string;
   version: number;
   manufacturer?: string;
@@ -67,7 +108,11 @@ export interface Asset {
   lastLabelPrintedAt?: string | null;
   remarks?: string;
   financePending?: boolean;
+  financeStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  financeRejectionReason?: string | null;
   currentAssignment?: Assignment | null;
+  kitParts?: { id: string; assetCode: string; description: string; assetType?: string }[];
+  kitParent?: { id: string; assetCode: string } | null;
   timeline?: TimelineEvent[];
   [key: string]: unknown;
 }
@@ -95,6 +140,7 @@ export interface Ticket {
   assetId?: string | null;
   reporterId?: string;
   ownerId?: string | null;
+  teamId?: string;
   createdAt?: string;
   updatedAt?: string;
   resolution?: string;
@@ -126,10 +172,39 @@ export interface LocationReference {
   active: boolean;
   version: number;
 }
+export interface TeamReference {
+  id: string;
+  code: string;
+  name: string;
+  assetCodePrefix: string;
+  requiresProject: boolean;
+  active: boolean;
+  version: number;
+  prefixInUse: boolean;
+}
+export interface ProjectReference {
+  id: string;
+  code: string;
+  name: string;
+  funder: string | null;
+  grantReference: string | null;
+  startDate: string;
+  endDate: string | null;
+  active: boolean;
+  version: number;
+}
+export interface AssetTypePolicy {
+  assetTypeCode: string;
+  requiresCustodian: boolean;
+}
 export interface References {
   values: ReferenceValue[];
   departments: DepartmentReference[];
   locations: LocationReference[];
+  teams?: TeamReference[];
+  projects?: ProjectReference[];
+  assetTypePolicies?: AssetTypePolicy[];
+  ticketCategoryTeams?: { categoryCode: string; teamId: string }[];
 }
 export interface MasterKind {
   kind: string;
@@ -190,4 +265,38 @@ export interface ScanView {
   hasPhoto: boolean;
   reportable: boolean;
   canViewFull: boolean;
+}
+export interface ProposedField {
+  value: string;
+  confidence: number;
+}
+export interface InvoiceMeta {
+  id: string;
+  mime: 'application/pdf' | 'image/jpeg' | 'image/png';
+  size: number;
+  originalName: string;
+  uploadedAt: string;
+  extractionState: 'PENDING' | 'DONE' | 'FAILED';
+  extractionError: string | null;
+  fields: Partial<
+    Record<'supplier' | 'invoiceNumber' | 'invoiceDate' | 'totalAmount' | 'gstin', ProposedField>
+  >;
+  assetIds: string[];
+}
+export interface FinanceQueueItem {
+  id: string;
+  assetCode: string;
+  description: string;
+  category: string;
+  owningTeamId: string;
+  teamCode: string;
+  projectId: string | null;
+  financeStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  financeRejectionReason: string | null;
+  supplier: string | null;
+  invoiceNumber: string | null;
+  purchaseDate: string | null;
+  purchaseCost: string | null;
+  invoiceId: string | null;
+  invoiceState: 'PENDING' | 'DONE' | 'FAILED' | null;
 }

@@ -9,6 +9,7 @@ import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { configuration, hash, signedCsrf, token } from '../src/config';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -93,10 +94,11 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
       );
       return result;
     };
-    admin = await user(['ADMIN']);
+    admin = await user(['SUPER_ADMIN']);
     employee = await user(['EMPLOYEE']);
     other = await user(['EMPLOYEE']);
-    itAdmin = await user(['IT_ADMIN']);
+    itAdmin = await user(['EMPLOYEE']);
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
     const references = {
       CATEGORY: `${tag} category`,
       ASSET_TYPE: `${tag} type`,
@@ -146,7 +148,7 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
       assert.equal(result.headers.get('Cache-Control'), 'no-store');
     }
     assert.equal((await request(other)).status, 404);
-    assert.equal((await request(itAdmin)).status, 404);
+    assert.equal((await request(itAdmin)).status, 200); // team members see every asset
     assert.equal((await request(null)).status, 401);
   });
 
@@ -190,7 +192,7 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
     assert.notEqual(result.body.dataUrl, photo);
     assert.equal((await request(employee)).body.dataUrl, result.body.dataUrl);
     assert.equal((await request(other)).status, 404);
-    assert.equal((await request(itAdmin)).status, 404);
+    assert.equal((await request(itAdmin)).status, 200); // team members see every asset
     await domain.createTicket(req(employee), {
       assetId: asset.id,
       subject: 'Synthetic picture test support',

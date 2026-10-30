@@ -20,6 +20,8 @@
     "db:migrate": "npm run db:migrate -w @iac/api",
     "admin:bootstrap": "npm run admin:bootstrap -w @iac/api",
     "seed:synthetic": "npm run seed:synthetic -w @iac/api",
+    "zoho:token": "node scripts/zoho-token.mjs",
+    "seed:scale": "npm run seed:scale -w @iac/api",
     "setup:local": "node scripts/setup-local.mjs",
     "email:gmail": "npm run email:gmail -w @iac/api --",
     "infra:up": "docker compose --env-file .env -f infra/compose.local.yml up -d --wait",

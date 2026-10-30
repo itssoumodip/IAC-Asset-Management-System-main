@@ -1,4 +1,5 @@
 import { expect, test, type Download, type Page } from '@playwright/test';
+import { superAdmin } from './mock-capabilities';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -45,7 +46,7 @@ const assets = Array.from({ length: 37 }, (_, index) => ({
   rawFields: { forbidden: 'PRIVATE_SOURCE_SENTINEL' },
   internalNotes: 'PRIVATE_NOTE_SENTINEL',
   password: 'PRIVATE_PASSWORD_SENTINEL',
-  roles: ['ADMIN'],
+  ...superAdmin,
 }));
 async function mockApi(page: Page, { admin = false, failFirstCommit = false } = {}) {
   const state = {
@@ -81,7 +82,7 @@ async function mockApi(page: Page, { admin = false, failFirstCommit = false } = 
     if (method === 'GET' && path === '/api/v1/me')
       return json(
         admin
-          ? { ...session, displayName: 'Synthetic Admin', roles: ['ADMIN', 'EMPLOYEE'] }
+          ? { ...session, displayName: 'Synthetic Admin', ...superAdmin }
           : session,
       );
     if (method === 'GET' && path === '/api/v1/auth/csrf')

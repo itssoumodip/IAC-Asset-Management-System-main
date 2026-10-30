@@ -9,32 +9,55 @@ import { ScanController, ScanService } from './scan';
 import { LabelController, LabelService } from './labels';
 import { DataTransferController, DataTransferService } from './data-transfers';
 import { AdminDashboardController, AdminDashboardService } from './admin-dashboard';
+import { ExecutiveDashboardController, ExecutiveDashboardService } from './executive-dashboard';
 import { PushController, PushService } from './push';
 import { NotificationsController, NotificationsService } from './notifications';
+import { TeamController, TeamService } from './teams';
+import { FinanceController, FinanceService } from './finance';
+import { PeopleController, PeopleService } from './people';
+import {
+  DirectoryController,
+  UserPhotoController,
+  ZOHO_CLIENT,
+  ZohoSyncService,
+  zohoClientFromEnv,
+} from './zoho';
 @Module({
   controllers: [
     AuthController,
+    FinanceController,
     DomainController,
     AssetPhotoController,
     ScanController,
     LabelController,
     DataTransferController,
     AdminDashboardController,
+    ExecutiveDashboardController,
     PushController,
     NotificationsController,
+    TeamController,
+    DirectoryController,
+    UserPhotoController,
+    PeopleController,
   ],
   providers: [
     Db,
     AuthService,
     SessionGuard,
     DomainService,
+    FinanceService,
     AssetPhotoService,
     ScanService,
     LabelService,
     DataTransferService,
     AdminDashboardService,
+    ExecutiveDashboardService,
     PushService,
     NotificationsService,
+    TeamService,
+    PeopleService,
+    ZohoSyncService,
+    { provide: ZOHO_CLIENT, useFactory: zohoClientFromEnv },
   ],
 })
 export class AppModule {}

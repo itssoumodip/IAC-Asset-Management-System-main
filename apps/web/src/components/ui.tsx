@@ -368,3 +368,40 @@ export function Timeline({
     <p className="muted">No history available yet.</p>
   );
 }
+
+/** Profile photo (served privately by the API) or initials. */
+export function Avatar({
+  userId,
+  name,
+  hasPhoto,
+  size = 32,
+}: {
+  userId: string;
+  name: string;
+  hasPhoto?: boolean;
+  size?: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]!.toUpperCase())
+      .join('') || '?';
+  const style = { width: size, height: size, fontSize: Math.round(size * 0.4) };
+  return hasPhoto && !failed ? (
+    <img
+      className="person-avatar"
+      style={style}
+      src={`/api/v1/users/${userId}/photo`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <span className="person-avatar initials" style={style} aria-hidden="true">
+      {initials}
+    </span>
+  );
+}

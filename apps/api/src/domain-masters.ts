@@ -2,8 +2,17 @@ import { ConflictException, UnprocessableEntityException } from '@nestjs/common'
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { Db } from './db';
-import { AuthRequest, assertVersion, requireRole } from './security';
+import { AuthRequest, assertVersion } from './security';
+import { assertCan } from './policy';
 import { camel, found, id, parse, text } from './domain-helpers';
+import {
+  createTeamOrProject,
+  isTeamMasterKind,
+  setRequiresCustodian,
+  setTicketCategoryTeam,
+  teamAndProjectLists,
+  updateTeamOrProject,
+} from './master-teams';
 
 const editable = [
   ['CATEGORY', 'Asset categories'],
@@ -105,10 +114,14 @@ export class MasterDomain {
         'SELECT id,code,site,building,floor,room,active,version FROM locations ORDER BY code',
       ),
     ]);
-    return { values, departments, locations };
+    return { values, departments, locations, ...(await teamAndProjectLists(this.db)) };
+  }
+  async setTicketCategoryTeam(req: AuthRequest, category: string, body: unknown) {
+    assertCan(req.user, 'system.admin');
+    return this.db.tx((c) => setTicketCategoryTeam(this.db, req, parse(referenceIdentifier, category), body, c));
   }
   async masterData(req: AuthRequest) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'system.admin');
     return { kinds: masterKinds, ...(await this.references()) };
   }
   private kind(kind: string) {
@@ -156,7 +169,12 @@ export class MasterDomain {
       );
   }
   async createMaster(req: AuthRequest, kind: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'system.admin');
+    if (isTeamMasterKind(kind))
+      return this.db.tx(async (c) => {
+        await this.lock(c);
+        return createTeamOrProject(this.db, req, kind, body, c);
+      });
     if (kind === 'departments' || kind === 'locations') {
       const data = (
         kind === 'departments' ? parse(departmentCreate, body) : parse(locationCreate, body)
@@ -206,8 +224,38 @@ export class MasterDomain {
       return row;
     });
   }
-  async updateMaster(req: AuthRequest, kind: string, identifier: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+  async updateMaster(
+    req: AuthRequest,
+    kind: string,
+    identifier: string,
+    body: unknown,
+  ): Promise<Record<string, unknown>> {
+    assertCan(req.user, 'system.admin');
+    if (isTeamMasterKind(kind))
+      return this.db.tx(async (c) => {
+        await this.lock(c);
+        return updateTeamOrProject(this.db, req, kind, identifier, body, c);
+      });
+    if (kind === 'ASSET_TYPE' && body && typeof body === 'object' && 'requiresCustodian' in body) {
+      const { requiresCustodian, ...rest } = body as Record<string, unknown>;
+      const code = parse(referenceIdentifier, identifier);
+      const why = parse(reasonInput, rest.reason);
+      const onlyPolicy = Object.keys(rest).every((key) => key === 'reason');
+      const result: Record<string, unknown> | undefined = onlyPolicy
+        ? undefined
+        : await this.updateMaster(req, kind, identifier, rest);
+      return this.db.tx(async (c) => ({
+        ...(result ?? { kind, code }),
+        requiresCustodian: await setRequiresCustodian(
+          this.db,
+          req,
+          code,
+          requiresCustodian,
+          why,
+          c,
+        ),
+      }));
+    }
     if (kind === 'departments' || kind === 'locations') {
       id(identifier);
       const { reason, ...changes } = (
@@ -279,7 +327,7 @@ export class MasterDomain {
     });
   }
   async referenceUpdate(req: AuthRequest, kind: string, code: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'system.admin');
     this.kind(kind);
     parse(referenceIdentifier, code);
     // Preserve the compatibility route while using the same allowlist, audit and version checks.

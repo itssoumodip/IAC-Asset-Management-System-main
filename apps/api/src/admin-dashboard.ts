@@ -2,7 +2,8 @@ import { Controller, Get, Inject, Injectable, Query, Req, UseGuards } from '@nes
 import { z } from 'zod';
 import { Db } from './db';
 import { parse, text, uuid } from './domain-helpers';
-import { AuthRequest, requireRole, SessionGuard } from './security';
+import { AuthRequest, SessionGuard } from './security';
+import { assertCan } from './policy';
 
 const filterInput = z
   .object({
@@ -38,7 +39,7 @@ export class AdminDashboardService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
   async summary(req: AuthRequest, query: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'report.view');
     const filters = parse(filterInput, query);
     const values: any[] = [];
     const where = ['TRUE'];

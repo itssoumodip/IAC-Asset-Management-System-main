@@ -8,6 +8,7 @@ import type { ImportBatch, References, Role, User } from '../types';
 import { fetchAllPages, readTable } from '../transfer-files';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
 import {
+  Avatar,
   Badge,
   Empty,
   ErrorNotice,
@@ -83,7 +84,7 @@ export function UserAdmin() {
     action.reset();
   }
   async function resendInvitation(user: User) {
-    if (user.state !== 'INVITED' || resendInFlight.current || action.isPending) return;
+    if ((user.state !== 'INVITED' && user.state !== 'DIRECTORY') || resendInFlight.current || action.isPending) return;
     resendInFlight.current = true;
     setResendingId(user.id);
     setMessage('');
@@ -315,7 +316,7 @@ export function UserAdmin() {
                 key: 'roles',
                 type: 'list',
                 required: true,
-                options: ['EMPLOYEE', 'IT_ADMIN', 'ADMIN'],
+                options: ['EMPLOYEE', 'FINANCE', 'EXECUTIVE', 'SUPER_ADMIN'],
               },
               { key: 'state', required: true, options: ['ACTIVE', 'DISABLED'] },
               { key: 'designation' },
@@ -344,7 +345,7 @@ export function UserAdmin() {
             </Field>
             <fieldset>
               <legend>Roles</legend>
-              {(['EMPLOYEE', 'IT_ADMIN', 'ADMIN'] as Role[]).map((role) => (
+              {(['EMPLOYEE', 'FINANCE', 'EXECUTIVE', 'SUPER_ADMIN'] as Role[]).map((role) => (
                 <label className="checkbox" key={role}>
                   <input
                     type="checkbox"
@@ -481,8 +482,13 @@ export function UserAdmin() {
                 {users.map((user) => (
                   <tr key={user.id}>
                     <td>
-                      <strong>{user.displayName}</strong>
-                      <span className="cell-description">{user.email}</span>
+                      <div className="person-row">
+                        <Avatar userId={user.id} name={user.displayName} hasPhoto={user.hasPhoto} />
+                        <div>
+                          <strong>{user.displayName}</strong>
+                          <span className="cell-description">{user.email}</span>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       {user.roles.map((role) => (
@@ -494,13 +500,13 @@ export function UserAdmin() {
                       <span className="cell-description">{user.department || 'Department not set'}</span>
                     </td>
                     <td>
-                      <Badge value={user.state} />
+                      <Badge value={user.state} label={user.state === 'DIRECTORY' ? 'No login' : undefined} />
                     </td>
                     <td>{user.emailVerifiedAt ? 'Verified' : 'Pending'}</td>
                     <td>{user.portalAcceptedAt ? 'Accepted' : 'Pending'}</td>
                     <td>
                       <div className="actions">
-                        {user.state === 'INVITED' ? (
+                        {user.state === 'INVITED' || user.state === 'DIRECTORY' ? (
                           <button
                             className="button secondary small"
                             type="button"
@@ -510,7 +516,11 @@ export function UserAdmin() {
                             }}
                             aria-label={`Resend invitation to ${user.displayName}`}
                           >
-                            {resendingId === user.id ? 'Queuing...' : 'Resend invitation'}
+                            {resendingId === user.id
+                              ? 'Queuing...'
+                              : user.state === 'DIRECTORY'
+                                ? 'Invite'
+                                : 'Resend invitation'}
                           </button>
                         ) : null}
                         <button

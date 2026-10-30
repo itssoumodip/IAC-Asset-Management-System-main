@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { superAdmin } from './mock-capabilities';
 import { join } from 'node:path';
 
 const assetId = '00000000-0000-4000-8000-000000000010';
@@ -85,7 +86,7 @@ async function mockApi(
               ...baseSession,
               id: '00000000-0000-4000-8000-000000000030',
               displayName: 'Synthetic Admin',
-              roles: ['ADMIN', 'EMPLOYEE'],
+              ...superAdmin,
             }
           : baseSession,
       });
@@ -254,7 +255,7 @@ test('Employee sees the saved photo and read-only detail on desktop and mobile; 
   );
   await page.goto(`/assets/${assetId}/edit`);
   await expect(
-    page.getByRole('heading', { name: 'Admin access required', exact: true }),
+    page.getByRole('heading', { name: 'Access required', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: /Save asset|Save photo/ })).toHaveCount(0);
   expect(state.writes).toEqual([]);

@@ -2,11 +2,27 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { usePages, useAction } from '../hooks';
-import { hasRole, isStaff, useSession } from '../session';
+import { can, useSession } from '../session';
 import type { Asset, Ticket } from '../types';
 import { Badge, Empty, ErrorNotice, Loading, Metric, PageTitle, Panel } from './ui';
 import { useReferences, ReferenceBadge } from './References';
 import { AdminInsights } from './AdminInsights';
+import { ExecutiveDashboard, useExecutive } from './ExecutiveDashboard';
+import { greeting, summaryLine, todayLabel } from '../executive';
+
+function Greeting({ line }: { line?: string }) {
+  const { user } = useSession();
+  const now = new Date();
+  return (
+    <section className="greeting" aria-label="Welcome">
+      <h2>{greeting(now, user?.displayName ?? '')}</h2>
+      <p className="muted">
+        <time dateTime={now.toISOString()}>{todayLabel(now)}</time>
+        {line ? <> · {line}</> : null}
+      </p>
+    </section>
+  );
+}
 interface Summary {
   role?: string;
   assets?: {
@@ -42,8 +58,8 @@ function DashboardListSkeleton({ kind, horizontal = false }: { kind: 'equipment'
 }
 export function UserDashboard() {
   const { user } = useSession();
-  if (hasRole(user, 'ADMIN')) return <AdminDashboard />;
-  if (isStaff(user)) return <ITDashboard />;
+  if (can(user, 'report.view')) return <AdminDashboard />;
+  if (can(user, 'ticket.work')) return <ITDashboard />;
   return <EmployeeDashboard />;
 }
 function EmployeeDashboard() {
@@ -53,8 +69,18 @@ function EmployeeDashboard() {
   const tickets = usePages<Ticket>('/tickets', { status: 'OPEN' });
   const items = assets.data?.pages.flatMap((page) => page.items) ?? [];
   const requests = tickets.data?.pages.flatMap((page) => page.items) ?? [];
+  const employeeLine = summary.data
+    ? summaryLine([
+        { label: 'to confirm', count: summary.data.assets?.pendingAcknowledgements ?? 0 },
+        {
+          label: 'open requests',
+          count: (summary.data.tickets?.open ?? 0) + (summary.data.tickets?.inProgress ?? 0),
+        },
+      ])
+    : undefined;
   return (
     <>
+      <Greeting line={employeeLine} />
       <PageTitle
         title="Overview"
         description="Your equipment, confirmations and open support requests."
@@ -172,9 +198,19 @@ function EmployeeDashboard() {
 }
 export function AdminDashboard() {
   const summary = useDashboard();
+  const executive = useExecutive();
   const data = summary.data;
+  const attention = executive.data?.needsAttention;
+  const adminLine = attention
+    ? summaryLine([
+        { label: 'pending Finance', count: attention.pendingFinance },
+        { label: 'holders who left', count: attention.leftHoldersWithAssets },
+        { label: 'high-priority tickets', count: attention.openHighTickets },
+      ])
+    : undefined;
   return (
     <>
+      <Greeting line={adminLine} />
       <PageTitle
         title="Overview"
         description="Custody, exceptions and support across the foundation."
@@ -190,6 +226,7 @@ export function AdminDashboard() {
           void summary.refetch();
         }}
       />
+      <ExecutiveDashboard />
       <AdminInsights />
       <div className="dashboard-columns">
         <Panel title="What needs attention">
@@ -254,8 +291,15 @@ export function AdminDashboard() {
 export function ITDashboard() {
   const summary = useDashboard();
   const data = summary.data;
+  const itLine = data?.tickets
+    ? summaryLine([
+        { label: 'open tickets', count: data.tickets.open },
+        { label: 'unassigned', count: data.tickets.unassigned },
+      ])
+    : undefined;
   return (
     <>
+      <Greeting line={itLine} />
       <PageTitle
         title="Support overview"
         description="Your queue, ownership and next actions in one place."

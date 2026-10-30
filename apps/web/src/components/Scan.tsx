@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
-import { hasRole, useSession } from '../session';
+import { can, useSession } from '../session';
 import type { ScanView } from '../types';
 import { GenericLaptop } from './AssetPhoto';
 import { Badge, Empty, ErrorNotice, Loading, Panel } from './ui';
@@ -142,7 +142,7 @@ export function ScanPage() {
           ) : null}
           {scan.canViewFull ? (
             <Link className="button secondary full" to={`/assets/${scan.id}`}>
-              {hasRole(user, 'ADMIN') || hasRole(user, 'IT_ADMIN') ? 'Open full record' : 'View my asset'}
+              {can(user, 'asset.view_all') ? 'Open full record' : 'View my asset'}
             </Link>
           ) : null}
         </div>

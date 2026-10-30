@@ -1,9 +1,25 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import type { PoolClient } from 'pg';
+import type { Db } from './db';
 import { MasterDomain } from './domain-masters';
-import { Actor, AuthRequest, assertVersion, requireRole } from './security';
 import {
-  admin,
+  assertKitEditAllowed,
+  assertNotKitPart,
+  attachKitInput,
+  attachPart,
+  cascadeAssign,
+  cascadeReturn,
+  detachKitInput,
+  detachPart,
+  kitView,
+  lockKitParts,
+} from './asset-kits';
+import { Actor, AuthRequest, assertVersion, requireRole } from './security';
+import { FINANCE_FIELDS, WRITE_OFF_STATUSES, assertCan, can } from './policy';
+import {
+  IT_TEAM_ID,
+  assertCanSomewhere,
+  canSomewhere,
   assetColumns,
   assetInput,
   assetPatch,
@@ -26,6 +42,81 @@ import {
   validateAsset,
 } from './domain-helpers';
 
+/**
+ * After imported codes land, move every counter past them: the legacy IT sequence from
+ * IAC-IT- codes only, and each team's counter from codes with that team's prefix. This
+ * keeps the next create from walking thousands of taken numbers under the counter lock.
+ */
+export async function reconcileAssetCounters(db: Db, c: PoolClient): Promise<void> {
+  await db.query("SELECT pg_advisory_xact_lock(hashtextextended('iac-asset-sequence',0))", [], c);
+  await db.query(
+    `SELECT setval('asset_number_seq',greatest((SELECT last_value FROM asset_number_seq),
+       (SELECT coalesce(max(substring(asset_code from 8)::bigint),1) FROM assets WHERE asset_code ~ '^IAC-IT-[0-9]{6}$')),true)`,
+    [],
+    c,
+  );
+  await db.query(
+    `UPDATE team_asset_counters k SET next_value=greatest(k.next_value,m.top+1)
+     FROM (SELECT t.id,max(right(a.asset_code,6)::bigint) AS top FROM teams t
+           JOIN assets a ON a.asset_code ~ ('^IAC-'||t.asset_code_prefix||'-[0-9]{6}$')
+           GROUP BY t.id) m
+     WHERE k.team_id=m.id`,
+    [],
+    c,
+  );
+}
+
+/**
+ * Next free code for the team, e.g. IAC-ADM-000042. The counter row lock serialises
+ * concurrent creates, and it is updated in the caller's transaction so a rolled-back
+ * create does not consume a number. Codes already taken (imports) are skipped.
+ */
+export async function allocateAssetCode(db: Db, teamId: string, c: PoolClient): Promise<string> {
+  // Shared with register-import reconciliation so a create waits instead of colliding.
+  await db.query("SELECT pg_advisory_xact_lock(hashtextextended('iac-asset-sequence',0))", [], c);
+  const [counter] = await db.query(
+    'SELECT k.next_value,t.asset_code_prefix FROM team_asset_counters k JOIN teams t ON t.id=k.team_id WHERE k.team_id=$1 FOR UPDATE OF k',
+    [teamId],
+    c,
+  );
+  if (!counter) throw new ConflictException('Owning team has no asset code counter');
+  let start = Number(counter.next_value);
+  // Seeds, scripts and older tooling still number IT assets from asset_number_seq.
+  if (teamId === IT_TEAM_ID)
+    start = Math.max(
+      start,
+      Number((await db.query("SELECT nextval('asset_number_seq') AS n", [], c))[0].n),
+    );
+  for (let next = start; ; next++) {
+    if (next > 999999) throw new ConflictException('Asset code range exhausted');
+    const code = `IAC-${counter.asset_code_prefix}-${String(next).padStart(6, '0')}`;
+    if (!(await db.query('SELECT 1 FROM assets WHERE asset_code=$1', [code], c))[0]) {
+      await db.query(
+        'UPDATE team_asset_counters SET next_value=$2 WHERE team_id=$1',
+        [teamId, next + 1],
+        c,
+      );
+      return code;
+    }
+  }
+}
+
+/** Finance fields need Finance; other fields need team edit; write-offs need team retire. */
+function assertEditAllowed(actor: Actor, before: any, changes: Record<string, unknown>) {
+  const keys = Object.keys(changes);
+  // Approval and rejection carry an audit trail and reviewer; they must go through Finance review.
+  if (changes.financePending !== undefined)
+    throw new ConflictException('Use Finance review to approve or reject');
+  if (keys.some((k) => FINANCE_FIELDS.includes(k))) assertCan(actor, 'asset.finance_edit');
+  if (keys.some((k) => !FINANCE_FIELDS.includes(k)))
+    assertCan(actor, 'asset.edit', before.owning_team_id);
+  if (changes.owningTeamId !== undefined && changes.owningTeamId !== before.owning_team_id)
+    assertCan(actor, 'asset.change_team');
+  const status = changes.status as string | undefined;
+  if (status && status !== before.status && WRITE_OFF_STATUSES.has(status))
+    assertCan(actor, 'asset.retire', before.owning_team_id);
+}
+
 export class AssetDomain extends MasterDomain {
   async assets(req: AuthRequest, query: any) {
     const p = requestPage(query, ['asset_code', 'id']);
@@ -35,12 +126,14 @@ export class AssetDomain extends MasterDomain {
       ['status', 'status'],
       ['category', 'category'],
       ['departmentId', 'department_id'],
+      ['owningTeamId', 'owning_team_id'],
+      ['projectId', 'project_id'],
     ] as const)
       if (p[key]) {
         values.push(p[key]);
         where.push(`a.${column}=$${values.length}`);
       }
-    if (p.labelPrinted && admin(req.user))
+    if (p.labelPrinted && canSomewhere(req.user, 'asset.label'))
       where.push('NOT EXISTS(SELECT 1 FROM asset_label_prints lp WHERE lp.asset_id=a.id)');
     if (p.q) {
       values.push(p.q);
@@ -54,7 +147,7 @@ export class AssetDomain extends MasterDomain {
     }
     values.push(p.limit + 1);
     const rows = await this.db.query(
-      `SELECT ${assetColumns(req.user)}${admin(req.user) ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
+      `SELECT ${assetColumns(req.user)}${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
       values,
     );
     const result = page(rows, p.limit, ['asset_code', 'id']);
@@ -64,8 +157,9 @@ export class AssetDomain extends MasterDomain {
   async attachCurrentAssignments(actor: Actor, items: any[], client?: PoolClient) {
     if (!items.length) return;
     const values: any[] = [items.map((a) => a.id)];
-    const own = admin(actor) ? '' : ' AND s.user_id=$2';
-    if (!admin(actor)) values.push(actor.id);
+    const all = can(actor, 'asset.view_all');
+    const own = all ? '' : ' AND s.user_id=$2';
+    if (!all) values.push(actor.id);
     const assignments = await this.db.query(
       `SELECT s.id,s.asset_id,s.user_id,s.acknowledgement,s.acknowledged_at,s.dispute_reason,s.assigned_at,s.version,
               u.display_name AS employee_name,u.designation AS employee_designation,ud.name AS employee_department
@@ -94,10 +188,11 @@ export class AssetDomain extends MasterDomain {
       )[0],
     );
     const result = camel(row);
+    Object.assign(result, await kitView(this.db, assetId, client));
     await this.attachCurrentAssignments(req.user, [result], client);
-    // Staff see technical assets; custody evidence is Admin-only or the employee's
-    // own currently open assignment. Never expose previous custodians or notes.
-    if (admin(req.user))
+    // Custody evidence is for private-column viewers or the employee's own currently
+    // open assignment. Never expose previous custodians or notes.
+    if (can(req.user, 'asset.view_private'))
       result.timeline = (
         await this.db.query(
           'SELECT id,occurred_at AS created_at,kind,reason AS body FROM asset_movements WHERE asset_id=$1 ORDER BY occurred_at DESC,id DESC LIMIT 50',
@@ -117,32 +212,21 @@ export class AssetDomain extends MasterDomain {
     return result;
   }
   async createAsset(req: AuthRequest, body: unknown) {
-    requireRole(req, 'ADMIN');
-    const data = parse(assetInput, body);
+    assertCanSomewhere(req.user, 'asset.create');
+    const parsed = parse(assetInput, body);
+    // Callers that predate team ownership create IT assets.
+    const data = { ...parsed, owningTeamId: parsed.owningTeamId ?? IT_TEAM_ID };
+    assertCan(req.user, 'asset.create', data.owningTeamId);
+    if (
+      FINANCE_FIELDS.some((f) => (data as any)[f] != null) &&
+      !can(req.user, 'asset.finance_edit')
+    )
+      throw new ForbiddenException('Finance fields are set by Finance');
     if (data.status === 'Assigned')
       throw new ConflictException('Assign custody using the assignment workflow');
     return idempotent(this.db, req, 'POST /assets', data, async (c) => {
       await validateAsset(this.db, data, c);
-      await this.db.query(
-        "SELECT pg_advisory_xact_lock(hashtextextended('iac-asset-sequence',0))",
-        [],
-        c,
-      );
-      // Sequence never rewinds and the unique index protects collisions with any imported code.
-      let assetCode = '';
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const [{ number }] = await this.db.query(
-          "SELECT nextval('asset_number_seq')::text AS number",
-          [],
-          c,
-        );
-        if (Number(number) > 999999) throw new ConflictException('Asset code range exhausted');
-        assetCode = `IAC-IT-${number.padStart(6, '0')}`;
-        if (!(await this.db.query('SELECT id FROM assets WHERE asset_code=$1', [assetCode], c))[0])
-          break;
-        if (attempt === 99)
-          throw new ConflictException('Asset code sequence requires operator reconciliation');
-      }
+      const assetCode = await allocateAssetCode(this.db, data.owningTeamId, c);
       const asset = await insertObject(
         this.db,
         'assets',
@@ -157,7 +241,8 @@ export class AssetDomain extends MasterDomain {
     });
   }
   async editAsset(req: AuthRequest, assetId: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    if (!canSomewhere(req.user, 'asset.edit') && !can(req.user, 'asset.finance_edit'))
+      throw new ForbiddenException('Insufficient permission');
     id(assetId);
     const { reason, ...changes } = parse(assetPatch, body);
     if (!Object.keys(changes).length) throw new ConflictException('No catalog changes supplied');
@@ -165,7 +250,9 @@ export class AssetDomain extends MasterDomain {
       const before = found(
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
       );
+      assertEditAllowed(req.user, before, changes);
       assertVersion(req, before.version);
+      await assertKitEditAllowed(this.db, before, changes, c);
       const merged = { ...camel(before), ...changes };
       await validateAsset(this.db, merged, c, camel(before));
       const [custody] = await this.db.query(
@@ -196,6 +283,12 @@ export class AssetDomain extends MasterDomain {
         fields: Object.keys(changes),
         reason,
       });
+      if (changes.owningTeamId !== undefined && changes.owningTeamId !== before.owning_team_id)
+        await this.db.audit(c, req.user, 'asset', assetId, 'ASSET_TEAM_CHANGED', {
+          from: before.owning_team_id,
+          to: changes.owningTeamId,
+          reason,
+        });
       return this.asset(req, assetId, c);
     });
   }
@@ -206,7 +299,7 @@ export class AssetDomain extends MasterDomain {
     reassign = false,
     options: { sendEmail?: boolean; allowInvited?: boolean } = {},
   ) {
-    requireRole(req, 'ADMIN');
+    assertCanSomewhere(req.user, 'asset.custody');
     id(assetId);
     const data: any = parse(reassign ? reassignInput : assignInput, body);
     return idempotent(
@@ -218,9 +311,11 @@ export class AssetDomain extends MasterDomain {
         const asset = found(
           (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
         );
+        assertCan(req.user, 'asset.custody', asset.owning_team_id);
+        await assertNotKitPart(this.db, asset, c);
         assertVersion(req, asset.version);
         const [old] = await this.db.query(
-          'SELECT a.*,u.email FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.asset_id=$1 AND a.ended_at IS NULL FOR UPDATE OF a',
+          'SELECT a.*,u.email,u.state AS holder_state FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.asset_id=$1 AND a.ended_at IS NULL FOR UPDATE OF a',
           [assetId],
           c,
         );
@@ -244,10 +339,11 @@ export class AssetDomain extends MasterDomain {
             [old.id, req.user.id, JSON.stringify({ reason: data.reason })],
             c,
           );
-          if (options.sendEmail !== false) await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', [old.email], {
-            subject: `Asset ${asset.asset_code} returned`,
-            text: 'Your custody record was closed. Sign in to review your assigned assets.',
-          });
+          if (options.sendEmail !== false)
+            await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', old.holder_state === 'DIRECTORY' ? [] : [old.email], {
+              subject: `Asset ${asset.asset_code} returned`,
+              text: 'Your custody record was closed. Sign in to review your assigned assets.',
+            });
         }
         const row = await insertObject(
           this.db,
@@ -285,16 +381,27 @@ export class AssetDomain extends MasterDomain {
           reassign ? 'ASSET_REASSIGNED' : 'ASSET_ASSIGNED',
           { assetId, userId: user.id, priorAssignmentId: old?.id || null },
         );
-        if (options.sendEmail !== false) await this.db.notify(
+        await cascadeAssign(
+          this.db,
           c,
-          `assignment:${row.id}:created`,
-          'ASSIGNMENT_CREATED',
-          [user.email],
-          {
-            subject: `Asset ${asset.asset_code} assigned`,
-            text: 'An asset has been assigned to you. Sign in to verify its details and accept or dispute the assignment.',
-          },
+          req.user,
+          await lockKitParts(this.db, assetId, c),
+          user.id,
+          reassign ? 'REASSIGN' : 'ASSIGN',
+          data.reason || data.note || 'Assigned by administrator',
+          asset,
         );
+        if (options.sendEmail !== false && user.state !== 'DIRECTORY')
+          await this.db.notify(
+            c,
+            `assignment:${row.id}:created`,
+            'ASSIGNMENT_CREATED',
+            [user.email],
+            {
+              subject: `Asset ${asset.asset_code} assigned`,
+              text: 'An asset has been assigned to you. Sign in to verify its details and accept or dispute the assignment.',
+            },
+          );
         return {
           ...camel(row),
           assetVersion: updated.version,
@@ -304,7 +411,7 @@ export class AssetDomain extends MasterDomain {
     );
   }
   async returnAsset(req: AuthRequest, assignmentId: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCanSomewhere(req.user, 'asset.custody');
     id(assignmentId);
     const data = parse(returnInput, body);
     return idempotent(this.db, req, `POST /assignments/${assignmentId}/return`, data, async (c) => {
@@ -315,10 +422,12 @@ export class AssetDomain extends MasterDomain {
       const asset = found(
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [hint.asset_id], c))[0],
       );
+      assertCan(req.user, 'asset.custody', asset.owning_team_id);
+      await assertNotKitPart(this.db, asset, c);
       const row = found(
         (
           await this.db.query(
-            'SELECT a.*,u.email FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.id=$1 FOR UPDATE OF a',
+            'SELECT a.*,u.email,u.state AS holder_state FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.id=$1 FOR UPDATE OF a',
             [assignmentId],
             c,
           )
@@ -359,11 +468,38 @@ export class AssetDomain extends MasterDomain {
         assetId: asset.id,
         reason: data.reason,
       });
-      await this.db.notify(c, `assignment:${assignmentId}:ended`, 'ASSIGNMENT_ENDED', [row.email], {
+      await cascadeReturn(
+        this.db,
+        c,
+        req.user,
+        await lockKitParts(this.db, asset.id, c),
+        data,
+        asset,
+      );
+      await this.db.notify(c, `assignment:${assignmentId}:ended`, 'ASSIGNMENT_ENDED', row.holder_state === 'DIRECTORY' ? [] : [row.email], {
         subject: `Asset ${asset.asset_code} returned`,
         text: 'Your custody record was closed. Sign in to review your assigned assets.',
       });
       return { ...camel(ended), assetVersion: updated.version };
+    });
+  }
+  async attachKitPart(req: AuthRequest, parentId: string, body: unknown) {
+    assertCanSomewhere(req.user, 'asset.custody');
+    id(parentId);
+    const data = parse(attachKitInput, body);
+    return idempotent(this.db, req, `POST /assets/${parentId}/kit`, data, async (c) => {
+      await attachPart(this.db, c, req.user, parentId, data);
+      return this.asset(req, parentId, c);
+    });
+  }
+  async detachKitPart(req: AuthRequest, parentId: string, partId: string, body: unknown) {
+    assertCanSomewhere(req.user, 'asset.custody');
+    id(parentId);
+    id(partId);
+    const data = parse(detachKitInput, body);
+    return idempotent(this.db, req, `DELETE /assets/${parentId}/kit/${partId}`, data, async (c) => {
+      await detachPart(this.db, c, req.user, parentId, partId, data);
+      return this.asset(req, parentId, c);
     });
   }
   async acknowledge(req: AuthRequest, assignmentId: string, body: unknown) {

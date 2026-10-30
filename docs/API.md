@@ -209,3 +209,22 @@ Deactivate it with `PATCH /master-data/CATEGORY/Therapy%20Devices`, `If-Match: "
 ```json
 {"active":false,"reason":"Replaced by the revised classification"}
 ```
+
+## Roles, teams and projects
+
+`GET /me` returns `roles` (`SUPER_ADMIN`, `FINANCE`, `EXECUTIVE`, `EMPLOYEE`), `teams` (`[{teamId,teamCode,level:"LEAD"|"MEMBER"}]`) and `capabilities` (`{global:[action…], teams:{teamId:[action…]}}`). The web app shows only actions present in `capabilities`; the server re-checks every request with the same policy (`apps/api/src/policy.ts`). Legacy `ADMIN` and `IT_ADMIN` are rejected with 422 on role edits.
+
+Assets carry `owningTeamId` and `projectId`. `POST /assets` accepts `owningTeamId` (omitted means the IT team) and `projectId`; the new Asset ID uses the team prefix. Finance fields sent by someone without Finance capability return 403 `Finance fields are set by Finance`. `PATCH /assets/:id` with `owningTeamId` needs Super Admin and is audited as `ASSET_TEAM_CHANGED`; the Asset ID is unchanged. `GET /assets` accepts `owningTeamId` and `projectId` filters. Validation errors use field errors for `owningTeamId`, `projectId` (team requires a project, or the project is inactive) and `locationId` (room-held asset type without a location).
+
+| Route | Methods | Behavior |
+|---|---|---|
+| /master-data/teams | POST | Super Admin. `{code,name,assetCodePrefix,requiresProject?,active?,reason}`; duplicate code/name/prefix → 409 |
+| /master-data/teams/:id | PATCH | `{name?,assetCodePrefix?,requiresProject?,active?,reason}` with `If-Match`; changing a prefix already used by assets → 409 |
+| /master-data/projects | POST | Super Admin. `{code,name,funder?,grantReference?,startDate,endDate?,active?,reason}`; end before start → 422 |
+| /master-data/projects/:id | PATCH | Partial project edit with `If-Match` |
+| /master-data/ASSET_TYPE/:code | PATCH | Also accepts `requiresCustodian: boolean` (false = kept in a room) |
+| /teams/:id/members | GET | Team Lead or Super Admin: `{items:[{userId,displayName,email,level,grantedAt}]}` |
+| /teams/:id/members | POST | `{email,level,reason}` adds an active account by work email; unknown email → 404 |
+| /teams/:id/members/:userId | PUT / DELETE | `{level,reason}` / `{reason}`; audited as `TEAM_MEMBERSHIP_CHANGED` and revokes that user's sessions |
+
+`GET /references` additionally returns `teams` (with `prefixInUse`), `projects` and `assetTypePolicies`.

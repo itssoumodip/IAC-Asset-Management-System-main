@@ -7,6 +7,51 @@ import { useSession } from '../session';
 import { takeReturnTo } from '../return-to';
 import { ErrorNotice, Field, Loading } from './ui';
 import { BrandMark } from './BrandMark';
+import QRCode from 'qrcode';
+
+/** Saves recovery codes as a local text file; nothing is sent to the server. */
+function downloadCodes(codes: string[]) {
+  const text = [
+    'IAC Asset Management – recovery codes',
+    `Saved ${new Date().toLocaleString()}`,
+    'Each code works once. Keep this file somewhere safe.',
+    '',
+    ...codes,
+    '',
+  ].join('\r\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  link.download = 'iac-recovery-codes.txt';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  // Revoking straight after click() can cancel the download in Firefox and Safari.
+  setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+}
+
+/** Draws the authenticator setup link as a QR code locally; the secret never leaves the page. */
+function AuthenticatorQr({ uri }: { uri: string }) {
+  const [image, setImage] = useState('');
+  useEffect(() => {
+    let live = true;
+    QRCode.toDataURL(uri, { errorCorrectionLevel: 'M', margin: 1, width: 220 }).then(
+      (url) => live && setImage(url),
+      () => live && setImage(''),
+    );
+    return () => {
+      live = false;
+    };
+  }, [uri]);
+  return image ? (
+    <img
+      className="mfa-qr"
+      src={image}
+      width={220}
+      height={220}
+      alt="QR code to add this account to your authenticator app"
+    />
+  ) : null;
+}
 // Capture at module load, before any render or analytics. Link tokens never enter browser storage.
 let initialLinkToken = captureFragmentToken();
 type AuthMode = 'login' | 'register' | 'forgot' | 'reset' | 'verify' | 'invite';
@@ -322,7 +367,7 @@ function ContinueLink({ disabled = false }: { disabled?: boolean }) {
   return (
     <a
       href="/dashboard"
-      className={`button ${disabled ? 'disabled' : ''}`}
+      className={`button full ${disabled ? 'disabled' : ''}`}
       aria-disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
@@ -469,26 +514,26 @@ export function SecurityScreen() {
     <AccessLayout>
       <div className="auth-card">
         <h1>Two-step verification</h1>
-        <p className="muted">Admin and IT access requires an authenticator app.</p>
+        <p className="muted">Staff, Finance and Executive access requires an authenticator app.</p>
         <ErrorNotice error={error} />
         {codes.length ? (
           <>
-            <div className="notice warning">
-              <strong>Save your recovery codes now</strong>
+            <div className="recovery-panel">
               <p>
-                Each code works once. Keep them in a secure password manager. They will not be shown
-                again.
+                Download your backup codes. Use one to sign in if you lose your phone; they won’t be
+                shown again.
               </p>
-              <pre className="recovery-codes">{codes.join('\n')}</pre>
+              <button
+                type="button"
+                className={`button full ${saved ? 'secondary' : ''}`}
+                onClick={() => {
+                  downloadCodes(codes);
+                  setSaved(true);
+                }}
+              >
+                {saved ? 'Downloaded ✓  Download again' : 'Download recovery codes'}
+              </button>
             </div>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={saved}
-                onChange={(event) => setSaved(event.target.checked)}
-              />
-              I have saved these codes securely.
-            </label>
             <ContinueLink disabled={!saved} />
           </>
         ) : user.mfaEnrolled && !user.mfaEnrollmentRequired ? (
@@ -498,26 +543,39 @@ export function SecurityScreen() {
             <ContinueLink />
           </div>
         ) : uri ? (
-          <form onSubmit={confirm}>
-            <Field
-              label="Setup key"
-              htmlFor="mfa-secret"
-              hint="In your authenticator app, add an account using a setup key, choose time based, then enter the current code below."
-            >
-              <input id="mfa-secret" value={secret} readOnly autoComplete="off" />
-            </Field>
-            <Field label="Authenticator code" htmlFor="mfa-code">
+          <form onSubmit={confirm} className="mfa-setup">
+            <p>Scan with your authenticator app, then enter the 6-digit code.</p>
+            <AuthenticatorQr uri={uri} />
+            <details className="mfa-manual">
+              <summary>Can’t scan?</summary>
+              <div className="mfa-key-row">
+                <code id="mfa-secret" aria-label="Setup key">
+                  {secret.match(/.{1,4}/g)?.join(' ')}
+                </code>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => void navigator.clipboard?.writeText(secret)}
+                >
+                  Copy
+                </button>
+              </div>
+            </details>
+            <Field label="6-digit code" htmlFor="mfa-code">
               <input
                 id="mfa-code"
+                className="mfa-code-input"
                 value={code}
-                onChange={(event) => setCode(event.target.value)}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                 pattern="[0-9]{6}"
                 inputMode="numeric"
                 autoComplete="one-time-code"
+                placeholder="000000"
+                maxLength={6}
                 required
               />
             </Field>
-            <button className="button full" disabled={pending}>
+            <button className="button full" disabled={pending || code.length !== 6}>
               {pending ? 'Verifying...' : 'Confirm authenticator'}
             </button>
           </form>

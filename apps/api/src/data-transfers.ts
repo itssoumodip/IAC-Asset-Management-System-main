@@ -3,6 +3,7 @@ import {
   ConflictException,
   Controller,
   Get,
+  ForbiddenException,
   HttpException,
   Inject,
   Injectable,
@@ -20,9 +21,19 @@ import { AuthService } from './auth';
 import { configuration } from './config';
 import { Db } from './db';
 import { DomainService } from './domain';
-import { assetInput, parse, staff, text, uuid } from './domain-helpers';
+import {
+  IT_TEAM_ID,
+  assertCanSomewhere,
+  assetInput,
+  canSomewhere,
+  parse,
+  text,
+  uuid,
+  ticketScope,
+} from './domain-helpers';
 import { masterKinds } from './domain-masters';
-import { AuthRequest, requireRole, SessionGuard } from './security';
+import { AuthRequest, SessionGuard } from './security';
+import { assertCan, can, privileged } from './policy';
 
 type Row = Record<string, string>;
 type Definition = {
@@ -32,15 +43,29 @@ type Definition = {
   example: Row;
   description: string;
 };
+/** Bulk asset rows may only touch teams the importer leads. */
+function assertTeamImport(req: AuthRequest, teamId: string) {
+  if (!can(req.user, 'asset.import', teamId))
+    throw new ForbiddenException('TEAM_NOT_PERMITTED: you cannot import assets for this team');
+}
 type RowResult = { rowNumber: number; id?: string; summary: string };
 const assetFields = Object.keys(assetInput.shape).filter(
-  (key) => !['departmentId', 'locationId'].includes(key),
+  (key) => !['departmentId', 'locationId', 'owningTeamId', 'projectId'].includes(key),
 );
 const definitions: Definition[] = [
   {
     module: 'assets',
     label: 'Asset catalog',
-    columns: ['action', 'assetCode', 'version', ...assetFields, 'departmentCode', 'locationCode'],
+    columns: [
+      'action',
+      'assetCode',
+      'version',
+      'owningTeamCode',
+      'projectCode',
+      ...assetFields,
+      'departmentCode',
+      'locationCode',
+    ],
     example: {
       action: 'CREATE',
       category: 'IT Hardware',
@@ -58,7 +83,16 @@ const definitions: Definition[] = [
   {
     module: 'people',
     label: 'People and access',
-    columns: ['action', 'email', 'displayName', 'designation', 'departmentId', 'version', 'state', 'roles'],
+    columns: [
+      'action',
+      'email',
+      'displayName',
+      'designation',
+      'departmentId',
+      'version',
+      'state',
+      'roles',
+    ],
     example: {
       action: 'INVITE',
       email: 'employee@example.org',
@@ -236,14 +270,18 @@ export class DataTransferService {
   definitions(req: AuthRequest) {
     return {
       items: definitions.filter(
-        (item) => item.module === 'tickets' || req.user.roles.includes('ADMIN'),
+        (item) =>
+          item.module === 'tickets' ||
+          (item.module === 'assets' && canSomewhere(req.user, 'asset.import')) ||
+          can(req.user, 'system.admin'),
       ),
     };
   }
   private definition(req: AuthRequest, module: string) {
     const definition = definitions.find((item) => item.module === module);
     if (!definition) throw new UnprocessableEntityException('Unsupported transfer module');
-    if (module !== 'tickets') requireRole(req, 'ADMIN');
+    if (module === 'assets') assertCanSomewhere(req.user, 'asset.import');
+    else if (module !== 'tickets') assertCan(req.user, 'system.admin');
     return definition;
   }
   private async currentActor(req: AuthRequest): Promise<AuthRequest> {
@@ -261,7 +299,7 @@ export class DataTransferService {
     ).map((row) => row.role_code);
     if (
       session.scope !== 'APP' ||
-      (roles.some((role) => ['ADMIN', 'IT_ADMIN'].includes(role)) && !session.mfa_verified_at)
+      (privileged({ roles, teams: req.user.teams }) && !session.mfa_verified_at)
     )
       throw new HttpException('MFA verification is required', 403);
     if (!user.portal_accepted_at || user.portal_notice_version !== configuration().noticeVersion)
@@ -289,7 +327,10 @@ export class DataTransferService {
       },
     } as AuthRequest;
   }
-  private async code(table: 'assets' | 'departments' | 'locations', code: string) {
+  private async code(
+    table: 'assets' | 'departments' | 'locations' | 'teams' | 'projects',
+    code: string,
+  ) {
     const [row] = await this.db.query(
       `SELECT * FROM ${table} WHERE ${table === 'assets' ? 'asset_code' : 'code'}=$1`,
       [code],
@@ -311,9 +352,13 @@ export class DataTransferService {
       );
       if (matches.length === 1) return matches[0].id;
       if (matches.length > 1)
-        throw new UnprocessableEntityException('Department value matches more than one department; use its UUID');
+        throw new UnprocessableEntityException(
+          'Department value matches more than one department; use its UUID',
+        );
     }
-    throw new NotFoundException('Department not found. Use an active department name, code or UUID.');
+    throw new NotFoundException(
+      'Department not found. Use an active department name, code or UUID.',
+    );
   }
   private async execute(
     req: AuthRequest,
@@ -367,7 +412,15 @@ export class DataTransferService {
       const fields: Record<string, unknown> = Object.fromEntries(
         Object.entries(row).filter(
           ([key]) =>
-            !['action', 'assetCode', 'version', 'departmentCode', 'locationCode'].includes(key),
+            ![
+              'action',
+              'assetCode',
+              'version',
+              'owningTeamCode',
+              'projectCode',
+              'departmentCode',
+              'locationCode',
+            ].includes(key),
         ),
       );
       if (row.amcApplies) fields.amcApplies = boolean(row.amcApplies);
@@ -379,15 +432,20 @@ export class DataTransferService {
       if (row.departmentCode)
         fields.departmentId = (await this.code('departments', row.departmentCode)).id;
       if (row.locationCode) fields.locationId = (await this.code('locations', row.locationCode)).id;
+      if (row.owningTeamCode)
+        fields.owningTeamId = (await this.code('teams', row.owningTeamCode)).id;
+      if (row.projectCode) fields.projectId = (await this.code('projects', row.projectCode)).id;
       if (action === 'CREATE') {
         if (row.assetCode)
           throw new UnprocessableEntityException(
             'Permanent Asset IDs from registers must use Import review; leave assetCode blank for new assets',
           );
         if (row.version) throw new UnprocessableEntityException('CREATE must leave version blank');
+        assertTeamImport(req, (fields.owningTeamId as string) ?? IT_TEAM_ID);
         result = await this.domain.createAsset(request(), fields);
       } else {
         const asset = await this.code('assets', required(row, 'assetCode'));
+        assertTeamImport(req, asset.owning_team_id);
         result = await this.domain.editAsset(request(version(row)), asset.id, {
           ...fields,
           reason,
@@ -397,21 +455,34 @@ export class DataTransferService {
       const email = parse(z.string().email().max(254), required(row, 'email')).toLowerCase();
       if (action === 'APPROVE') {
         if (Object.keys(row).some((key) => !['action', 'email'].includes(key)))
-          throw new UnprocessableEntityException('This row includes employee details. Use INVITE to create an account; APPROVE accepts only an email.');
+          throw new UnprocessableEntityException(
+            'This row includes employee details. Use INVITE to create an account; APPROVE accepts only an email.',
+          );
         result = await this.auth.approve(request(), { email });
       } else if (action === 'INVITE') {
         if (
           Object.keys(row).some(
-            (key) => !['action', 'email', 'displayName', 'designation', 'departmentId', 'version', 'state', 'roles'].includes(key),
+            (key) =>
+              ![
+                'action',
+                'email',
+                'displayName',
+                'designation',
+                'departmentId',
+                'version',
+                'state',
+                'roles',
+              ].includes(key),
           )
         )
           throw new UnprocessableEntityException(
             'INVITE accepts email, employee name, designation, department, state and roles',
           );
-        if (row.version)
-          throw new UnprocessableEntityException('INVITE must leave version blank');
+        if (row.version) throw new UnprocessableEntityException('INVITE must leave version blank');
         if (row.state && !['ACTIVE', 'INVITED'].includes(row.state.toUpperCase()))
-          throw new UnprocessableEntityException('For an invitation, state must be Active or Invited; the account stays invited until accepted');
+          throw new UnprocessableEntityException(
+            'For an invitation, state must be Active or Invited; the account stays invited until accepted',
+          );
         const roles = row.roles ? list(row.roles).map((value) => value.toUpperCase()) : [];
         if (roles.some((role) => role !== 'EMPLOYEE'))
           throw new UnprocessableEntityException('Bulk invitations grant Employee access only');
@@ -450,9 +521,10 @@ export class DataTransferService {
       if (relatedTicketNumber) {
         if (!/^[1-9]\d{0,15}$/.test(relatedTicketNumber))
           throw new UnprocessableEntityException('Invalid relatedTicketNumber');
+        const ticketValues: any[] = [relatedTicketNumber];
         const [ticket] = await this.db.query(
-          `SELECT id FROM tickets WHERE ticket_number=$1${staff(req.user) ? '' : ' AND reporter_id=$2'}`,
-          staff(req.user) ? [relatedTicketNumber] : [relatedTicketNumber, req.user.id],
+          `SELECT t.id FROM tickets t WHERE t.ticket_number=$1 AND ${ticketScope(req.user, ticketValues)}`,
+          ticketValues,
         );
         if (!ticket) throw new NotFoundException('Record not found');
         body.relatedTicketId = ticket.id;
@@ -643,9 +715,13 @@ export class DataTransferService {
         throw new ConflictException('Transfer preview expired; create a new preview');
       if (!Array.isArray(batch.preview.rows) || batch.preview.rows.length !== batch.raw_rows.length)
         throw new ConflictException('The import preview is incomplete; validate the file again');
-      const skippedCount = batch.preview.rows.filter((row: { valid?: boolean }) => !row.valid).length;
+      const skippedCount = batch.preview.rows.filter(
+        (row: { valid?: boolean }) => !row.valid,
+      ).length;
       if (!batch.preview.rows.some((row: { valid?: boolean }) => row.valid))
-        throw new ConflictException('There are no valid rows to import; correct the file and validate again');
+        throw new ConflictException(
+          'There are no valid rows to import; correct the file and validate again',
+        );
       const results: RowResult[] = [];
       for (let i = 0; i < batch.raw_rows.length; i++) {
         // Keep bad rows out of the transaction. A later import can apply them after correction.
@@ -668,7 +744,13 @@ export class DataTransferService {
           throw new ConflictException(`Row ${i + 1}: ${safeError(error)}. No rows were applied.`);
         }
       }
-      const receipt = { id: batchId, state: 'COMMITTED', rowCount: results.length, skippedCount, results };
+      const receipt = {
+        id: batchId,
+        state: 'COMMITTED',
+        rowCount: results.length,
+        skippedCount,
+        results,
+      };
       await this.db.query(
         "UPDATE data_transfers SET state='COMMITTED',committed_at=now(),receipt=$2 WHERE id=$1",
         [batchId, JSON.stringify(receipt)],

@@ -272,7 +272,7 @@ describe('authentication HTTP integration', { skip: !connection, concurrency: fa
       [email, hashed],
     );
     staffId = user.id;
-    await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN')", [staffId]);
+    await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'SUPER_ADMIN')", [staffId]);
     const login = await staffBrowser.request('/auth/login', 'POST', { email, password: pass });
     assert.equal(login.status, 200);
     assert.equal(login.data.mfaEnrollmentRequired, true);
@@ -301,6 +301,76 @@ describe('authentication HTTP integration', { skip: !connection, concurrency: fa
     ]);
     assert.notEqual(stored.mfa_secret_ciphertext.toString(), enrollSecret);
     assert.equal((await staffBrowser.request('/auth/mfa/enroll', 'POST', {})).status, 409);
+  });
+  const IT_TEAM = '00000000-0000-4000-8000-000000000001';
+  it('session actor carries team memberships and /me exposes capabilities', async () => {
+    const email = `${tag}-member@example.org`;
+    const [member] = await db.query(
+      `INSERT INTO users(email,display_name,password_hash,state,email_verified_at) VALUES($1,'Synthetic IT member',$2,'ACTIVE',now()) RETURNING id`,
+      [email, await passwordHash(pass)],
+    );
+    await db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'EMPLOYEE')", [member.id]);
+    await db.query(
+      "INSERT INTO team_memberships(user_id,team_id,level) VALUES($1,$2,'MEMBER')",
+      [member.id, IT_TEAM],
+    );
+    const raw = `session-${tag}`;
+    await db.query(
+      `INSERT INTO sessions(id_hash,user_id,csrf_hash,scope,expires_at) VALUES($1,$2,'x','APP',now()+interval '1 hour')`,
+      [hash(raw), member.id],
+    );
+    const { resolveSession } = await import('../src/security');
+    const actor = await resolveSession(db, {
+      cookies: { [configuration().sessionCookie]: raw },
+    } as any);
+    assert.deepEqual(actor.teams, [{ teamId: IT_TEAM, teamCode: 'IT', level: 'MEMBER' }]);
+    // A team member without MFA is held at enrollment and blocked by SessionGuard.
+    const browser = await new Browser(base).prepare();
+    const login = await browser.request('/auth/login', 'POST', { email, password: pass });
+    assert.equal(login.status, 200);
+    assert.equal(login.data.mfaEnrollmentRequired, true);
+    const blocked = await browser.request('/assets');
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.data.error.message, 'MFA enrollment or verification is required');
+    // /me for the SUPER_ADMIN session includes capabilities.global with system.admin.
+    const me = await staffBrowser.request('/me');
+    assert.equal(me.status, 200);
+    assert.ok(me.data.capabilities.global.includes('system.admin'));
+    assert.deepEqual(me.data.teams, []);
+  });
+  it('protects the last active SUPER_ADMIN and rejects legacy role names', async () => {
+    const me = await staffBrowser.request('/me');
+    const legacy = await staffBrowser.request(
+      '/users/' + staffId,
+      'PATCH',
+      { roles: ['IT_ADMIN'], reason: 'Synthetic legacy role test' },
+      { 'If-Match': `"${me.data.version}"` },
+    );
+    assert.equal(legacy.status, 422);
+    // Other suites leave Super Admins in the shared DB; make this one the last, then restore.
+    const parked = await db.query(
+      `UPDATE users u SET state='DISABLED' FROM user_roles r WHERE r.user_id=u.id AND r.role_code='SUPER_ADMIN' AND u.state='ACTIVE' AND u.id<>$1 RETURNING u.id`,
+      [staffId],
+    );
+    try {
+      for (const change of [{ roles: ['EMPLOYEE'] }, { state: 'DISABLED' }]) {
+        const result = await staffBrowser.request(
+          '/users/' + staffId,
+          'PATCH',
+          { ...change, reason: 'Synthetic last admin test' },
+          { 'If-Match': `"${me.data.version}"` },
+        );
+        assert.equal(result.status, 409);
+        assert.equal(
+          result.data.error.message,
+          'The final active Admin cannot be removed or disabled',
+        );
+      }
+    } finally {
+      await db.query("UPDATE users SET state='ACTIVE' WHERE id=ANY($1::uuid[])", [
+        parked.map((row) => row.id),
+      ]);
+    }
   });
   it('requires a login challenge, prevents TOTP replay, and consumes recovery codes once', async () => {
     const email = `${tag}-admin@example.org`;
@@ -415,6 +485,50 @@ describe('authentication HTTP integration', { skip: !connection, concurrency: fa
     );
     assert.equal(stored.state, 'DISABLED');
     assert.equal(stored.token_count, 2);
+  });
+  it('refuses to invite a Zoho directory person who has left, and 409s a held email', async () => {
+    const email = `${tag}-left@example.org`;
+    await db.query(
+      "INSERT INTO users(email,display_name,state,left_at) VALUES($1,'Left Person','DIRECTORY',now())",
+      [email],
+    );
+    const invite = await staffBrowser.request('/invitations', 'POST', { email });
+    assert.equal(invite.status, 409);
+    assert.match(invite.data.error.message, /left/i);
+    await db.query("INSERT INTO users(email,display_name,state) VALUES($1,'Holder','DIRECTORY')", [
+      `${tag}-holder@example.org`,
+    ]);
+    const [target] = await db.query(
+      "INSERT INTO users(email,display_name,state) VALUES($1,'Target','DISABLED') RETURNING id,version",
+      [`${tag}-target@example.org`],
+    );
+    const edit = await staffBrowser.request(
+      '/users/' + target.id,
+      'PATCH',
+      { email: `${tag}-holder@example.org`, reason: 'Synthetic email collision test' },
+      { 'If-Match': `"${target.version}"` },
+    );
+    assert.equal(edit.status, 409);
+  });
+
+  it('lists team memberships for each user so staff can be picked as ticket assignees', async () => {
+    const itTeamId = '00000000-0000-4000-8000-000000000001';
+    await db.query(
+      `INSERT INTO team_memberships(user_id,team_id,level) VALUES($1,$2,'MEMBER') ON CONFLICT (user_id,team_id) DO UPDATE SET level='MEMBER'`,
+      [userId, itTeamId],
+    );
+    const listed = await staffBrowser.request('/users?q=' + encodeURIComponent(registeredEmail));
+    assert.equal(listed.status, 200);
+    assert.equal(listed.data.items.length, 1);
+    assert.deepEqual(listed.data.items[0].teams, [
+      { teamId: itTeamId, teamCode: 'IT', level: 'MEMBER' },
+    ]);
+    const all = await staffBrowser.request('/users?limit=100');
+    for (const item of all.data.items) assert.ok(Array.isArray(item.teams));
+    await db.query('DELETE FROM team_memberships WHERE user_id=$1 AND team_id=$2', [
+      userId,
+      itTeamId,
+    ]);
   });
   it('paginates and searches users and revokes sessions after account changes and logout-all', async () => {
     const page = await staffBrowser.request('/users?limit=1');

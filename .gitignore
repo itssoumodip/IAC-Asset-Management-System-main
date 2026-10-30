@@ -11,3 +11,5 @@ coverage/
 *.tsbuildinfo
 keys/
 import-ready/
+# Added by code-review-graph
+.code-review-graph/

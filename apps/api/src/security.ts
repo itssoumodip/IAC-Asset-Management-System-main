@@ -10,6 +10,7 @@ import {
 import type { Request, Response, NextFunction } from 'express';
 import { Db } from './db';
 import { configuration, equal, hash, isAllowedAppOrigin, validCsrf } from './config';
+import { capabilities, privileged, type TeamMembership } from './policy';
 export interface Actor {
   requestId?: string;
   id: string;
@@ -20,6 +21,7 @@ export interface Actor {
   department?: string | null;
   pendingEmail?: string | null;
   roles: string[];
+  teams: TeamMembership[];
   state: string;
   version: number;
   portalAcceptedAt: string | null;
@@ -33,8 +35,14 @@ export interface Actor {
 export interface AuthRequest extends Request {
   user: Actor;
 }
-export const staff = (user: Pick<Actor, 'roles'>) =>
-  user.roles.some((r) => r === 'ADMIN' || r === 'IT_ADMIN');
+export async function loadTeams(db: Db, userId: string, client?: any): Promise<TeamMembership[]> {
+  const rows = await db.query(
+    `SELECT m.team_id,t.code,m.level FROM team_memberships m JOIN teams t ON t.id=m.team_id WHERE m.user_id=$1 ORDER BY t.code`,
+    [userId],
+    client,
+  );
+  return rows.map((r) => ({ teamId: r.team_id, teamCode: r.code, level: r.level }));
+}
 export function requireRole(req: AuthRequest, ...roles: string[]): void {
   if (!req.user.roles.some((r) => roles.includes(r)))
     throw new ForbiddenException('Insufficient permission');
@@ -58,6 +66,7 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
     "UPDATE sessions SET last_seen_at=now() WHERE id_hash=$1 AND last_seen_at<now()-interval '1 minute'",
     [row.id_hash],
   );
+  const teams = await loadTeams(db, row.id);
   return {
     requestId: String(req.res?.getHeader('X-Request-Id') || ''),
     id: row.id,
@@ -68,6 +77,7 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
     department: row.department,
     pendingEmail: row.pending_email,
     roles: row.roles,
+    teams,
     state: row.state,
     version: row.version,
     portalAcceptedAt: row.portal_accepted_at,
@@ -85,7 +95,7 @@ export class SessionGuard implements CanActivate {
   async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest<AuthRequest>();
     req.user = await resolveSession(this.db, req);
-    if (req.user.sessionScope !== 'APP' || (staff(req.user) && !req.user.mfaVerifiedAt))
+    if (req.user.sessionScope !== 'APP' || (privileged(req.user) && !req.user.mfaVerifiedAt))
       throw new ForbiddenException('MFA enrollment or verification is required');
     if (
       !req.user.portalAcceptedAt ||
@@ -133,6 +143,8 @@ export const publicUser = (user: Actor) => ({
   department: user.department ?? null,
   pendingEmail: user.pendingEmail ?? null,
   roles: user.roles,
+  teams: user.teams,
+  capabilities: capabilities(user),
   state: user.state,
   version: user.version,
   portalAcceptedAt: user.portalAcceptedAt,

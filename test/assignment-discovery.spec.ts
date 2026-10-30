@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { superAdmin } from './mock-capabilities';
 import { join } from 'node:path';
 
 const timestamp = '2026-01-01T00:00:00.000Z';
@@ -76,7 +77,7 @@ async function mockApi(page: Page, { admin = true, empty = false, stale = false 
         ...session,
         id: 'synthetic-staff-only',
         displayName: 'Synthetic Staff Only',
-        roles: ['IT_ADMIN'],
+        roles: ['FINANCE'],
       },
     ],
     assets: [
@@ -128,7 +129,7 @@ async function mockApi(page: Page, { admin = true, empty = false, stale = false 
     if (method === 'GET' && path === '/api/v1/me')
       return json(
         admin
-          ? { ...session, displayName: 'Synthetic Admin', roles: ['ADMIN', 'EMPLOYEE'] }
+          ? { ...session, displayName: 'Synthetic Admin', ...superAdmin }
           : session,
       );
     if (method === 'GET' && path === '/api/v1/auth/csrf')
@@ -300,11 +301,11 @@ test('Employee sees no assignment controls and direct chooser or assignment rout
   await expect(page.getByRole('link', { name: /^Assign |^Transfer / })).toHaveCount(0);
   await page.goto('/assignments/new');
   await expect(
-    page.getByRole('heading', { name: 'Admin access required', exact: true }),
+    page.getByRole('heading', { name: 'Access required', exact: true }),
   ).toBeVisible();
   await page.goto(`/assets/${assetId}/assign`);
   await expect(
-    page.getByRole('heading', { name: 'Admin access required', exact: true }),
+    page.getByRole('heading', { name: 'Access required', exact: true }),
   ).toBeVisible();
   expect(state.userReads).toBe(0);
   expect(state.writes).toEqual([]);

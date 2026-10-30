@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Db } from './db';
 import { configuration } from './config';
 import { passwordHash } from './auth';
+import { seedScale } from './scale-seed';
 export async function migrate(db: Db): Promise<void> {
   const client = await db.pool.connect();
   try {
@@ -94,7 +95,7 @@ async function bootstrap(db: Db) {
     if (
       (
         await db.query(
-          "SELECT 1 FROM users u JOIN user_roles r ON r.user_id=u.id WHERE r.role_code='ADMIN' AND u.state='ACTIVE'",
+          "SELECT 1 FROM users u JOIN user_roles r ON r.user_id=u.id WHERE r.role_code='SUPER_ADMIN' AND u.state='ACTIVE'",
           [],
           c,
         )
@@ -107,7 +108,7 @@ async function bootstrap(db: Db) {
       c,
     );
     await db.query(
-      "INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN'),($1,'EMPLOYEE')",
+      "INSERT INTO user_roles(user_id,role_code) VALUES($1,'SUPER_ADMIN'),($1,'EMPLOYEE')",
       [user.id],
       c,
     );
@@ -174,11 +175,14 @@ async function main() {
       case 'bootstrap':
         await bootstrap(db);
         break;
+      case 'seed-scale':
+        await seedScale(db, { tag: process.env.SCALE_TAG });
+        break;
       case 'seed':
         await seed(db);
         break;
       default:
-        throw new Error('Usage: cli.ts migrate [--test] | bootstrap | seed');
+        throw new Error('Usage: cli.ts migrate [--test] | bootstrap | seed | seed-scale --test');
     }
   } finally {
     await db.onModuleDestroy();

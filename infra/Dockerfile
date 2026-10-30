@@ -16,6 +16,8 @@ COPY --from=build /app/apps/web/package.json apps/web/package.json
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY apps/api/db apps/api/db
+COPY apps/api/assets/tessdata apps/api/assets/tessdata
+RUN test -s apps/api/assets/tessdata/eng.traineddata
 USER node
 EXPOSE 3000
 CMD ["node","apps/api/dist/main.js"]

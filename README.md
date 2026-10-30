@@ -1,6 +1,6 @@
 # IAC Asset Management Platform
 
-A local MVP implementation of the approved IAC asset custody and support plan: React/TypeScript, NestJS, PostgreSQL, revocable cookie sessions and durable SMTP notifications. Includes Employee, Admin and IT/Admin workflows, reviewed imports and timestamped audit. This is ready for local evaluation; production provisioning and organization policy configuration remain separate.
+A local MVP implementation of the approved IAC asset custody and support plan: React/TypeScript, NestJS, PostgreSQL, revocable cookie sessions and durable SMTP notifications. Includes Super Admin, team (IT, Admin, Projects), Finance, Executive and Employee workflows, reviewed imports and timestamped audit. This is ready for local evaluation; production provisioning and organization policy configuration remain separate.
 
 ## Deployment
 
@@ -27,6 +27,31 @@ Open [the application](http://127.0.0.1:5173). Use 127.0.0.1 consistently becaus
 setup:local preserves an existing .env and generates random local DB/encryption/CSRF secrets otherwise. .env is excluded from source control and the delivery archive. Keep those keys to decrypt stored MFA/email envelopes. Configure an approved SMTP provider before registering users; the default example targets Gmail over TLS. Workbook loading is explicit and requires reviewed source exports and reconciled controls. Finance calculations remain pending policy.
 
 If Windows reports that port 55432 is reserved, choose an available loopback port, set DB_PORT in your private .env, and use that same port in DATABASE_URL, MIGRATION_DATABASE_URL and TEST_DATABASE_URL. Restart the local containers and app; the named database volume is retained. Do not disable Windows port protections or remove the volume.
+
+## Roles, teams and asset ownership
+
+Access combines **global roles** with **team memberships**. Roles add up, so one person can be an IT Lead and Finance.
+
+| Role or level | Can do |
+|---|---|
+| Super Admin | Everything, including users, roles, Master Control, Teams & projects and changing an asset's owning team |
+| Team Lead (IT, Admin, Projects…) | Everything a Member can, plus write off/retire/dispose, bulk import and add or remove team members, for their own team's assets |
+| Team Member | View and scan every asset; add, edit, assign, return, move, photograph and label their own team's assets; work tickets |
+| Finance | View every asset; the only role (besides Super Admin) that edits purchase cost, invoice, supplier, depreciation and insurance fields |
+| Executive | Read-only view of every asset and the admin insights dashboard |
+| Employee | Their own assigned assets: confirm receipt, report a discrepancy, raise tickets |
+
+Anyone holding a role other than Employee, or any team membership, must use an authenticator (MFA).
+
+- **Teams own assets.** Each asset has an owning team, and new codes use that team's prefix: `IAC-IT-000123`, `IAC-ADM-000045`, `IAC-PRJ-000012`. Existing codes and printed labels never change, even if a Super Admin moves an asset to another team (that move needs a reason and is audited).
+- **Projects and grants.** Super Admins manage them in **Teams & projects**. Assets owned by a team marked "requires project" (Projects, by default) must be tagged to an active project; other teams may tag one optionally.
+- **Room-held items.** In **Teams & projects**, untick "must be held by a person" for asset types that live in a room (printers and networking gear by default; add furniture types as needed). Those assets need a location and can optionally also be given to someone.
+- **Team members.** Leads open **My team** in the menu to add colleagues by work email, change Lead/Member or remove them. Every change asks for a reason and signs that person out so it applies straight away.
+- **Imports.** Bulk asset import (Excel/CSV) is open to Leads for their own team, with `owningTeamCode` and `projectCode` columns; rows for other teams fail with `TEAM_NOT_PERMITTED`. Register import review stays with Super Admins because it approves Finance metadata. Register Asset IDs may use any team prefix; an unknown prefix is quarantined as `UNKNOWN_TEAM_PREFIX`.
+
+### Upgrading an existing installation (migration 017)
+
+Run `npm run db:migrate`, then reapply `infra/runtime-grants.sql` for the new tables. Migration 017 converts existing accounts: **Admin → Super Admin**, and **IT Admin → Employee + IT team Member**. Note the visibility change: IT Admins previously saw only assets that had tickets; as IT Members they see every asset and can edit IT-owned ones. Promote Leads in **My team** or as a Super Admin. Every existing asset is owned by the IT team. Migration 017 targets this codebase's migration line (001–016); it cannot be applied to a database that already carries a different 017+ line.
 
 ## Upload an asset register
 
@@ -74,6 +99,22 @@ Each asset has a QR label that opens `/a/<Asset ID>` in this portal. **Printing 
 **Installing the app:** the portal is an installable web app. On Android Chrome use **Install app** in the top bar; on iPhone Safari use Share, then **Add to Home Screen**. The camera needs HTTPS (or localhost). The app needs a network connection; API responses are never cached offline.
 
 Migrations 008, 010, and 011 add scan/ticket photo/label history, employee designation/department fields, and encrypted PWA push subscriptions. Run `npm run db:migrate` when updating an existing installation. Production migration owners must also reapply `infra/runtime-grants.sql`; ticket photos, label print history, and push subscriptions are included in database backup and retention procedures.
+
+## Zoho People sync
+
+The portal can copy your staff list from Zoho People (India data centre by default). Synced people become directory entries: they can be given assets, but they cannot sign in until a Super Admin invites them.
+
+One-time setup:
+
+1. Open https://api-console.zoho.in and sign in as a Zoho administrator.
+2. Choose **Add Client**, then **Self Client**, then **Create**.
+3. Open the **Generate Code** tab. Set scope `ZOHOPEOPLE.forms.READ`, time duration 10 minutes, any description, and click **Create**. Copy the code.
+4. Exchange the code for a refresh token within 10 minutes (copy the Client ID and Client Secret from the **Client Secret** tab):
+   `curl -X POST "https://accounts.zoho.in/oauth/v2/token" -d "grant_type=authorization_code" -d "client_id=CLIENT_ID" -d "client_secret=CLIENT_SECRET" -d "code=THE_CODE"`
+5. Copy `refresh_token` from the answer into `.env` and restart the API and worker:
+   `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, and optionally `ZOHO_DC` (`in` by default; use `com`, `eu`, `com.au` or `jp` for other Zoho regions).
+
+Use: open **Directory & Zoho** (Super Admin). **Sync now** starts a run; the worker also runs one every night at 02:00 India time. A Zoho person matches an existing account by Zoho record, then by email; matching never changes an existing account's state, roles or password. Departments are matched by name or created. People Zoho reports as no longer active get a left date; assets they still hold appear under **To recover** and a digest email goes to Super Admins. Use **Match Zoho people to accounts** to link a Zoho person to a portal account with a different email. Profile photos are downloaded, shrunk and kept privately in the database. Without the three settings the page says sync is not configured and nothing else is affected.
 
 ## Gmail SMTP setup
 
@@ -125,3 +166,7 @@ Employee access is current custody only; support history remains visible to the 
 Stop local services with npm run infra:stop. This preserves the development database volume. Production must use approved hosting, TLS/domain, sender/groups, mapped employee identities, retention, restricted DB grants and restore/load testing. See docs/PRODUCTION.md; this repository does not deploy automatically.
 
 Latest assignment checks (19 October 2026): 49 unit/API-boundary tests and all 19 Edge browser cases pass, along with lint, TypeScript and the production build. The 48 isolated integration results from the transfer release remain recorded; they were not rerun for this UI-only change. Browser results and limits are in VERIFICATION.md, and the independent review is in REVIEW.md. The existing test/system.spec.ts formatting warning remains pending; changed application source formatting passes.
+
+## Performance check
+
+`npm run seed:scale` (test database only; refuses unless the database name ends `_test`) inserts 50,000 synthetic assets and about 5,000 tickets with set-based SQL, idempotent per `SCALE_TAG`. Measured locally on the seeded `_test` database (warm, five runs): the executive dashboard summary (`GET /dashboard/executive` service, six aggregate queries) took about 60 ms (116 ms cold) and the catalog first page (25 assets) about 15 ms, both well under the 1 s target. Migration 023 adds partial indexes for warranty/AMC expiry and ticket completion.

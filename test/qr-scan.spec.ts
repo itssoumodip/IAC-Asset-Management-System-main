@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { superAdmin } from './mock-capabilities';
 import { mkdirSync } from 'node:fs';
 
 const timestamp = '2026-01-01T00:00:00.000Z';
@@ -86,7 +87,7 @@ async function mockApi(page: Page, options: Options = {}) {
       return state.loggedIn
         ? json(
             options.admin
-              ? { ...session, displayName: 'Synthetic Admin', roles: ['ADMIN', 'EMPLOYEE'] }
+              ? { ...session, displayName: 'Synthetic Admin', ...superAdmin }
               : session,
           )
         : json({ error: { code: 'UNAUTHENTICATED', message: 'Sign in required' } }, 401);

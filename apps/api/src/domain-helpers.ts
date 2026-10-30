@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -9,6 +10,8 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Actor, AuthRequest } from './security';
 import { Db } from './db';
+import { can, teamsFor, type Action } from './policy';
+export const IT_TEAM_ID = '00000000-0000-4000-8000-000000000001';
 
 export const text = (max = 5000) => z.string().trim().min(1).max(max);
 export const uuid = z.string().uuid();
@@ -53,6 +56,8 @@ export const assetInput = z
     configuration: optionalText(5000),
     graphics: optionalText(),
     ownershipType: text(100),
+    owningTeamId: uuid.optional(),
+    projectId: uuid.nullable().optional(),
     departmentId: uuid.nullable().optional(),
     locationId: uuid.nullable().optional(),
     assetOwner: optionalText(),
@@ -125,8 +130,25 @@ export function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 export function id(value: string): string {
   return parse(uuid, value);
 }
-export const admin = (actor: Actor) => actor.roles.includes('ADMIN');
-export const staff = (actor: Actor) => admin(actor) || actor.roles.includes('IT_ADMIN');
+/** True when the actor holds the action for at least one team (or globally). */
+export function canSomewhere(actor: Actor, action: Action): boolean {
+  const teams = teamsFor(actor, action);
+  return teams === 'ALL' || teams.length > 0;
+}
+/**
+ * Cheap pre-check before validation or expensive work: refuse callers who cannot
+ * perform the action for any team. The authoritative per-asset check still runs
+ * inside the transaction against the locked row's owning team.
+ */
+/** Dashboard role: first global role held, else TEAM for any team membership, else EMPLOYEE. */
+export function primaryRole(actor: Actor): string {
+  for (const role of ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'])
+    if (actor.roles.includes(role)) return role;
+  return actor.teams?.length ? 'TEAM' : 'EMPLOYEE';
+}
+export function assertCanSomewhere(actor: Actor, action: Action): void {
+  if (!canSomewhere(actor, action)) throw new ForbiddenException('Insufficient permission');
+}
 export const snake = (s: string) => s.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
 export const camel = (row: any): any =>
   Object.fromEntries(
@@ -146,8 +168,11 @@ export function requestPage(query: any, fields: string[]) {
         status: z.string().max(100).optional(),
         category: z.string().max(100).optional(),
         departmentId: uuid.optional(),
+        owningTeamId: uuid.optional(),
+        projectId: uuid.optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
+        teamId: uuid.optional(),
         entityType: z.string().max(100).optional(),
         entityId: uuid.optional(),
         labelPrinted: z.enum(['no']).optional(),
@@ -188,19 +213,16 @@ export function page(rows: any[], limit: number, fields: string[]) {
   };
 }
 export function assetScope(actor: Actor, values: any[]) {
-  if (admin(actor)) return 'TRUE';
-  if (actor.roles.includes('EMPLOYEE')) values.push(actor.id);
-  const p = `$${values.length}`;
-  const own = actor.roles.includes('EMPLOYEE')
-    ? `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=${p} AND own.ended_at IS NULL)`
-    : 'FALSE';
-  return actor.roles.includes('IT_ADMIN')
-    ? `(${own} OR EXISTS(SELECT 1 FROM tickets access_ticket WHERE access_ticket.asset_id=a.id))`
-    : own;
+  if (can(actor, 'asset.view_all')) return 'TRUE';
+  if (!actor.roles.includes('EMPLOYEE')) return 'FALSE';
+  values.push(actor.id);
+  return `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`;
 }
 export const employeeAssetColumns = [
   'id',
   'asset_code',
+  'owning_team_id',
+  'project_id',
   'version',
   'category',
   'asset_type',
@@ -242,23 +264,35 @@ export const privateAssetColumns = [
   'remarks',
   'comment_type',
   'finance_pending',
+  'finance_status',
+  'finance_rejection_reason',
   'legacy_metadata',
   'import_row_id',
   'created_at',
   'updated_at',
 ];
 export function assetColumns(actor: Actor) {
-  return [...employeeAssetColumns, ...(admin(actor) ? privateAssetColumns : [])]
+  return [...employeeAssetColumns, ...(can(actor, 'asset.view_private') ? privateAssetColumns : [])]
     .map((c) => `a.${c}`)
     .join(',');
 }
 export function ticketScope(actor: Actor, values: any[]) {
-  if (staff(actor)) return 'TRUE';
+  if (actor.roles.includes('SUPER_ADMIN')) return 'TRUE';
   values.push(actor.id);
-  return `t.reporter_id=$${values.length}`;
+  const reporter = `t.reporter_id=$${values.length}`;
+  const teamIds = (actor.teams ?? []).map((t) => t.teamId);
+  if (!teamIds.length) return reporter;
+  values.push(teamIds);
+  return `(t.team_id=ANY($${values.length}::uuid[]) OR ${reporter})`;
+}
+/** ticket.work applies only within the ticket's own team (Super Admin everywhere). */
+export function canWorkTicket(actor: Actor, teamId: string): boolean {
+  return (
+    actor.roles.includes('SUPER_ADMIN') || (actor.teams ?? []).some((t) => t.teamId === teamId)
+  );
 }
 export const ticketColumns =
-  't.id,t.ticket_number,t.asset_id,t.related_ticket_id,t.subject,t.description,t.category,t.priority,t.status,t.owner_id,t.resolution,t.created_at,t.updated_at,t.completed_at,t.version';
+  't.id,t.ticket_number,t.asset_id,t.related_ticket_id,t.subject,t.description,t.category,t.priority,t.status,t.owner_id,t.resolution,t.created_at,t.updated_at,t.completed_at,t.version,t.team_id';
 export async function idempotent<T>(
   db: Db,
   req: AuthRequest,
@@ -408,12 +442,56 @@ export async function validateAsset(db: Db, data: any, c: PoolClient, previous?:
     throw new UnprocessableEntityException(
       'Terminal assets require disposal date and evidence reference',
     );
+  await validateOwnership(db, data, c, previous);
 }
-export async function eligibleEmployee(db: Db, userId: string, c: PoolClient, allowInvited = false) {
+const fieldIssue = (field: string, message: string) =>
+  new UnprocessableEntityException({
+    message,
+    fields: { formErrors: [], fieldErrors: { [field]: [message] } },
+  });
+/** Owning team, project/grant tag and room-held asset type rules. */
+async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: any) {
+  const teamId = data.owningTeamId ?? IT_TEAM_ID;
+  const [team] = await db.query(
+    'SELECT active,requires_project FROM teams WHERE id=$1 FOR SHARE',
+    [teamId],
+    c,
+  );
+  if (!team || (!team.active && previous?.owningTeamId !== teamId))
+    throw fieldIssue('owningTeamId', 'Invalid or inactive owning team');
+  if (data.projectId && previous?.projectId !== data.projectId) {
+    const [project] = await db.query(
+      'SELECT active FROM projects WHERE id=$1 FOR SHARE',
+      [data.projectId],
+      c,
+    );
+    if (!project?.active) throw fieldIssue('projectId', 'Invalid or inactive project / grant');
+  }
+  // Legacy rows may predate these rules: on edits only enforce what this edit touches.
+  const teamOrProjectChanged =
+    !previous || previous.owningTeamId !== data.owningTeamId || previous.projectId !== data.projectId;
+  if (team.requires_project && !data.projectId && teamOrProjectChanged)
+    throw fieldIssue('projectId', 'This team requires a project / grant');
+  const [policy] = await db.query(
+    'SELECT requires_custodian FROM asset_type_policies WHERE asset_type_code=$1',
+    [data.assetType],
+    c,
+  );
+  const typeOrLocationChanged =
+    !previous || previous.assetType !== data.assetType || previous.locationId !== data.locationId;
+  if (policy && !policy.requires_custodian && !data.locationId && typeOrLocationChanged)
+    throw fieldIssue('locationId', 'This asset type is kept in a room; choose a location');
+}
+export async function eligibleEmployee(
+  db: Db,
+  userId: string,
+  c: PoolClient,
+  allowInvited = false,
+) {
   return found(
     (
       await db.query(
-        `SELECT u.id,u.email FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
+        `SELECT u.id,u.email,u.state FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='DIRECTORY' AND u.left_at IS NULL) OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
         [userId, allowInvited],
         c,
       )

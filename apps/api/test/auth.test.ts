@@ -110,16 +110,16 @@ test('the final active Admin cannot be disabled or have its Admin role removed',
       query: async (sql: string) => {
         sqlStatements.push(sql);
         if (sql.includes('SELECT * FROM users')) return [user];
-        if (sql.includes('SELECT role_code')) return [{ role_code: 'ADMIN' }];
+        if (sql.includes('SELECT role_code')) return [{ role_code: 'SUPER_ADMIN' }];
         if (sql.includes('count(*)')) return [{ count: 0 }];
         return [];
       },
       tx: async (fn: any) => fn({}),
     } as any;
     const service = new AuthService(db);
-    const req = { user: { id: user.id, roles: ['ADMIN'] }, get: () => '"1"' } as any;
+    const req = { user: { id: user.id, roles: ['SUPER_ADMIN'] }, get: () => '"1"' } as any;
     await assert.rejects(
-      service.editUser(req, user.id, changes),
+      service.editUser(req, user.id, { ...changes, reason: 'Synthetic last admin test' }),
       (error: any) => error.status === 409,
     );
     assert.ok(sqlStatements.some((sql) => sql.includes('pg_advisory_xact_lock')));

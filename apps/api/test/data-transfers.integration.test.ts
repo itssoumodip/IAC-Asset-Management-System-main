@@ -8,6 +8,7 @@ import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { configuration, hash } from '../src/config';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, IT_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith('_test'))
@@ -154,10 +155,11 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
       user.browser = await new Browser(base, token).prepare();
       return user;
     };
-    admin = await make('ADMIN');
-    otherAdmin = await make('ADMIN');
+    admin = await make('SUPER_ADMIN');
+    otherAdmin = await make('SUPER_ADMIN');
     employee = await make('EMPLOYEE');
-    itAdmin = await make('IT_ADMIN');
+    itAdmin = await make('EMPLOYEE');
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
     for (const [kind, code] of [
       ['CATEGORY', assetInput.category],
       ['ASSET_TYPE', assetInput.assetType],
@@ -638,6 +640,7 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     assert.equal(unchanged.version, first.version);
   });
   it('validates notification role membership before replacing group recipients', async () => {
+    await joinTeam(db, itAdmin, 'MEMBER', IT_TEAM_ID); // IT group recipients must be IT team members
     const invalid = await preview(admin, 'notifications', [
       { code: 'IT', enabled: 'true', recipients: employee.email },
     ]);
@@ -666,7 +669,7 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
       (await db.query('SELECT id FROM departments WHERE code=$1', [`${tag}-role-denied`])).length,
       0,
     );
-    await db.query("UPDATE user_roles SET role_code='ADMIN' WHERE user_id=$1", [otherAdmin.id]);
+    await db.query("UPDATE user_roles SET role_code='SUPER_ADMIN' WHERE user_id=$1", [otherAdmin.id]);
     // The immutable expiry is exercised through PostgreSQL's transaction clock: use an
     // intentionally old test fixture, never edit the accepted preview payload.
     const expired = randomUUID();

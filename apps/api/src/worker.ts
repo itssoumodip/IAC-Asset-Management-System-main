@@ -2,6 +2,8 @@ import { Db } from './db';
 import { configuration, decrypt } from './config';
 import nodemailer from 'nodemailer';
 import { randomUUID } from 'node:crypto';
+import { ZohoSyncService, zohoClientFromEnv } from './zoho';
+import { processPendingInvoices } from './invoice-ocr';
 const retryMinutes = [1, 5, 15, 60, 360];
 export async function dispatchOnce(db: Db): Promise<boolean> {
   const lease = randomUUID();
@@ -114,6 +116,23 @@ export async function dispatchOnce(db: Db): Promise<boolean> {
   });
   return true;
 }
+/** True when the Asia/Kolkata wall clock is at or past 02:00 on a day not yet synced. */
+export function nightlySyncDue(
+  now: Date,
+  lastRunDay: string | null,
+): { due: boolean; day: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  const day = `${get('year')}-${get('month')}-${get('day')}`;
+  return { due: Number(get('hour')) >= 2 && day !== lastRunDay, day };
+}
 async function run() {
   const db = new Db();
   let stopping = false;
@@ -123,10 +142,32 @@ async function run() {
   process.on('SIGINT', () => {
     stopping = true;
   });
+  const zoho = new ZohoSyncService(db, zohoClientFromEnv());
+  // Seed from the last scheduled run so a restart after 02:00 does not sync twice that day.
+  let lastSyncDay: string | null = zoho.configured
+    ? ((
+        await db.query(
+          "SELECT to_char(max(started_at) AT TIME ZONE 'Asia/Kolkata','YYYY-MM-DD') AS day FROM zoho_sync_runs WHERE trigger='SCHEDULED'",
+        )
+      )[0]?.day ?? null)
+    : null;
   try {
     while (!stopping) {
       try {
-        if (!(await dispatchOnce(db))) await new Promise((r) => setTimeout(r, 1000));
+        if (zoho.configured) {
+          const { due, day } = nightlySyncDue(new Date(), lastSyncDay);
+          if (due) {
+            lastSyncDay = day;
+            await zoho
+              .run('SCHEDULED')
+              .catch(() =>
+                process.stderr.write('Zoho nightly sync failed; see Directory & Zoho.\n'),
+              );
+          }
+        }
+        const mailed = await dispatchOnce(db);
+        const read = await processPendingInvoices(db, undefined, 1);
+        if (!mailed && !read) await new Promise((r) => setTimeout(r, 1000));
       } catch {
         process.stderr.write('Email worker cycle failed; retrying.\n');
         await new Promise((r) => setTimeout(r, 5000));

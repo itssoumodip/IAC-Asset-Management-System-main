@@ -10,8 +10,9 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Db } from './db';
-import { idempotent, parse, uuid } from './domain-helpers';
-import { AuthRequest, requireRole, SessionGuard } from './security';
+import { assertCanSomewhere, idempotent, parse, uuid } from './domain-helpers';
+import { assertCan } from './policy';
+import { AuthRequest, SessionGuard } from './security';
 
 const printInput = z
   .object({
@@ -29,7 +30,7 @@ export class LabelService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
   async recordPrints(req: AuthRequest, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCanSomewhere(req.user, 'asset.label');
     const { assetIds, layout } = parse(printInput, body);
     return idempotent(
       this.db,
@@ -37,12 +38,13 @@ export class LabelService {
       'POST /asset-labels/prints',
       { assetIds, layout },
       async (c) => {
-        const [existing] = await this.db.query(
-          'SELECT count(*)::int AS n FROM assets WHERE id=ANY($1::uuid[])',
+        const existing = await this.db.query(
+          'SELECT owning_team_id FROM assets WHERE id=ANY($1::uuid[])',
           [assetIds],
           c,
         );
-        if (existing!.n !== assetIds.length) throw new NotFoundException('Asset not found');
+        if (existing.length !== assetIds.length) throw new NotFoundException('Asset not found');
+        for (const asset of existing) assertCan(req.user, 'asset.label', asset.owning_team_id);
         const [run] = await this.db.query(
           `WITH ins AS (
            INSERT INTO asset_label_prints(asset_id,layout,printed_by,printed_at)

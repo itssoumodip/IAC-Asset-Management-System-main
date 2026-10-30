@@ -6,6 +6,7 @@ import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { register42Headers, resolveImportEmail, sourceHeaders } from '../src/domain-import';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, IT_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -85,10 +86,11 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
         await db.query('INSERT INTO user_roles(user_id,role_code) VALUES($1,$2)', [user.id, role]);
       return user;
     };
-    admin = await make(['ADMIN']);
+    admin = await make(['SUPER_ADMIN']);
     employee = await make(['EMPLOYEE']);
     other = await make(['EMPLOYEE']);
-    itAdmin = await make(['IT_ADMIN']);
+    itAdmin = await make(['EMPLOYEE']);
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
   });
   after(async () => {
     if (db) await db.onModuleDestroy();
@@ -195,7 +197,7 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     ])
       assert.equal(privateKey in mine.items[0], false);
     await assert.rejects(service.asset(request(other), asset.id), status(404));
-    await assert.rejects(service.asset(request(itAdmin), asset.id), status(404));
+    assert.equal((await service.asset(request(itAdmin), asset.id)).id, asset.id); // team members see every asset
     assert.equal((await service.asset(request(admin), asset.id)).purchaseCost, '100.00');
   });
   it('enforces acknowledgement ownership, one decision and independent custody', async () => {
@@ -227,11 +229,12 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     const current = await service.asset(request(employee), asset.id);
     assert.equal(current.status, 'Assigned');
   });
-  it('creates scoped tickets and queues new-ticket emails only to verified Admin recipients', async () => {
+  it('creates scoped tickets and queues new-ticket emails to verified Admin and routed-team recipients', async () => {
     await service.updateGroup(request(admin), 'ADMIN', {
       enabled: true,
       recipients: [admin.email],
     });
+    await joinTeam(db, itAdmin, 'MEMBER', IT_TEAM_ID); // IT group recipients must be IT team members
     await service.updateGroup(request(admin), 'IT', { enabled: true, recipients: [itAdmin.email] });
     const req = request(employee, undefined, `${tag}-ticket`);
     ticket = await service.createTicket(req, {
@@ -247,7 +250,13 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
       'SELECT d.recipient FROM email_deliveries d JOIN notification_outbox o ON o.id=d.outbox_id WHERE o.event_key=$1',
       [`ticket:${ticket.id}:created`],
     );
-    assert.deepEqual(notifications.map((r) => r.recipient).sort(), [admin.email]);
+    // Other suites leave active Super Admins in the shared test DB, so assert membership, not equality.
+    const recipients = notifications.map((r) => r.recipient);
+    assert.ok(recipients.includes(admin.email));
+    // The asset is IT-owned, so the routed team's verified members are notified too.
+    assert.ok(recipients.includes(itAdmin.email));
+    for (const nonRecipient of [employee.email, other.email])
+      assert.equal(recipients.includes(nonRecipient), false);
     const reported = await service.createTicket(request(other), {
       assetId: asset.id,
       subject: 'Non-holder report',
@@ -271,8 +280,9 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     );
     await assert.rejects(service.ticket(request(other), ticket.id), status(404));
     const technical = await service.asset(request(itAdmin), asset.id);
-    assert.equal(technical.purchaseCost, undefined);
-    assert.equal(technical.supplier, undefined);
+    // Team members read finance fields (editing them needs Finance).
+    assert.equal(technical.purchaseCost, '100.00');
+    assert.equal('supplier' in technical, true);
   });
   it('hides internal notes before pagination and queues no employee email for them', async () => {
     const before = await db.query('SELECT id FROM notification_outbox WHERE event_key LIKE $1', [

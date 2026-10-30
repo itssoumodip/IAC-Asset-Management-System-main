@@ -8,6 +8,7 @@ import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { configuration, hash, signedCsrf, token } from '../src/config';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -68,9 +69,10 @@ describe('admin dashboard integration', { skip: !connection, concurrency: false 
       );
       return result;
     };
-    admin = await user(['ADMIN'], `${tag} Admin`);
+    admin = await user(['SUPER_ADMIN'], `${tag} Admin`);
     employee = await user(['EMPLOYEE'], `${tag} Employee`);
-    itAdmin = await user(['IT_ADMIN'], `${tag} IT`);
+    itAdmin = await user(['EMPLOYEE'], `${tag} IT`);
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
     category = `${tag} category`;
     const references = {
       CATEGORY: category,

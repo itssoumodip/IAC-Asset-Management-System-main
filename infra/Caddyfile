@@ -7,6 +7,15 @@
 	header Strict-Transport-Security "max-age=31536000"
 
 	# API goes straight to Node so the original https scheme and client IP reach it (TRUST_PROXY_HOPS=1).
+	# Invoice uploads are base64 JSON: a 10 MiB file is about 14 MB on the wire (mirrors nginx.conf).
+	@invoiceUpload path_regexp ^/api/v1/assets/[0-9a-fA-F-]+/invoices$
+	handle @invoiceUpload {
+		request_body {
+			max_size 15MB
+		}
+		reverse_proxy api:3000
+	}
+
 	handle /api/* {
 		request_body {
 			max_size 12MB

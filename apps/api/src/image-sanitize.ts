@@ -106,3 +106,13 @@ export async function sanitizeImage(
     return invalid();
   }
 }
+
+export const USER_PHOTO: SanitizeOptions = {
+  inputLimit: 2 * 1024 * 1024,
+  outputLimit: 60 * 1024,
+  maxWidth: 256,
+  maxHeight: 256,
+  quality: 80,
+  maxPixels: 16_000_000,
+  message: 'Profile photo must be a valid JPEG or PNG',
+};

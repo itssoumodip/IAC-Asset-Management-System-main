@@ -8,6 +8,7 @@ import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { configuration, hash, signedCsrf, token } from '../src/config';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -92,9 +93,10 @@ describe('labels API integration', { skip: !connection, concurrency: false }, ()
       );
       return result;
     };
-    admin = await user(['ADMIN'], `${tag} Admin`);
+    admin = await user(['SUPER_ADMIN'], `${tag} Admin`);
     holder = await user(['EMPLOYEE'], `${tag} Holder Person`);
-    itAdmin = await user(['IT_ADMIN'], `${tag} IT Person`);
+    itAdmin = await user(['EMPLOYEE'], `${tag} IT Person`);
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
     const references = {
       CATEGORY: `${tag} category`,
       ASSET_TYPE: `${tag} type`,

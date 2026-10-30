@@ -9,6 +9,7 @@ import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { configuration, hash, signedCsrf, token } from '../src/config';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, IT_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -17,7 +18,7 @@ const tag = `ticketphotos-${randomUUID()}`;
 
 describe('ticket photos integration', { skip: !connection, concurrency: false }, () => {
   let app: INestApplication, db: Db, base: string, domain: DomainService;
-  let admin: any, holder: any, other: any, itAdmin: any;
+  let admin: any, holder: any, other: any, itAdmin: any, itMember: any;
   let asset: any, disposed: any, lost: any;
   const serial = `SN-${tag}`;
   const barcode = `BC-${tag}`;
@@ -80,10 +81,13 @@ describe('ticket photos integration', { skip: !connection, concurrency: false },
       );
       return result;
     };
-    admin = await user(['ADMIN'], `${tag} Admin`);
+    admin = await user(['SUPER_ADMIN'], `${tag} Admin`);
     holder = await user(['EMPLOYEE'], `${tag} Holder Person`);
     other = await user(['EMPLOYEE'], `${tag} Other Person`);
-    itAdmin = await user(['IT_ADMIN'], `${tag} IT Person`);
+    itAdmin = await user(['EMPLOYEE'], `${tag} IT Person`);
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
+    itMember = await user(['EMPLOYEE'], `${tag} IT Member`);
+    await joinTeam(db, itMember, 'MEMBER', IT_TEAM_ID);
     const references = {
       CATEGORY: `${tag} category`,
       ASSET_TYPE: `${tag} type`,
@@ -269,7 +273,11 @@ describe('ticket photos integration', { skip: !connection, concurrency: false },
     assert.equal(ok.status, 200);
     assert.equal(ok.headers.get('cache-control'), 'private, no-store');
     assert.equal((await get(admin, path)).status, 200);
-    assert.equal((await get(itAdmin, path)).status, 200);
+    // itAdmin only belongs to ADM; the ticket is routed to the IT-owned asset's team.
+    assert.equal((await get(itAdmin, path)).status, 404);
+
+
+    assert.equal((await get(itMember, path)).status, 200);
     assert.equal((await get(holder, path)).status, 404);
     assert.equal((await get(other, `/tickets/${created.body.id}/photos/2`)).status, 404);
   });

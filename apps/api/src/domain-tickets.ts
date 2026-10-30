@@ -7,9 +7,11 @@ import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { AssetDomain } from './domain-assets';
 import { sanitizeImage, TICKET_PHOTO } from './image-sanitize';
-import { AuthRequest, requireRole, assertVersion } from './security';
+import { AuthRequest, assertVersion } from './security';
+import { can } from './policy';
 import {
   camel,
+  canWorkTicket,
   found,
   id,
   idempotent,
@@ -18,22 +20,34 @@ import {
   page,
   parse,
   requestPage,
-  staff,
   statusInput,
   ticketColumns,
   ticketInput,
   ticketScope,
   updateInput,
+  text,
   uuid,
   validateReference,
 } from './domain-helpers';
+
+const IT_TEAM_ID = '00000000-0000-4000-8000-000000000001';
 
 export class TicketDomain extends AssetDomain {
   async staffRecipients(c: PoolClient) {
     // Group addresses must resolve to a currently active, verified privileged account.
     const rows = await this.db.query(
-      `SELECT DISTINCT r.email FROM notification_recipients r JOIN notification_groups g ON g.id=r.group_id JOIN users u ON u.email=r.email WHERE g.enabled AND r.verified_at IS NOT NULL AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ((g.code='ADMIN' AND ur.role_code='ADMIN') OR (g.code='IT' AND ur.role_code='IT_ADMIN')))`,
+      `SELECT DISTINCT r.email FROM notification_recipients r JOIN notification_groups g ON g.id=r.group_id JOIN users u ON u.email=r.email WHERE g.enabled AND r.verified_at IS NOT NULL AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND ((g.code='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='SUPER_ADMIN')) OR (g.code='IT' AND EXISTS(SELECT 1 FROM team_memberships m JOIN teams t ON t.id=m.team_id WHERE m.user_id=u.id AND t.code='IT')))`,
       [],
+      c,
+    );
+    return rows.map((r) => r.email);
+  }
+  /** Verified, active members of a team. */
+  async teamRecipients(c: PoolClient, teamId: string) {
+    const rows = await this.db.query(
+      `SELECT DISTINCT u.email FROM users u JOIN team_memberships m ON m.user_id=u.id
+       WHERE m.team_id=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL`,
+      [teamId],
       c,
     );
     return rows.map((r) => r.email);
@@ -42,7 +56,7 @@ export class TicketDomain extends AssetDomain {
     const rows = await this.db.query(
       `SELECT DISTINCT u.email FROM users u
        WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
-         AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='ADMIN')`,
+         AND EXISTS(SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='SUPER_ADMIN')`,
       [],
       c,
     );
@@ -54,7 +68,7 @@ export class TicketDomain extends AssetDomain {
     const row = found(
       (
         await this.db.query(
-          `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''},(SELECT count(*)::int FROM ticket_photos p WHERE p.ticket_id=t.id) AS photo_count FROM tickets t WHERE t.id=$1 AND ${scope}${lock ? ' FOR UPDATE OF t' : ''}`,
+          `SELECT ${ticketColumns}${can(req.user, 'ticket.work') ? ',t.reporter_id' : ''},(SELECT count(*)::int FROM ticket_photos p WHERE p.ticket_id=t.id) AS photo_count FROM tickets t WHERE t.id=$1 AND ${scope}${lock ? ' FOR UPDATE OF t' : ''}`,
           values,
           c,
         )
@@ -71,6 +85,7 @@ export class TicketDomain extends AssetDomain {
       ['category', 'category'],
       ['priority', 'priority'],
       ['ownerId', 'owner_id'],
+      ['teamId', 'team_id'],
     ] as const)
       if (p[key]) {
         values.push(p[key]);
@@ -91,7 +106,7 @@ export class TicketDomain extends AssetDomain {
     values.push(p.limit + 1);
     return page(
       await this.db.query(
-        `SELECT ${ticketColumns}${staff(req.user) ? ',t.reporter_id' : ''} FROM tickets t WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC,t.id DESC LIMIT $${values.length}`,
+        `SELECT ${ticketColumns}${can(req.user, 'ticket.work') ? ',t.reporter_id' : ''} FROM tickets t WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC,t.id DESC LIMIT $${values.length}`,
         values,
       ),
       p.limit,
@@ -110,14 +125,16 @@ export class TicketDomain extends AssetDomain {
       await validateReference(this.db, 'TICKET_CATEGORY', data.category, c, 'category');
       await validateReference(this.db, 'TICKET_PRIORITY', data.priority, c, 'priority');
       let assignment: any = null;
+      let teamId: string | null = null;
       if (data.assetId) {
         // Serialize custody snapshot with return/reassign so the recorded assignment was current.
         const [asset] = await this.db.query(
-          'SELECT status FROM assets WHERE id=$1 FOR UPDATE',
+          'SELECT status,owning_team_id FROM assets WHERE id=$1 FOR UPDATE',
           [data.assetId],
           c,
         );
         found(asset);
+        teamId = asset.owning_team_id;
         if ((NON_REPORTABLE_STATUSES as readonly string[]).includes(asset.status))
           throw new UnprocessableEntityException(
             'This asset is not in service and cannot be reported',
@@ -131,11 +148,20 @@ export class TicketDomain extends AssetDomain {
             )
           )[0] || null;
       }
+      if (!teamId)
+        teamId =
+          (
+            await this.db.query(
+              'SELECT team_id FROM ticket_category_teams WHERE category_code=$1',
+              [data.category],
+              c,
+            )
+          )[0]?.team_id || IT_TEAM_ID;
       if (data.relatedTicketId) await this.ticket(req, data.relatedTicketId, c);
       const row = await insertObject(
         this.db,
         'tickets',
-        { ...data, reporterId: req.user.id, assignmentAtCreationId: assignment?.id || null },
+        { ...data, teamId, reporterId: req.user.id, assignmentAtCreationId: assignment?.id || null },
         c,
       );
       for (const [i, image] of images.entries())
@@ -151,11 +177,15 @@ export class TicketDomain extends AssetDomain {
       );
       await this.db.audit(c, req.user, 'ticket', row.id, 'TICKET_CREATED', {
         assetId: data.assetId || null,
+        teamId,
         category: data.category,
         priority: data.priority,
         photoCount: images.length,
       });
-      const recipients = await this.adminRecipients(c);
+      const recipients = [
+        ...(await this.adminRecipients(c)),
+        ...(await this.teamRecipients(c, teamId!)),
+      ];
       await this.db.notify(c, `ticket:${row.id}:created`, 'TICKET_CREATED', recipients, {
         subject: `IAC support ticket #${row.ticket_number} created`,
         text: 'A support ticket has been created. Sign in to the IAC Asset portal to view the ticket.',
@@ -180,7 +210,7 @@ export class TicketDomain extends AssetDomain {
     const p = requestPage(query, ['created_at', 'id']);
     const values: any[] = [ticketId];
     const where = ['u.ticket_id=$1'];
-    if (!staff(req.user)) where.push("u.visibility='PUBLIC'");
+    if (!canWorkTicket(req.user, ticket.teamId)) where.push("u.visibility='PUBLIC'");
     if (p.after) {
       values.push(...p.after);
       where.push(
@@ -201,10 +231,10 @@ export class TicketDomain extends AssetDomain {
   async addUpdate(req: AuthRequest, ticketId: string, body: unknown) {
     id(ticketId);
     const data = parse(updateInput, body);
-    if (data.visibility === 'INTERNAL' && !staff(req.user))
-      throw new ForbiddenException('Internal notes require a staff role');
     return this.db.tx(async (c) => {
       const before = await this.ticket(req, ticketId, c, true);
+      if (data.visibility === 'INTERNAL' && !canWorkTicket(req.user, before.teamId))
+        throw new ForbiddenException('Internal notes require membership of the ticket team');
       assertVersion(req, before.version);
       if (before.status === 'COMPLETED')
         throw new ConflictException('Completed tickets cannot receive updates');
@@ -232,7 +262,9 @@ export class TicketDomain extends AssetDomain {
           [ticketId],
           c,
         );
-        const recipients = staff(req.user) ? [reporter.email] : await this.staffRecipients(c);
+        const recipients = canWorkTicket(req.user, before.teamId)
+          ? [reporter.email]
+          : [...(await this.adminRecipients(c)), ...(await this.teamRecipients(c, before.teamId))];
         await this.db.notify(c, `ticket-update:${row.id}`, 'TICKET_REPLY', recipients, {
           subject: `IAC support ticket #${before.ticketNumber} updated`,
           text: 'A public reply has been added to your support ticket. Sign in to read the reply.',
@@ -241,12 +273,56 @@ export class TicketDomain extends AssetDomain {
       return { ...camel(row), ticketVersion: after.version };
     });
   }
+  assertTicketWork(req: AuthRequest, teamId: string) {
+    if (!canWorkTicket(req.user, teamId))
+      throw new ForbiddenException('Insufficient permission for this ticket team');
+  }
+  async moveTicketTeam(req: AuthRequest, ticketId: string, body: unknown) {
+    id(ticketId);
+    const data = parse(z.object({ teamId: uuid, reason: text(1000) }).strict(), body);
+    return this.db.tx(async (c) => {
+      const before = await this.ticket(req, ticketId, c, true);
+      assertVersion(req, before.version);
+      const lead = (req.user.teams ?? []).some(
+        (t) => t.teamId === before.teamId && t.level === 'LEAD',
+      );
+      if (!req.user.roles.includes('SUPER_ADMIN') && !lead)
+        throw new ForbiddenException('Only a Super Admin or lead of the current team can move a ticket');
+      if (before.status === 'COMPLETED')
+        throw new ConflictException('Completed tickets are terminal');
+      if (data.teamId === before.teamId)
+        throw new ConflictException('The ticket is already with this team');
+      const team = found(
+        (await this.db.query('SELECT active FROM teams WHERE id=$1 FOR SHARE', [data.teamId], c))[0],
+      );
+      if (!team.active) throw new UnprocessableEntityException('The team is not active');
+      // The previous owner belongs to the old team; the new team picks its own.
+      const [moved] = await this.db.query(
+        'UPDATE tickets SET team_id=$2,owner_id=NULL,version=version+1,updated_at=now() WHERE id=$1 RETURNING id,team_id,owner_id,version,status',
+        [ticketId, data.teamId],
+        c,
+      );
+      await this.db.query(
+        "INSERT INTO ticket_updates(ticket_id,actor_id,kind,visibility) VALUES($1,$2,'TEAM_CHANGED','INTERNAL')",
+        [ticketId, req.user.id],
+        c,
+      );
+      await this.db.audit(c, req.user, 'ticket', ticketId, 'TICKET_TEAM_CHANGED', {
+        from: before.teamId,
+        to: data.teamId,
+        reason: data.reason,
+        clearedOwnerId: before.ownerId || null,
+      });
+      // The actor may have just lost visibility of the ticket, so do not re-read it through their scope.
+      return camel(moved);
+    });
+  }
   async ticketOwner(req: AuthRequest, ticketId: string, body: unknown) {
-    requireRole(req, 'ADMIN', 'IT_ADMIN');
     id(ticketId);
     const data = parse(z.object({ ownerId: uuid.nullable() }).strict(), body);
     return this.db.tx(async (c) => {
       const before = await this.ticket(req, ticketId, c, true);
+      this.assertTicketWork(req, before.teamId);
       assertVersion(req, before.version);
       if (before.status === 'COMPLETED')
         throw new ConflictException('Completed tickets are terminal');
@@ -254,8 +330,8 @@ export class TicketDomain extends AssetDomain {
         found(
           (
             await this.db.query(
-              `SELECT u.id FROM users u WHERE u.id=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code IN ('ADMIN','IT_ADMIN')) FOR SHARE OF u`,
-              [data.ownerId],
+              `SELECT u.id FROM users u WHERE u.id=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND (EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='SUPER_ADMIN') OR EXISTS(SELECT 1 FROM team_memberships m WHERE m.user_id=u.id AND m.team_id=$2)) FOR SHARE OF u`,
+              [data.ownerId, before.teamId],
               c,
             )
           )[0],
@@ -276,12 +352,26 @@ export class TicketDomain extends AssetDomain {
       return this.ticket(req, ticketId, c);
     });
   }
+  /** Who a ticket worker may pick as owner: active verified team members plus Super Admins. */
+  async ticketOwnerCandidates(req: AuthRequest, ticketId: string) {
+    const ticket = await this.ticket(req, ticketId);
+    this.assertTicketWork(req, ticket.teamId);
+    const items = await this.db.query(
+      `SELECT u.id,u.display_name,u.email FROM users u
+       WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
+         AND (EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='SUPER_ADMIN')
+           OR EXISTS(SELECT 1 FROM team_memberships m WHERE m.user_id=u.id AND m.team_id=$1))
+       ORDER BY u.display_name,u.id`,
+      [ticket.teamId],
+    );
+    return { items: items.map(camel) };
+  }
   async ticketStatus(req: AuthRequest, ticketId: string, body: unknown) {
-    requireRole(req, 'ADMIN', 'IT_ADMIN');
     id(ticketId);
     const data = parse(statusInput, body);
     return this.db.tx(async (c) => {
       const before = await this.ticket(req, ticketId, c, true);
+      this.assertTicketWork(req, before.teamId);
       assertVersion(req, before.version);
       if (before.status === 'COMPLETED' || before.status === data.status)
         throw new ConflictException('Invalid ticket status transition');

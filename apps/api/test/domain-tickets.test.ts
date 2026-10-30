@@ -17,6 +17,6 @@ test('new-ticket recipient lookup selects only active, verified Admin accounts',
   assert.deepEqual(recipients, ['admin@example.org']);
   assert.match(statement, /u\.state='ACTIVE'/);
   assert.match(statement, /u\.email_verified_at IS NOT NULL/);
-  assert.match(statement, /ur\.role_code='ADMIN'/);
+  assert.match(statement, /ur\.role_code='SUPER_ADMIN'/);
   assert.doesNotMatch(statement, /IT_ADMIN/);
 });

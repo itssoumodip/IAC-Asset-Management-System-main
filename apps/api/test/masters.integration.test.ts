@@ -5,6 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import type { AuthRequest } from '../src/security';
+import { ADM_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (!connection || !new URL(connection).pathname.endsWith('_test'))
@@ -48,7 +49,7 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
     const make = async (role: string) => {
       const user = {
         id: randomUUID(),
-        email: `${tag}-${role.toLowerCase()}@example.org`,
+        email: `${tag}-${role.toLowerCase()}-${randomUUID()}@example.org`,
         displayName: 'Synthetic master test',
         roles: [role],
         state: 'ACTIVE',
@@ -67,9 +68,10 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
       await db.query('INSERT INTO user_roles(user_id,role_code) VALUES($1,$2)', [user.id, role]);
       return user;
     };
-    admin = await make('ADMIN');
+    admin = await make('SUPER_ADMIN');
     employee = await make('EMPLOYEE');
-    itAdmin = await make('IT_ADMIN');
+    itAdmin = await make('EMPLOYEE');
+    await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
   });
   after(async () => {
     if (db) await db.onModuleDestroy();

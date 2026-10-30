@@ -13,9 +13,10 @@ import {
 import type { Response } from 'express';
 import { z } from 'zod';
 import { Db } from './db';
-import { assetScope, found, id, parse, text } from './domain-helpers';
+import { assertCanSomewhere, assetScope, found, id, parse, text } from './domain-helpers';
 import { ASSET_PHOTO, sanitizeImage } from './image-sanitize';
-import { AuthRequest, assertVersion, requireRole, SessionGuard } from './security';
+import { assertCan } from './policy';
+import { AuthRequest, assertVersion, SessionGuard } from './security';
 
 const photoInput = z
   .object({
@@ -60,7 +61,7 @@ export class AssetPhotoService {
   }
 
   async put(req: AuthRequest, assetId: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCanSomewhere(req.user, 'asset.photo');
     id(assetId);
     const { dataUrl, reason } = parse(photoInput, body);
     const { content, sha256 } = await sanitizeImage(dataUrl, ASSET_PHOTO);
@@ -68,12 +69,13 @@ export class AssetPhotoService {
       const asset = found(
         (
           await this.db.query(
-            'SELECT version FROM assets WHERE id=$1 FOR UPDATE',
+            'SELECT version,owning_team_id FROM assets WHERE id=$1 FOR UPDATE',
             [assetId],
             client,
           )
         )[0],
       );
+      assertCan(req.user, 'asset.photo', asset.owning_team_id);
       assertVersion(req, asset.version);
       const [photo] = await this.db.query(
         `INSERT INTO asset_photos(asset_id,content,sha256,updated_by)

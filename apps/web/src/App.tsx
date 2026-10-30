@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, resetCsrf } from './api';
-import { useSession, hasRole, isStaff } from './session';
+import { useSession, can, isStaff, roleLabel, teamChipLabel } from './session';
 import { AuthScreen, AccessScreen, SecurityScreen } from './components/Auth';
 import { AssetList, AssetDetail, AssetEditor, AssignmentForm } from './components/Assets';
 import { ScanPage } from './components/Scan';
@@ -18,10 +18,14 @@ import { Empty, ErrorNotice, Field, Loading } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
+import { TeamMembers, TeamsAndProjects } from './components/TeamAdmin';
+import { Directory } from './components/Directory';
+import { FinanceReview } from './components/FinanceReview';
 import { PushAnnouncements } from './components/PushAnnouncements';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
 import { useAction } from './hooks';
-function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnly?: boolean }) {
+import type { Action } from './types';
+function Guard({ action, anyOf }: { action?: Action; anyOf?: Action[] }) {
   const { user, loading, error } = useSession();
   const location = useLocation();
   const remember = () => rememberReturnTo(location.pathname + location.search);
@@ -55,14 +59,8 @@ function Guard({ admin = false, staffOnly = false }: { admin?: boolean; staffOnl
     remember();
     return <Navigate to="/access" replace />;
   }
-  if (admin && !hasRole(user, 'ADMIN'))
-    return (
-      <Empty title="Admin access required">Your account does not have access to this area.</Empty>
-    );
-  if (staffOnly && !isStaff(user))
-    return (
-      <Empty title="Staff access required">Your account does not have access to this area.</Empty>
-    );
+  if ((action && !can(user, action)) || (anyOf && !anyOf.some((item) => can(user, item))))
+    return <Empty title="Access required">Your account does not have access to this area.</Empty>;
   return <Outlet />;
 }
 type NavIconName =
@@ -212,7 +210,7 @@ function Shell() {
             <span className="nav-icon">
               <NavIcon name="assets" />
             </span>
-            {hasRole(user, 'ADMIN') ? 'Asset catalog' : 'Assets'}
+            {can(user, 'asset.view_all') ? 'Asset catalog' : 'Assets'}
           </NavLink>
           <NavLink to="/tickets">
             <span className="nav-icon">
@@ -240,13 +238,21 @@ function Shell() {
               </span>
             ) : null}
           </NavLink>
+          {can(user, 'asset.finance_edit') ? (
+            <NavLink to="/finance">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Finance review
+            </NavLink>
+          ) : null}
           <NavLink to="/install" className="install-app-nav">
             <span className="nav-icon">
               <NavIcon name="install" />
             </span>
             Install app
           </NavLink>
-          {isStaff(user) ? (
+          {can(user, 'announcement.send') ? (
             <>
               <p className="nav-label">Administration</p>
               <NavLink to="/admin/announcements">
@@ -257,31 +263,57 @@ function Shell() {
               </NavLink>
             </>
           ) : null}
-          {hasRole(user, 'ADMIN') ? (
-            <>
-              <NavLink to="/assets/labels">
+          {can(user, 'asset.label') ? (
+            <NavLink to="/assets/labels">
+              <span className="nav-icon">
+                <NavIcon name="assets" />
+              </span>
+              Print labels
+            </NavLink>
+          ) : null}
+          {can(user, 'system.admin') ? (
+            <NavLink to="/admin/imports">
+              <span className="nav-icon">
+                <NavIcon name="imports" />
+              </span>
+              Import review
+            </NavLink>
+          ) : null}
+          {(user?.teams ?? [])
+            .filter((t) => t.level === 'LEAD')
+            .map((t) => (
+              <NavLink key={t.teamId} to={`/team/${t.teamId}`}>
                 <span className="nav-icon">
-                  <NavIcon name="assets" />
+                  <NavIcon name="people" />
                 </span>
-                Print labels
+                My team ({t.teamCode})
               </NavLink>
+            ))}
+          {can(user, 'system.admin') ? (
+            <>
               <NavLink to="/master-control">
                 <span className="nav-icon">
                   <NavIcon name="master" />
                 </span>
                 Master control
               </NavLink>
+              <NavLink to="/admin/teams">
+                <span className="nav-icon">
+                  <NavIcon name="master" />
+                </span>
+                Teams & projects
+              </NavLink>
+              <NavLink to="/admin/directory">
+                <span className="nav-icon">
+                  <NavIcon name="people" />
+                </span>
+                Directory &amp; Zoho
+              </NavLink>
               <NavLink to="/admin/users">
                 <span className="nav-icon">
                   <NavIcon name="people" />
                 </span>
                 People &amp; access
-              </NavLink>
-              <NavLink to="/admin/imports">
-                <span className="nav-icon">
-                  <NavIcon name="imports" />
-                </span>
-                Import review
               </NavLink>
               <NavLink to="/admin/audit">
                 <span className="nav-icon">
@@ -317,7 +349,12 @@ function Shell() {
             <span className="avatar">{user?.displayName?.slice(0, 1) ?? 'U'}</span>
             <span>
               {user?.displayName || 'My profile'}
-              <small>{user?.roles.map((role) => role.replace('_', ' ')).join(' · ')}</small>
+              <small>
+                {[
+                  ...(user?.roles.map(roleLabel) ?? []),
+                  ...(user?.teams?.map(teamChipLabel) ?? []),
+                ].join(' · ')}
+              </small>
             </span>
           </Link>
           <ScanButton />
@@ -368,18 +405,20 @@ function Profile() {
     }
     const emailChanged = newEmail.trim().toLowerCase() !== user?.email;
     const passwordChanged = newPassword.length > 0;
-    const result = await profileAction.mutateAsync({
-      path: '/me/profile',
-      method: 'PATCH',
-      version: user?.version,
-      body: {
-        displayName: displayName.trim(),
-        designation: designation.trim() || null,
-        ...(emailChanged || cancelPendingEmail ? { newEmail } : {}),
-        ...(passwordChanged ? { newPassword } : {}),
-        ...(emailChanged || cancelPendingEmail || passwordChanged ? { currentPassword } : {}),
-      },
-    }).catch(() => undefined);
+    const result = await profileAction
+      .mutateAsync({
+        path: '/me/profile',
+        method: 'PATCH',
+        version: user?.version,
+        body: {
+          displayName: displayName.trim(),
+          designation: designation.trim() || null,
+          ...(emailChanged || cancelPendingEmail ? { newEmail } : {}),
+          ...(passwordChanged ? { newPassword } : {}),
+          ...(emailChanged || cancelPendingEmail || passwordChanged ? { currentPassword } : {}),
+        },
+      })
+      .catch(() => undefined);
     if (result) {
       setSaved(result.message);
       setCurrentPassword('');
@@ -392,42 +431,119 @@ function Profile() {
   return (
     <section className="panel profile-panel">
       <h1>Account details</h1>
-      <p className="muted">Update your profile. Role and department changes are managed by an administrator.</p>
+      <p className="muted">
+        Update your profile. Role and department changes are managed by an administrator.
+      </p>
       <ErrorNotice error={profileAction.error} />
-      {saved ? <p className="notice success" role="status">{saved}</p> : null}
+      {saved ? (
+        <p className="notice success" role="status">
+          {saved}
+        </p>
+      ) : null}
       <form className="form-stack" onSubmit={(event) => void saveProfile(event)}>
         <Field label="Name" htmlFor="profile-name">
-          <input id="profile-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={120} />
+          <input
+            id="profile-name"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            required
+            maxLength={120}
+          />
         </Field>
-        <Field label="Work email" htmlFor="profile-email" hint={user?.pendingEmail ? `Pending confirmation: ${user.pendingEmail}` : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'}>
-          <input id="profile-email" type="email" value={newEmail} onChange={(event) => { setNewEmail(event.target.value); setCancelPendingEmail(false); }} required maxLength={254} />
+        <Field
+          label="Work email"
+          htmlFor="profile-email"
+          hint={
+            user?.pendingEmail
+              ? `Pending confirmation: ${user.pendingEmail}`
+              : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'
+          }
+        >
+          <input
+            id="profile-email"
+            type="email"
+            value={newEmail}
+            onChange={(event) => {
+              setNewEmail(event.target.value);
+              setCancelPendingEmail(false);
+            }}
+            required
+            maxLength={254}
+          />
         </Field>
         {user?.pendingEmail && !cancelPendingEmail ? (
-          <button className="button secondary" type="button" onClick={() => { setNewEmail(user.email); setCancelPendingEmail(true); }}>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => {
+              setNewEmail(user.email);
+              setCancelPendingEmail(true);
+            }}
+          >
             Cancel pending email change
           </button>
         ) : null}
-        {newEmail.trim().toLowerCase() !== user?.email || cancelPendingEmail || newPassword.length > 0 ? (
+        {newEmail.trim().toLowerCase() !== user?.email ||
+        cancelPendingEmail ||
+        newPassword.length > 0 ? (
           <Field label="Current password" htmlFor="profile-current-password">
-            <input id="profile-current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" />
+            <input
+              id="profile-current-password"
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+              autoComplete="current-password"
+            />
           </Field>
         ) : null}
-        <Field label="New password" htmlFor="profile-new-password" hint="Leave blank to keep your current password. Use at least 12 characters.">
-          <input id="profile-new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={12} autoComplete="new-password" />
+        <Field
+          label="New password"
+          htmlFor="profile-new-password"
+          hint="Leave blank to keep your current password. Use at least 12 characters."
+        >
+          <input
+            id="profile-new-password"
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            minLength={12}
+            autoComplete="new-password"
+          />
         </Field>
         {newPassword ? (
           <Field label="Confirm new password" htmlFor="profile-confirm-password">
-            <input id="profile-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={12} autoComplete="new-password" />
+            <input
+              id="profile-confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+              minLength={12}
+              autoComplete="new-password"
+            />
           </Field>
         ) : null}
         <Field label="Designation" htmlFor="profile-designation">
-          <input id="profile-designation" value={designation} onChange={(event) => setDesignation(event.target.value)} maxLength={120} />
+          <input
+            id="profile-designation"
+            value={designation}
+            onChange={(event) => setDesignation(event.target.value)}
+            maxLength={120}
+          />
         </Field>
         <Field label="Department" htmlFor="profile-department">
           <input id="profile-department" value={user?.department ?? 'Not set'} readOnly />
         </Field>
         <Field label="Access roles" htmlFor="profile-roles">
-          <input id="profile-roles" value={user?.roles.join(', ') ?? ''} readOnly />
+          <input
+            id="profile-roles"
+            value={[
+              ...(user?.roles.map(roleLabel) ?? []),
+              ...(user?.teams?.map(teamChipLabel) ?? []),
+            ].join(', ')}
+            readOnly
+          />
         </Field>
         <button className="button" disabled={profileAction.isPending}>
           {profileAction.isPending ? 'Saving…' : 'Save account details'}
@@ -478,21 +594,38 @@ export function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/install" element={<InstallAppPage />} />
-            <Route element={<Guard staffOnly />}>
+            <Route element={<Guard action="announcement.send" />}>
               <Route path="/admin/announcements" element={<PushAnnouncements />} />
             </Route>
-            <Route element={<Guard admin />}>
+            <Route element={<Guard action="asset.custody" />}>
               <Route
                 path="/assignments/new"
                 element={<AssetList key="assignment" assignmentMode />}
               />
-              <Route path="/assets/new" element={<AssetEditor />} />
-              <Route path="/assets/labels" element={<LabelPrintPage />} />
-              <Route path="/assets/:id/edit" element={<AssetEditor />} />
               <Route path="/assets/:id/assign" element={<AssignmentForm />} />
-              <Route path="/master-control" element={<MasterControl />} />
-              <Route path="/admin/users" element={<UserAdmin />} />
+            </Route>
+            <Route element={<Guard action="asset.create" />}>
+              <Route path="/assets/new" element={<AssetEditor />} />
+            </Route>
+            <Route element={<Guard action="asset.label" />}>
+              <Route path="/assets/labels" element={<LabelPrintPage />} />
+            </Route>
+            <Route element={<Guard anyOf={["asset.edit", "asset.finance_edit"]} />}>
+              <Route path="/assets/:id/edit" element={<AssetEditor />} />
+            </Route>
+            <Route element={<Guard action="asset.finance_edit" />}>
+              <Route path="/finance" element={<FinanceReview />} />
+            </Route>
+            {/* TeamMembers checks team.manage_members for the team in the URL itself. */}
+            <Route path="/team/:teamId" element={<TeamMembers />} />
+            <Route element={<Guard action="system.admin" />}>
               <Route path="/admin/imports" element={<ImportsView />} />
+            </Route>
+            <Route element={<Guard action="system.admin" />}>
+              <Route path="/master-control" element={<MasterControl />} />
+              <Route path="/admin/teams" element={<TeamsAndProjects />} />
+              <Route path="/admin/directory" element={<Directory />} />
+              <Route path="/admin/users" element={<UserAdmin />} />
               <Route path="/admin/audit" element={<AuditView />} />
             </Route>
           </Route>

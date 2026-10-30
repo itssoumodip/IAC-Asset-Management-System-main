@@ -4,6 +4,7 @@ import {
   Header,
   Post,
   Patch,
+  Delete,
   Put,
   Body,
   Param,
@@ -19,16 +20,17 @@ import {
 import type { Response } from 'express';
 import { z } from 'zod';
 import { Db } from './db';
-import { AuthRequest, SessionGuard, requireRole } from './security';
+import { AuthRequest, SessionGuard } from './security';
+import { assertCan, can } from './policy';
 import { ImportDomain } from './domain-import';
 import {
-  admin,
   assetScope,
   camel,
+  canSomewhere,
   page,
   parse,
+  primaryRole,
   requestPage,
-  staff,
   ticketScope,
 } from './domain-helpers';
 
@@ -41,13 +43,13 @@ export class DomainService extends ImportDomain {
     const assetValues: any[] = [];
     const assetWhere = assetScope(req.user, assetValues);
     const [assets] = await this.db.query(
-      `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status='Assigned')::int AS assigned,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${admin(req.user) ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
+      `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status='Assigned')::int AS assigned,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${can(req.user, 'asset.view_private') ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
       assetValues,
     );
     const pendingValues: any[] = [req.user.id];
     const [{ pending }] = await this.db.query(
-      `SELECT count(*)::int AS pending FROM assignments WHERE ended_at IS NULL AND acknowledgement='PENDING' ${admin(req.user) ? '' : 'AND user_id=$1'}`,
-      admin(req.user) ? [] : pendingValues,
+      `SELECT count(*)::int AS pending FROM assignments WHERE ended_at IS NULL AND acknowledgement='PENDING' ${can(req.user, 'asset.view_all') ? '' : 'AND user_id=$1'}`,
+      can(req.user, 'asset.view_all') ? [] : pendingValues,
     );
     const ticketValues: any[] = [];
     const ticketWhere = ticketScope(req.user, ticketValues);
@@ -55,7 +57,7 @@ export class DomainService extends ImportDomain {
       `SELECT count(*)::int AS total,count(*) FILTER(WHERE t.status='OPEN')::int AS open,count(*) FILTER(WHERE t.status='IN_PROGRESS')::int AS in_progress,count(*) FILTER(WHERE t.status='COMPLETED')::int AS completed,count(*) FILTER(WHERE t.owner_id IS NULL AND t.status<>'COMPLETED')::int AS unassigned FROM tickets t WHERE ${ticketWhere}`,
       ticketValues,
     );
-    const imports = admin(req.user)
+    const imports = canSomewhere(req.user, 'asset.import')
       ? (
           await this.db.query(
             "SELECT count(*)::int AS quarantined FROM import_rows WHERE state='QUARANTINED'",
@@ -63,7 +65,7 @@ export class DomainService extends ImportDomain {
         )[0]
       : { quarantined: null };
     return {
-      role: admin(req.user) ? 'ADMIN' : staff(req.user) ? 'IT_ADMIN' : 'EMPLOYEE',
+      role: primaryRole(req.user),
       assets: {
         total: assets.total,
         assigned: assets.assigned,
@@ -80,7 +82,7 @@ export class DomainService extends ImportDomain {
     };
   }
   async auditEvents(req: AuthRequest, query: any) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'system.admin');
     const p = requestPage(query, ['occurred_at', 'id']);
     const values: any[] = [];
     const where = ['TRUE'];
@@ -107,14 +109,14 @@ export class DomainService extends ImportDomain {
     );
   }
   async groups(req: AuthRequest) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'system.admin');
     const rows = await this.db.query(
       `SELECT g.id,g.code,g.enabled,coalesce(jsonb_agg(jsonb_build_object('email',r.email,'verifiedAt',r.verified_at)) FILTER(WHERE r.email IS NOT NULL),'[]') AS recipients FROM notification_groups g LEFT JOIN notification_recipients r ON r.group_id=g.id GROUP BY g.id ORDER BY g.code`,
     );
     return { items: rows, nextCursor: null };
   }
   async updateGroup(req: AuthRequest, code: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    assertCan(req.user, 'system.admin');
     parse(z.enum(['ADMIN', 'IT']), code);
     const input = parse(
       z
@@ -142,8 +144,9 @@ export class DomainService extends ImportDomain {
       );
       for (const email of input.recipients) {
         const [user] = await this.db.query(
-          "SELECT u.id FROM users u JOIN user_roles r ON r.user_id=u.id WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND r.role_code=$2 FOR SHARE OF u",
-          [email, code === 'ADMIN' ? 'ADMIN' : 'IT_ADMIN'],
+          // ADMIN group ↔ Super Admins; IT group ↔ IT team members.
+          `SELECT u.id FROM users u WHERE u.email=$1 AND u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND CASE WHEN $2='ADMIN' THEN EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='SUPER_ADMIN') ELSE EXISTS(SELECT 1 FROM team_memberships m JOIN teams t ON t.id=m.team_id WHERE m.user_id=u.id AND t.code='IT') END FOR SHARE OF u`,
+          [email, code],
           c,
         );
         if (!user)
@@ -211,6 +214,13 @@ export class DomainController {
   ) {
     return etag(res, await this.service.updateMaster(req, kind, code, body));
   }
+  @Put('master-data/ticket-category-teams/:category') setTicketCategoryTeam(
+    @Req() req: AuthRequest,
+    @Param('category') category: string,
+    @Body() body: unknown,
+  ) {
+    return this.service.setTicketCategoryTeam(req, category, body);
+  }
   @Get('assets') assets(@Req() req: AuthRequest, @Query() query: any) {
     return this.service.assets(req, query);
   }
@@ -251,6 +261,23 @@ export class DomainController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return etag(res, await this.service.assign(req, id, body, true));
+  }
+  @Post('assets/:id/kit') async attachKitPart(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return etag(res, await this.service.attachKitPart(req, id, body));
+  }
+  @Delete('assets/:id/kit/:partId') async detachKitPart(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Param('partId') partId: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return etag(res, await this.service.detachKitPart(req, id, partId, body));
   }
   @Post('assignments/:id/return') async returnAsset(
     @Req() req: AuthRequest,
@@ -310,6 +337,12 @@ export class DomainController {
   ) {
     return etag(res, await this.service.addUpdate(req, id, body));
   }
+  @Get('tickets/:id/owner-candidates') ownerCandidates(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+  ) {
+    return this.service.ticketOwnerCandidates(req, id);
+  }
   @Patch('tickets/:id/owner') async owner(
     @Req() req: AuthRequest,
     @Param('id') id: string,
@@ -325,6 +358,14 @@ export class DomainController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return etag(res, await this.service.ticketStatus(req, id, body));
+  }
+  @Patch('tickets/:id/team') async ticketTeam(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return etag(res, await this.service.moveTicketTeam(req, id, body));
   }
   @Get('dashboard') dashboard(@Req() req: AuthRequest) {
     return this.service.dashboard(req);

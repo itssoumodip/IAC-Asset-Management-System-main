@@ -18,7 +18,8 @@ import webpush from 'web-push';
 import { Db } from './db';
 import { encrypt, hash, decrypt, configuration } from './config';
 import { sanitizeImage } from './image-sanitize';
-import { AuthRequest, requireRole, SessionGuard } from './security';
+import { AuthRequest, SessionGuard } from './security';
+import { assertCan } from './policy';
 
 const ATTACHMENT_LIMIT = 4 * 1024 * 1024;
 const ANNOUNCEMENT_IMAGE = {
@@ -110,7 +111,7 @@ export class PushService {
   }
 
   async broadcast(req: AuthRequest, body: unknown) {
-    requireRole(req, 'ADMIN', 'IT_ADMIN');
+    assertCan(req.user, 'announcement.send');
     const keys = vapid();
     const input = z
       .object({
@@ -211,7 +212,7 @@ export class PushService {
          WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
            AND u.portal_accepted_at IS NOT NULL AND u.portal_notice_version=$1
            AND ($2='ALL'
-             OR ($2='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ar WHERE ar.user_id=u.id AND ar.role_code='ADMIN'))
+             OR ($2='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ar WHERE ar.user_id=u.id AND ar.role_code='SUPER_ADMIN'))
              OR ($2='DEPARTMENT' AND u.department_id=$3))`,
         [configuration().noticeVersion, input.audience, input.departmentId ?? null],
         client,
@@ -261,7 +262,7 @@ export class PushService {
        WHERE u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL
          AND u.portal_notice_version=$1
          AND ($2='ALL'
-           OR ($2='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ar WHERE ar.user_id=u.id AND ar.role_code='ADMIN'))
+           OR ($2='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ar WHERE ar.user_id=u.id AND ar.role_code='SUPER_ADMIN'))
            OR ($2='DEPARTMENT' AND u.department_id=$3))`,
       [configuration().noticeVersion, input.audience, input.departmentId ?? null],
     );

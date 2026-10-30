@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { superAdmin } from './mock-capabilities';
 import { join } from 'node:path';
 
 const invited = {
@@ -15,7 +16,7 @@ const session = {
   id: '00000000-0000-4000-8000-000000000001',
   email: 'synthetic.admin@example.test',
   displayName: 'Synthetic Admin',
-  roles: ['ADMIN', 'EMPLOYEE'],
+  ...superAdmin,
   state: 'ACTIVE',
   emailVerifiedAt: '2026-01-01T00:00:00.000Z',
   portalAcceptedAt: '2026-01-01T00:00:00.000Z',

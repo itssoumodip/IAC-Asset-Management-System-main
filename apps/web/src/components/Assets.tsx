@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAction, usePages } from '../hooks';
-import { hasRole, useSession } from '../session';
-import type { Asset, User } from '../types';
+import { can, useSession } from '../session';
+import type { Asset, AssignablePerson } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
+import { FinanceStatusPanel } from './FinanceReview';
 import {
   useReferences,
   ReferenceSelect,
@@ -84,7 +85,7 @@ function canTransfer(asset: Asset) {
 }
 export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean }) {
   const { user } = useSession();
-  const manage = hasRole(user, 'ADMIN');
+  const manage = can(user, 'asset.view_all');
   const [params, setParams] = useSearchParams();
   const refs = useReferences();
   const filters = {
@@ -93,7 +94,13 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     category: params.get('category') || undefined,
     departmentId: params.get('departmentId') || undefined,
     labelPrinted: params.get('labelPrinted') === 'no' ? 'no' : undefined,
+    owningTeamId: params.get('owningTeamId') || undefined,
+    projectId: params.get('projectId') || undefined,
   };
+  const teamName = (teamId?: string | null) =>
+    refs.data?.teams?.find((item) => item.id === teamId)?.code ?? '';
+  const showAssign = !assignmentMode && can(user, 'asset.custody');
+  const showCreate = can(user, 'asset.create');
   const query = usePages<Asset>('/assets', filters);
   const loadedItems = query.data?.pages.flatMap((page) => page.items) ?? [];
   const items = assignmentMode ? loadedItems.filter(canAssign) : loadedItems;
@@ -126,16 +133,18 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               : 'Review the equipment assigned to you and confirm its details.'
         }
         action={
-          manage ? (
+          manage && (showAssign || showCreate) ? (
             <div className="actions">
-              {!assignmentMode ? (
+              {showAssign ? (
                 <Link className="button" to="/assignments/new">
                   Assign asset
                 </Link>
               ) : null}
-              <Link className="button secondary" to="/assets/new">
-                Create asset
-              </Link>
+              {showCreate ? (
+                <Link className="button secondary" to="/assets/new">
+                  Create asset
+                </Link>
+              ) : null}
             </div>
           ) : undefined
         }
@@ -147,15 +156,17 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
           (await fetchAllPages('/assets', filters)).map((item) => assetExportRow(item, manage))
         }
       />
-      {manage && !assignmentMode ? (
+      {can(user, 'asset.import') && !assignmentMode ? (
         <>
           <BulkTransfer module="assets" />
           <BulkTransfer module="assignments" />
-          <p className="muted">
-            For an original asset register with permanent Asset IDs, use{' '}
-            <Link to="/admin/imports">Import review</Link> to preserve source provenance and
-            reconciliation.
-          </p>
+          {can(user, 'system.admin') ? (
+            <p className="muted">
+              For an original asset register with permanent Asset IDs, use{' '}
+              <Link to="/admin/imports">Import review</Link> to preserve source provenance and
+              reconciliation.
+            </p>
+          ) : null}
         </>
       ) : null}
       <Panel>
@@ -216,6 +227,32 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                   })) || []),
                 ]}
               />
+              <Select
+                label="Owning team"
+                htmlFor="filter-team"
+                value={filters.owningTeamId ?? ''}
+                onChange={(value) => update('owningTeamId', value)}
+                options={[
+                  { value: '', label: 'All teams' },
+                  ...(refs.data?.teams?.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} (${item.code})${!item.active ? ' (inactive)' : ''}`,
+                  })) || []),
+                ]}
+              />
+              <Select
+                label="Project / grant"
+                htmlFor="filter-project"
+                value={filters.projectId ?? ''}
+                onChange={(value) => update('projectId', value)}
+                options={[
+                  { value: '', label: 'All projects' },
+                  ...(refs.data?.projects?.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} (${item.code})${!item.active ? ' (inactive)' : ''}`,
+                  })) || []),
+                ]}
+              />
               <Checkbox
                 label="Not printed yet"
                 className="filter-checkbox"
@@ -240,6 +277,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                 <tr>
                   <th>Asset / description</th>
                   <th>Category</th>
+                  {manage ? <th>Team</th> : null}
                   <th>Status</th>
                   <th>Condition</th>
                   <th>Verification</th>
@@ -261,6 +299,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                     <td data-label="Category">
                       {referenceLabel(refs.data, 'CATEGORY', asset.category)}
                     </td>
+                    {manage ? <td data-label="Team">{teamName(asset.owningTeamId)}</td> : null}
                     <td data-label="Status">
                       <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
                     </td>
@@ -285,7 +324,8 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                     ) : null}
                     <td data-label="Actions">
                       <div className="actions">
-                        {manage && canAssign(asset) ? (
+                        {can(user, 'asset.custody', asset.owningTeamId ?? undefined) &&
+                        canAssign(asset) ? (
                           <Link
                             to={`/assets/${asset.id}/assign`}
                             className="table-link"
@@ -293,7 +333,9 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                           >
                             Assign asset
                           </Link>
-                        ) : manage && !assignmentMode && canTransfer(asset) ? (
+                        ) : can(user, 'asset.custody', asset.owningTeamId ?? undefined) &&
+                          !assignmentMode &&
+                          canTransfer(asset) ? (
                           <Link
                             to={`/assets/${asset.id}/assign?transfer=1`}
                             className="table-link"
@@ -302,7 +344,8 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                             Transfer custody
                           </Link>
                         ) : null}
-                        {manage && !assignmentMode ? (
+                        {can(user, 'asset.label', asset.owningTeamId ?? undefined) &&
+                        !assignmentMode ? (
                           <Link
                             to={`/assets/labels?ids=${asset.id}`}
                             className="table-link"
@@ -337,14 +380,18 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             action={
               assignmentMode ? (
                 <div className="actions">
-                  <Link className="button" to="/assets/new">
-                    Create asset
-                  </Link>
-                  <Link className="button secondary" to="/admin/imports">
-                    Import review
-                  </Link>
+                  {showCreate ? (
+                    <Link className="button" to="/assets/new">
+                      Create asset
+                    </Link>
+                  ) : null}
+                  {can(user, 'system.admin') ? (
+                    <Link className="button secondary" to="/admin/imports">
+                      Import review
+                    </Link>
+                  ) : null}
                 </div>
-              ) : manage ? (
+              ) : showCreate ? (
                 <Link className="button" to="/assets/new">
                   Create your first asset
                 </Link>
@@ -369,10 +416,115 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     </>
   );
 }
+function KitPanel({ asset }: { asset: Asset }) {
+  const action = useAction();
+  const [code, setCode] = useState('');
+  const [reason, setReason] = useState('');
+  const [lookupError, setLookupError] = useState('');
+  const [detachReason, setDetachReason] = useState('');
+  const parts = asset.kitParts ?? [];
+  async function attach(event: FormEvent) {
+    event.preventDefault();
+    setLookupError('');
+    const wanted = code.trim().toUpperCase();
+    const found = await api<{ items: Asset[] }>(
+      `/assets?q=${encodeURIComponent(wanted)}&limit=20`,
+    ).catch(() => undefined);
+    const part = found?.items.find((item) => item.assetCode.toUpperCase() === wanted);
+    if (!part) {
+      setLookupError('No asset with that code was found.');
+      return;
+    }
+    await action
+      .mutateAsync({
+        path: `/assets/${asset.id}/kit`,
+        body: { partAssetId: part.id, reason: reason.trim() },
+        idempotent: true,
+      })
+      .then(() => {
+        setCode('');
+        setReason('');
+      })
+      .catch(() => undefined);
+  }
+  async function detach(part: { id: string }) {
+    if (!detachReason.trim()) return;
+    await action
+      .mutateAsync({
+        path: `/assets/${asset.id}/kit/${part.id}`,
+        method: 'DELETE',
+        body: { reason: detachReason.trim() },
+        idempotent: true,
+      })
+      .then(() => setDetachReason(''))
+      .catch(() => undefined);
+  }
+  return (
+    <Panel title="Kit">
+      <p className="muted">
+        Parts in a kit are assigned, transferred and returned together with this asset.
+      </p>
+      {parts.length ? (
+        <Field label="Detach reason" htmlFor="kit-detach-reason">
+          <input
+            id="kit-detach-reason"
+            value={detachReason}
+            onChange={(event) => setDetachReason(event.target.value)}
+            maxLength={5000}
+            placeholder="Required to detach a part"
+          />
+        </Field>
+      ) : null}
+      {parts.length ? (
+        <ul className="plain-list">
+          {parts.map((part) => (
+            <li key={part.id}>
+              <Link to={`/assets/${part.id}`}>{part.assetCode}</Link> {part.description}
+              <button
+                type="button"
+                className="button secondary"
+                disabled={action.isPending || !detachReason.trim()}
+                onClick={() => void detach(part)}
+              >
+                Detach
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">No parts attached.</p>
+      )}
+      <form className="form-stack subsection" onSubmit={attach}>
+        <Field label="Part asset code" htmlFor="kit-part-code">
+          <input
+            id="kit-part-code"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            placeholder="IAC-IT-000123"
+            required
+          />
+        </Field>
+        <Field label="Reason" htmlFor="kit-reason">
+          <input
+            id="kit-reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={5000}
+            required
+          />
+        </Field>
+        {lookupError ? <p role="alert">{lookupError}</p> : null}
+        <button className="button" disabled={action.isPending || !code.trim() || !reason.trim()}>
+          Attach part
+        </button>
+      </form>
+    </Panel>
+  );
+}
 export function AssetDetail() {
   const { id } = useParams();
   const { user } = useSession();
-  const manage = hasRole(user, 'ADMIN');
+  const manage = can(user, 'asset.view_all');
   const refs = useReferences();
   const query = useQuery({
     queryKey: ['asset', id],
@@ -398,6 +550,13 @@ export function AssetDetail() {
     );
   const asset = query.data;
   if (!asset) return <Empty title="Asset not found" />;
+  const assetTeam = asset.owningTeamId ?? undefined;
+  const mayEdit = can(user, 'asset.edit', assetTeam) || can(user, 'asset.finance_edit');
+  const mayLabel = can(user, 'asset.label', assetTeam);
+  const mayCustody =
+    can(user, 'asset.custody', assetTeam) &&
+    !asset.kitParent &&
+    (canTransfer(asset) || canAssign(asset));
   const assignment = asset.currentAssignment;
   const own = assignment?.userId === user?.id;
   const department = refs.data?.departments.find((value) => value.id === asset.departmentId)?.name;
@@ -444,15 +603,19 @@ export function AssetDetail() {
         title={asset.description}
         description={`${referenceLabel(refs.data, 'CATEGORY', asset.category)} · ${referenceLabel(refs.data, 'ASSET_TYPE', asset.assetType)}`}
         action={
-          manage ? (
+          manage && (mayEdit || mayLabel || mayCustody) ? (
             <div className="actions">
-              <Link className="button secondary" to={`/assets/${id}/edit`}>
-                Edit asset
-              </Link>
-              <Link className="button secondary" to={`/assets/labels?ids=${asset.id}`}>
-                Print label
-              </Link>
-              {canTransfer(asset) ? (
+              {mayEdit ? (
+                <Link className="button secondary" to={`/assets/${id}/edit`}>
+                  Edit asset
+                </Link>
+              ) : null}
+              {mayLabel ? (
+                <Link className="button secondary" to={`/assets/labels?ids=${asset.id}`}>
+                  Print label
+                </Link>
+              ) : null}
+              {!mayCustody ? null : canTransfer(asset) ? (
                 <Link className="button" to={`/assets/${id}/assign?transfer=1`}>
                   Transfer custody
                 </Link>
@@ -480,6 +643,7 @@ export function AssetDetail() {
           void query.refetch();
         }}
       />
+      {manage ? <FinanceStatusPanel asset={asset} /> : null}
       {!manage ? (
         <div className="notice">
           Asset details are read-only. Contact Admin or raise a support ticket to request a
@@ -582,6 +746,19 @@ export function AssetDetail() {
             <dd>{referenceLabel(refs.data, 'CONDITION', asset.condition)}</dd>
             <dt>Risk level</dt>
             <dd>{referenceLabel(refs.data, 'RISK', asset.riskLevel)}</dd>
+            {manage ? (
+              <>
+                <dt>Owning team</dt>
+                <dd>
+                  {refs.data?.teams?.find((item) => item.id === asset.owningTeamId)?.name ??
+                    'Unknown'}
+                </dd>
+                <dt>Project / grant</dt>
+                <dd>
+                  {refs.data?.projects?.find((item) => item.id === asset.projectId)?.name ?? 'None'}
+                </dd>
+              </>
+            ) : null}
             <dt>Department</dt>
             <dd>{department || 'Unknown'}</dd>
             <dt>Location</dt>
@@ -621,7 +798,7 @@ export function AssetDetail() {
                 {assignment.acknowledgedAt ? (
                   <p>Confirmed {displayDate(assignment.acknowledgedAt, true)}</p>
                 ) : null}
-                {manage ? (
+                {manage && !asset.kitParent ? (
                   <button
                     type="button"
                     className="button secondary"
@@ -746,6 +923,18 @@ export function AssetDetail() {
             </dl>
           </Panel>
         ) : null}
+        {asset.kitParent ? (
+          <Panel title="Kit">
+            <p>
+              Part of kit{' '}
+              <Link to={`/assets/${asset.kitParent.id}`}>{asset.kitParent.assetCode}</Link>. Custody
+              changes are made on the kit; detach this item first to move it on its own.
+            </p>
+          </Panel>
+        ) : null}
+        {can(user, 'asset.custody', assetTeam) && !asset.kitParent ? (
+          <KitPanel asset={asset} />
+        ) : null}
         <Panel title="Asset history">
           <Timeline items={asset.timeline ?? []} />
         </Panel>
@@ -817,10 +1006,24 @@ export function AssetEditor() {
   if (query.error) return <ErrorNotice error={query.error} />;
   return <AssetEditForm asset={query.data} key={id ?? 'new'} />;
 }
+const financeKeys = new Set([
+  'purchaseDate',
+  'purchaseCost',
+  'currency',
+  'residualValue',
+  'depreciationMethod',
+  'usefulLifeYears',
+  'invoiceNumber',
+  'supplier',
+  'insurancePolicyNumber',
+  'insuranceExpiry',
+  'financePending',
+]);
 function AssetEditForm({ asset }: { asset?: Asset }) {
   const [baseline] = useState(asset);
   const navigate = useNavigate();
   const refs = useReferences();
+  const { user } = useSession();
   const action = useAction<Asset>();
   const [values, setValues] = useState<Record<string, string>>(() => {
     const data: Record<string, string> = {
@@ -843,10 +1046,32 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   const [validation, setValidation] = useState('');
   const set = (name: string, value: string) =>
     setValues((previous) => ({ ...previous, [name]: value }));
+  const teams = refs.data?.teams ?? [];
+  const projects = refs.data?.projects ?? [];
+  const createTeams = teams.filter((item) => item.active && can(user, 'asset.create', item.id));
+  // A single permitted team is preselected for a new asset.
+  const teamId =
+    values.owningTeamId || (!baseline && createTeams.length === 1 ? createTeams[0].id : '');
+  const selectedTeam = teams.find((item) => item.id === teamId);
+  const projectId = values.projectId ?? '';
+  const requiresProject = !!selectedTeam?.requiresProject;
+  const canFinance = can(user, 'asset.finance_edit', teamId || undefined);
+  const canChangeTeam = !!baseline && can(user, 'asset.change_team');
+  // Finance without asset.edit for this team may change only the finance fields.
+  const financeOnly =
+    !!baseline && canFinance && !can(user, 'asset.edit', baseline.owningTeamId ?? undefined);
+  const lockedStyle = { display: 'contents' } as const;
+  const roomHeld =
+    refs.data?.assetTypePolicies?.find((item) => item.assetTypeCode === values.assetType)
+      ?.requiresCustodian === false;
+  const blocked =
+    !financeOnly &&
+    ((!baseline && !teamId) || (requiresProject && !projectId) || (roomHeld && !values.locationId));
+  const editableFields = assetEditableFields.filter((key) => canFinance || !financeKeys.has(key));
+  const lockFinance = (name: string) => !canFinance && financeKeys.has(name);
   function fillDemo() {
     const firstCode = (kind: string) => referenceOptions(refs.data, kind)[0]?.code ?? '';
-    setValues((previous) => ({
-      ...previous,
+    const demo: Record<string, string> = {
       description: 'Demo laptop — Dell Latitude 5540 (sample record)',
       manufacturer: 'Dell',
       model: 'Latitude 5540',
@@ -879,7 +1104,10 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       depreciationMethod: firstCode('DEPRECIATION_METHOD'),
       commentType: firstCode('COMMENT_TYPE'),
       remarks: 'Sample record created with Fill demo values. Safe to edit or discard.',
-    }));
+    };
+    // Only Finance may fill finance fields, so leave them out for everyone else.
+    const allowed = Object.fromEntries(Object.entries(demo).filter(([key]) => !lockFinance(key)));
+    setValues((current) => ({ ...current, ...allowed }));
     setAmc(true);
     setValidation('');
     action.reset();
@@ -887,7 +1115,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     setValidation('');
-    if (!values.description.trim() || (baseline && !values.reason?.trim())) {
+    if ((!financeOnly && !values.description.trim()) || (baseline && !values.reason?.trim())) {
       setValidation('Description and change reason must contain text.');
       return;
     }
@@ -927,7 +1155,48 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       'disposalReference',
       'remarks',
     ];
+    if (blocked) {
+      setValidation(
+        requiresProject && !projectId
+          ? 'Choose the project / grant this asset was bought under.'
+          : roomHeld && !values.locationId
+            ? 'This asset type is kept in a room. Choose a location.'
+            : 'Choose the owning team.',
+      );
+      return;
+    }
+    if (financeOnly && baseline) {
+      for (const name of allowed) {
+        if (!financeKeys.has(name)) continue;
+        const next = (values[name] ?? '').trim();
+        const raw = baseline[name];
+        const before =
+          raw == null
+            ? ''
+            : String(raw).slice(
+                0,
+                name.endsWith('Date') || name.endsWith('Expiry') ? 10 : undefined,
+              );
+        if (next !== before) body[name] = next || null;
+      }
+      body.reason = values.reason.trim();
+      const sent = await action
+        .mutateAsync({
+          path: `/assets/${baseline.id}`,
+          method: 'PATCH',
+          body,
+          version: baseline.version,
+        })
+        .catch(() => undefined);
+      if (sent) navigate(`/assets/${sent.id}`);
+      return;
+    }
+    if (!baseline) body.owningTeamId = teamId;
+    else if (canChangeTeam && teamId !== baseline.owningTeamId) body.owningTeamId = teamId;
+    if (projectId) body.projectId = projectId;
+    else if (baseline?.projectId) body.projectId = null;
     for (const name of allowed) {
+      if (lockFinance(name)) continue;
       const value = values[name];
       if (value?.trim()) body[name] = value.trim();
       else if (
@@ -988,7 +1257,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       <FormTransfer
         formId={baseline ? 'asset-edit' : 'asset-create'}
         fields={[
-          ...assetEditableFields.map((key) => {
+          ...editableFields.map((key) => {
             const kind = assetReferenceKinds[key];
             let options = kind
               ? referenceOptions(refs.data, kind).map((item) => item.code)
@@ -1022,7 +1291,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
         disabled={action.isPending || refs.isPending || !!refs.error}
         description="Load editable fields for review, then use the normal Save action. The selected asset and its permanent Asset ID are unchanged."
         onImport={(data) => {
-          const editable = [...assetEditableFields, ...(baseline ? ['reason'] : [])];
+          const editable = [...editableFields, ...(baseline ? ['reason'] : [])];
           setValues((previous) => ({
             ...previous,
             ...Object.fromEntries(
@@ -1049,88 +1318,134 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
             {validation}
           </div>
         ) : null}
-        <Panel title="Identity & configuration">
-          <div className="form-grid">
-            {textFields.map(([name, label]) => (
-              <Field key={name} label={label} htmlFor={name}>
-                <input
-                  id={name}
-                  value={values[name] ?? ''}
-                  onChange={(event) => set(name, event.target.value)}
-                  required={name === 'description'}
-                  maxLength={name === 'description' ? 2000 : 200}
-                />
-              </Field>
-            ))}
-            {['category', 'assetType', 'ownershipType', 'status', 'condition', 'riskLevel'].map(
-              (name) => (
-                <Field
-                  key={name}
-                  label={
-                    {
-                      category: 'Category',
-                      assetType: 'Asset type',
-                      ownershipType: 'Ownership type',
-                      status: 'Status',
-                      condition: 'Condition',
-                      riskLevel: 'Risk level',
-                    }[name] ?? name
-                  }
-                  htmlFor={name}
-                >
-                  <ReferenceSelect
-                    refs={refs.data}
-                    kind={name}
+        <fieldset disabled={financeOnly} style={lockedStyle}>
+          <Panel title="Ownership">
+            <div className="form-grid">
+              <Select
+                label="Owning team"
+                htmlFor="owningTeamId"
+                value={teamId}
+                onChange={(value) => set('owningTeamId', value)}
+                disabled={!!baseline && !canChangeTeam}
+                required
+                hint={
+                  !baseline && selectedTeam
+                    ? `IAC-${selectedTeam.assetCodePrefix}-…`
+                    : baseline
+                      ? `Asset code ${baseline.assetCode} stays the same if the team changes.`
+                      : undefined
+                }
+                options={[
+                  { value: '', label: 'Select team' },
+                  ...(baseline
+                    ? teams.filter((t) => t.active || t.id === teamId)
+                    : createTeams
+                  ).map((item) => ({ value: item.id, label: `${item.name} (${item.code})` })),
+                ]}
+              />
+              <Select
+                label={requiresProject ? 'Project / grant (required)' : 'Project / grant'}
+                htmlFor="projectId"
+                value={projectId}
+                onChange={(value) => set('projectId', value)}
+                required={requiresProject}
+                options={[
+                  { value: '', label: 'Select project' },
+                  ...projects
+                    .filter((item) => item.active || item.id === projectId)
+                    .map((item) => ({ value: item.id, label: `${item.name} (${item.code})` })),
+                ]}
+              />
+            </div>
+            {roomHeld ? (
+              <p className="notice" role="note">
+                A location is required because this asset type is held in a room.
+              </p>
+            ) : null}
+          </Panel>
+          <Panel title="Identity & configuration">
+            <div className="form-grid">
+              {textFields.map(([name, label]) => (
+                <Field key={name} label={label} htmlFor={name}>
+                  <input
                     id={name}
                     value={values[name] ?? ''}
-                    onChange={(value) => set(name, value)}
-                    preserveCurrent={!!baseline}
+                    onChange={(event) => set(name, event.target.value)}
+                    required={name === 'description'}
+                    maxLength={name === 'description' ? 2000 : 200}
                   />
                 </Field>
-              ),
-            )}
-            <Select
-              label="Department"
-              htmlFor="departmentId"
-              value={values.departmentId ?? ''}
-              onChange={(value) => set('departmentId', value)}
-              options={[
-                { value: '', label: 'Not set' },
-                ...(refs.data?.departments
-                  .filter((item) => item.active || item.id === values.departmentId)
-                  .map((item) => ({
-                    value: item.id,
-                    label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
-                    disabled: !item.active,
-                  })) || []),
-              ]}
-            />
-            <Select
-              label="Location"
-              htmlFor="locationId"
-              value={values.locationId ?? ''}
-              onChange={(value) => set('locationId', value)}
-              options={[
-                { value: '', label: 'Not set' },
-                ...(refs.data?.locations
-                  .filter((item) => item.active || item.id === values.locationId)
-                  .map((item) => ({
-                    value: item.id,
-                    label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
-                    disabled: !item.active,
-                  })) || []),
-              ]}
-            />
-          </div>
-          <Field label="Configuration" htmlFor="configuration">
-            <textarea
-              id="configuration"
-              value={values.configuration ?? ''}
-              onChange={(event) => set('configuration', event.target.value)}
-              maxLength={5000}
-            />
-          </Field>
-        </Panel>
+              ))}
+              {['category', 'assetType', 'ownershipType', 'status', 'condition', 'riskLevel'].map(
+                (name) => (
+                  <Field
+                    key={name}
+                    label={
+                      {
+                        category: 'Category',
+                        assetType: 'Asset type',
+                        ownershipType: 'Ownership type',
+                        status: 'Status',
+                        condition: 'Condition',
+                        riskLevel: 'Risk level',
+                      }[name] ?? name
+                    }
+                    htmlFor={name}
+                  >
+                    <ReferenceSelect
+                      refs={refs.data}
+                      kind={name}
+                      id={name}
+                      value={values[name] ?? ''}
+                      onChange={(value) => set(name, value)}
+                      preserveCurrent={!!baseline}
+                    />
+                  </Field>
+                ),
+              )}
+              <Select
+                label="Department"
+                htmlFor="departmentId"
+                value={values.departmentId ?? ''}
+                onChange={(value) => set('departmentId', value)}
+                options={[
+                  { value: '', label: 'Not set' },
+                  ...(refs.data?.departments
+                    .filter((item) => item.active || item.id === values.departmentId)
+                    .map((item) => ({
+                      value: item.id,
+                      label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
+                      disabled: !item.active,
+                    })) || []),
+                ]}
+              />
+              <Select
+                label="Location"
+                htmlFor="locationId"
+                value={values.locationId ?? ''}
+                onChange={(value) => set('locationId', value)}
+                options={[
+                  { value: '', label: 'Not set' },
+                  ...(refs.data?.locations
+                    .filter((item) => item.active || item.id === values.locationId)
+                    .map((item) => ({
+                      value: item.id,
+                      label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
+                      disabled: !item.active,
+                    })) || []),
+                ]}
+              />
+            </div>
+            <Field label="Configuration" htmlFor="configuration">
+              <textarea
+                id="configuration"
+                value={values.configuration ?? ''}
+                onChange={(event) => set('configuration', event.target.value)}
+                maxLength={5000}
+              />
+            </Field>
+          </Panel>
+        </fieldset>
         <Panel title="Dates & coverage">
           <div className="form-grid">
             {dateFields.map(([name, label]) => (
@@ -1140,72 +1455,78 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   id={name}
                   value={values[name]?.slice(0, 10) ?? ''}
                   onChange={(event) => set(name, event.target.value)}
+                  readOnly={lockFinance(name)}
+                  disabled={financeOnly && !financeKeys.has(name)}
                 />
               </Field>
             ))}
-            <Field label="Disposal method" htmlFor="disposalMethod">
-              <ReferenceSelect
-                refs={refs.data}
-                kind="DISPOSAL_METHOD"
-                id="disposalMethod"
-                value={values.disposalMethod ?? ''}
-                onChange={(value) => set('disposalMethod', value)}
-                required={false}
-                preserveCurrent={!!baseline}
-              />
-            </Field>
-            <Field label="Data wipe required" htmlFor="dataWipeRequired">
-              <ReferenceSelect
-                refs={refs.data}
-                kind="DATA_WIPE"
-                id="dataWipeRequired"
-                value={values.dataWipeRequired ?? ''}
-                onChange={(value) => set('dataWipeRequired', value)}
-                required={false}
-                preserveCurrent={!!baseline}
-              />
-            </Field>
-            <Field
-              label="Disposal evidence / reference"
-              htmlFor="disposalReference"
-              hint="Required with disposal date for terminal status changes."
-            >
-              <input
-                id="disposalReference"
-                value={values.disposalReference ?? ''}
-                onChange={(event) => set('disposalReference', event.target.value)}
-              />
-            </Field>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={amc}
-                onChange={(event) => setAmc(event.target.checked)}
-              />
-              AMC applies to this asset
-            </label>
-            {amc ? (
-              <Field
-                label="AMC expiry"
-                htmlFor="amcExpiry"
-                hint="Independent of the warranty expiry."
-              >
-                <input
-                  type="date"
-                  id="amcExpiry"
-                  value={values.amcExpiry?.slice(0, 10) ?? ''}
-                  onChange={(event) => set('amcExpiry', event.target.value)}
-                  required
+            <fieldset disabled={financeOnly} style={lockedStyle}>
+              <Field label="Disposal method" htmlFor="disposalMethod">
+                <ReferenceSelect
+                  refs={refs.data}
+                  kind="DISPOSAL_METHOD"
+                  id="disposalMethod"
+                  value={values.disposalMethod ?? ''}
+                  onChange={(value) => set('disposalMethod', value)}
+                  required={false}
+                  preserveCurrent={!!baseline}
                 />
               </Field>
-            ) : null}
+              <Field label="Data wipe required" htmlFor="dataWipeRequired">
+                <ReferenceSelect
+                  refs={refs.data}
+                  kind="DATA_WIPE"
+                  id="dataWipeRequired"
+                  value={values.dataWipeRequired ?? ''}
+                  onChange={(value) => set('dataWipeRequired', value)}
+                  required={false}
+                  preserveCurrent={!!baseline}
+                />
+              </Field>
+              <Field
+                label="Disposal evidence / reference"
+                htmlFor="disposalReference"
+                hint="Required with disposal date for terminal status changes."
+              >
+                <input
+                  id="disposalReference"
+                  value={values.disposalReference ?? ''}
+                  onChange={(event) => set('disposalReference', event.target.value)}
+                />
+              </Field>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={amc}
+                  onChange={(event) => setAmc(event.target.checked)}
+                />
+                AMC applies to this asset
+              </label>
+              {amc ? (
+                <Field
+                  label="AMC expiry"
+                  htmlFor="amcExpiry"
+                  hint="Independent of the warranty expiry."
+                >
+                  <input
+                    type="date"
+                    id="amcExpiry"
+                    value={values.amcExpiry?.slice(0, 10) ?? ''}
+                    onChange={(event) => set('amcExpiry', event.target.value)}
+                    required
+                  />
+                </Field>
+              ) : null}
+            </fieldset>
           </div>
         </Panel>
         <Panel title="Financial metadata">
           <p className="muted">
-            Leave unknown values blank. Depreciation is not calculated in this release.
+            {canFinance
+              ? 'Leave unknown values blank. Depreciation is not calculated in this release.'
+              : 'Finance fills in these values. They are shown read-only.'}
           </p>
-          <div className="form-grid">
+          <fieldset disabled={!canFinance} className="form-grid" data-testid="finance-fields">
             <Field label="Depreciation method" htmlFor="depreciationMethod">
               <ReferenceSelect
                 refs={refs.data}
@@ -1240,28 +1561,30 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 />
               </Field>
             ))}
-          </div>
+          </fieldset>
         </Panel>
         <Panel title="Notes & accountability">
-          <Field label="Comment type" htmlFor="commentType">
-            <ReferenceSelect
-              refs={refs.data}
-              kind="COMMENT_TYPE"
-              id="commentType"
-              value={values.commentType ?? ''}
-              onChange={(value) => set('commentType', value)}
-              required={false}
-              preserveCurrent={!!baseline}
-            />
-          </Field>
-          <Field label="Remarks" htmlFor="remarks">
-            <textarea
-              id="remarks"
-              value={values.remarks ?? ''}
-              onChange={(event) => set('remarks', event.target.value)}
-              maxLength={5000}
-            />
-          </Field>
+          <fieldset disabled={financeOnly} style={lockedStyle}>
+            <Field label="Comment type" htmlFor="commentType">
+              <ReferenceSelect
+                refs={refs.data}
+                kind="COMMENT_TYPE"
+                id="commentType"
+                value={values.commentType ?? ''}
+                onChange={(value) => set('commentType', value)}
+                required={false}
+                preserveCurrent={!!baseline}
+              />
+            </Field>
+            <Field label="Remarks" htmlFor="remarks">
+              <textarea
+                id="remarks"
+                value={values.remarks ?? ''}
+                onChange={(event) => set('remarks', event.target.value)}
+                maxLength={5000}
+              />
+            </Field>
+          </fieldset>
           {baseline ? (
             <Field label="Reason for this change" htmlFor="reason">
               <textarea
@@ -1278,7 +1601,10 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
           <Link className="button secondary" to={baseline ? `/assets/${baseline.id}` : '/assets'}>
             Cancel
           </Link>
-          <button className="button" disabled={action.isPending || refs.isPending || !!refs.error}>
+          <button
+            className="button"
+            disabled={action.isPending || refs.isPending || !!refs.error || blocked}
+          >
             {action.isPending ? 'Saving...' : baseline ? 'Save changes' : 'Create asset'}
           </button>
         </div>
@@ -1293,21 +1619,28 @@ export function AssignmentForm() {
   const transfer = params.get('transfer') === '1';
   const navigate = useNavigate();
   const asset = useQuery({ queryKey: ['asset', id], queryFn: () => api<Asset>(`/assets/${id}`) });
-  const employees = usePages<User>('/users', { state: 'ACTIVE', role: 'EMPLOYEE' });
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  // Server-side eligible people (active employees and Zoho directory people), searchable.
+  const employees = usePages<AssignablePerson>(
+    `/assets/${id}/assignable-people`,
+    { q: query || undefined },
+    !!id,
+  );
+  const [picked, setPicked] = useState<AssignablePerson>();
   const [userId, setUserId] = useState('');
   const [note, setNote] = useState('');
   const action = useAction();
-  const items =
+  const listed =
     employees.data?.pages
       .flatMap((page) => page.items)
-      .filter(
-        (user) =>
-          user.state === 'ACTIVE' &&
-          user.emailVerifiedAt &&
-          user.portalAcceptedAt &&
-          user.roles.includes('EMPLOYEE') &&
-          user.id !== asset.data?.currentAssignment?.userId,
-      ) ?? [];
+      .filter((person) => person.id !== asset.data?.currentAssignment?.userId) ?? [];
+  // Keep the chosen person selectable while the search results change underneath.
+  const items = picked && !listed.some((p) => p.id === picked.id) ? [picked, ...listed] : listed;
   const [baseline, setBaseline] = useState<{ id: string; transfer: boolean; version: number }>();
   const selectedEmployee = items.find((employee) => employee.id === userId);
   const custodyAvailable =
@@ -1323,6 +1656,7 @@ export function AssignmentForm() {
   function choose(value: string) {
     const employee = items.find((item) => item.id === value);
     setUserId(employee?.id ?? '');
+    setPicked(employee);
     setBaseline(
       employee && asset.data
         ? { id: asset.data.id, transfer, version: asset.data.version }
@@ -1407,6 +1741,17 @@ export function AssignmentForm() {
               }}
             />
             <form className="form-stack subsection" onSubmit={submit}>
+              <Field label="Search people" htmlFor="assignment-search">
+                <input
+                  id="assignment-search"
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Name, email or employee code"
+                  maxLength={100}
+                  autoComplete="off"
+                />
+              </Field>
               <Select
                 label="Approved employee"
                 htmlFor="assignment-user"
@@ -1418,18 +1763,23 @@ export function AssignmentForm() {
                 ariaDescribedBy="assignment-eligibility"
                 required
                 options={[
-                  { value: '', label: 'Choose an active, verified employee' },
+                  { value: '', label: 'Choose an employee' },
                   ...items.map((user) => ({
                     value: user.id,
-                    label: `${user.displayName} · ${user.email}`,
+                    label: `${user.displayName}${user.employeeCode ? ` (${user.employeeCode})` : ''} · ${user.email}${user.state === 'DIRECTORY' ? ' · No login' : ''}`,
                   })),
                 ]}
               />
+              {selectedEmployee?.state === 'DIRECTORY' ? (
+                <p className="muted">
+                  <Badge value="DIRECTORY" label="No login" /> This person has no portal login, so no
+                  assignment email is sent. Record the handover in person.
+                </p>
+              ) : null}
               <p id="assignment-eligibility" className="muted">
-                Recipients must be Active, have a verified email, accept portal access and hold the
-                Employee role. Manage invitations and roles in{' '}
-                <Link to="/admin/users">People &amp; access</Link>. Load more employees if the
-                intended recipient is not listed.
+                Recipients are active employees with portal access, or people synced from the staff
+                directory who have not left. Search above, or load more if the intended recipient is
+                not listed.
               </p>
               <LoadMore
                 available={employees.hasNextPage}

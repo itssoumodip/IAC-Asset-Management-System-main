@@ -30,8 +30,9 @@ import {
   requireRole,
   resolveSession,
   SessionGuard,
-  staff,
+  loadTeams,
 } from './security';
+import { privileged } from './policy';
 import {
   configuration,
   decrypt,
@@ -227,7 +228,7 @@ export class AuthService {
             client,
           )
         : await this.db.query(
-            `UPDATE users SET email_verified_at=coalesce(email_verified_at,now()),state='ACTIVE',updated_at=now(),version=version+1 WHERE id=$1 AND state<>'DISABLED' RETURNING id,email`,
+            `UPDATE users SET email_verified_at=coalesce(email_verified_at,now()),state='ACTIVE',updated_at=now(),version=version+1 WHERE id=$1 AND state NOT IN ('DISABLED','DIRECTORY') RETURNING id,email`,
             [record.user_id],
             client,
           );
@@ -292,7 +293,7 @@ export class AuthService {
       );
       if (!record) throw new UnauthorizedException('This link is invalid or expired');
       const [user] = await this.db.query(
-        `UPDATE users SET password_hash=$2,email_verified_at=coalesce(email_verified_at,now()),state='ACTIVE',display_name=coalesce($3,display_name),version=version+1,updated_at=now() WHERE id=$1 AND state<>'DISABLED' RETURNING id`,
+        `UPDATE users SET password_hash=$2,email_verified_at=coalesce(email_verified_at,now()),state='ACTIVE',display_name=coalesce($3,display_name),version=version+1,updated_at=now() WHERE id=$1 AND state NOT IN ('DISABLED','DIRECTORY') RETURNING id`,
         [record.user_id, hashed, data.displayName || null],
         client,
       );
@@ -384,7 +385,8 @@ export class AuthService {
         [hash(`login:${data.email}`)],
         client,
       );
-      if (staff(user) && user.mfa_enrolled_at) {
+      user.teams = await loadTeams(this.db, user.id, client);
+      if (privileged(user) && user.mfa_enrolled_at) {
         const challengeToken = token();
         await this.db.query(
           `INSERT INTO auth_tokens(user_id,purpose,token_hash,expires_at) VALUES($1,'MFA_CHALLENGE',$2,now()+interval '5 minutes')`,
@@ -393,7 +395,7 @@ export class AuthService {
         );
         return { mfaRequired: true, challengeToken };
       }
-      const enrollment = staff(user);
+      const enrollment = privileged(user);
       await this.newSession(client, user.id, req, res, enrollment ? 'MFA_ENROLLMENT' : 'APP');
       await this.db.audit(client, null, 'USER', user.id, 'LOGIN');
       const actor = {
@@ -401,6 +403,7 @@ export class AuthService {
         email: user.email,
         displayName: user.display_name,
         roles: user.roles,
+        teams: user.teams,
         state: user.state,
         version: user.version,
         portalAcceptedAt: user.portal_accepted_at,
@@ -502,7 +505,7 @@ export class AuthService {
     if (data.noticeVersion !== configuration().noticeVersion)
       throw new HttpException('The portal notice has changed. Refresh and review it.', 409);
     const actor = await resolveSession(this.db, req);
-    if (actor.sessionScope !== 'APP' || (staff(actor) && !actor.mfaVerifiedAt))
+    if (actor.sessionScope !== 'APP' || (privileged(actor) && !actor.mfaVerifiedAt))
       throw new ForbiddenException('Complete MFA first');
     await this.db.tx(async (client) => {
       await this.db.query(
@@ -518,7 +521,7 @@ export class AuthService {
   }
   async enroll(req: Request) {
     const actor = await resolveSession(this.db, req);
-    if (!staff(actor)) throw new ForbiddenException('MFA enrollment is for privileged roles');
+    if (!privileged(actor)) throw new ForbiddenException('MFA enrollment is for privileged roles');
     if (actor.mfaEnrolled) throw new HttpException('MFA is already enrolled', 409);
     const secret = base32(randomBytes(20));
     await this.db.tx(async (client) => {
@@ -646,14 +649,14 @@ export class AuthService {
     return { user: await this.current(req) };
   }
   async users(req: AuthRequest, query: unknown = {}) {
-    requireRole(req, 'ADMIN');
+    requireRole(req, 'SUPER_ADMIN');
     const input = z
       .object({
         limit: z.coerce.number().int().min(1).max(100).default(25),
         cursor: z.string().max(1000).optional(),
         q: z.string().trim().max(120).optional(),
-        state: z.enum(['ACTIVE', 'INVITED', 'DISABLED']).optional(),
-        role: z.enum(['ADMIN', 'EMPLOYEE', 'IT_ADMIN']).optional(),
+        state: z.enum(['ACTIVE', 'INVITED', 'DISABLED', 'DIRECTORY']).optional(),
+        role: z.enum(['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE', 'EMPLOYEE']).optional(),
       })
       .strict()
       .parse(query);
@@ -697,8 +700,10 @@ export class AuthService {
       `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",
               u.designation,u.department_id AS "departmentId",d.name AS department,u.pending_email AS "pendingEmail",u.state,u.version,
               u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
-              u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",
-              coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles
+              u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id=u.id) AS "hasPhoto",
+              coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles,
+              (SELECT coalesce(json_agg(json_build_object('teamId',tm.team_id,'teamCode',t.code,'level',tm.level) ORDER BY t.code),'[]'::json)
+                 FROM team_memberships tm JOIN teams t ON t.id=tm.team_id WHERE tm.user_id=u.id) AS teams
        FROM users u
        LEFT JOIN departments d ON d.id=u.department_id
        LEFT JOIN user_roles ur ON ur.user_id=u.id
@@ -719,7 +724,7 @@ export class AuthService {
     };
   }
   async approve(req: AuthRequest, body: unknown) {
-    requireRole(req, 'ADMIN');
+    requireRole(req, 'SUPER_ADMIN');
     const data = z.object({ email }).strict().parse(body);
     return this.db.tx(async (client) => {
       await this.db.query(
@@ -732,7 +737,7 @@ export class AuthService {
     });
   }
   async invite(req: AuthRequest, body: unknown) {
-    requireRole(req, 'ADMIN');
+    requireRole(req, 'SUPER_ADMIN');
     const data = z
       .object({ email, displayName: name.optional(), designation, departmentId, sendEmail: z.boolean().default(true) })
       .strict()
@@ -746,6 +751,10 @@ export class AuthService {
         throw new HttpException('Department not found', 404);
       if ((await this.db.query('SELECT id FROM users WHERE pending_email=$1', [data.email], client))[0])
         throw new HttpException('This email is awaiting confirmation for another account', 409);
+      if (
+        (await this.db.query("SELECT id FROM users WHERE email=$1 AND state='DIRECTORY' AND left_at IS NOT NULL", [data.email], client))[0]
+      )
+        throw new HttpException('This person has left', 409);
       await this.db.query(
         'INSERT INTO approved_emails(email,approved_by) VALUES($1,$2) ON CONFLICT DO NOTHING',
         [data.email, req.user.id],
@@ -754,11 +763,12 @@ export class AuthService {
       const [user] = await this.db.query(
         `INSERT INTO users(email,display_name,designation,department_id) VALUES($1,$2,$3,$4)
          ON CONFLICT(email) DO UPDATE SET
-           display_name=excluded.display_name,
+           display_name=CASE WHEN users.state='DIRECTORY' THEN users.display_name ELSE excluded.display_name END,
+           state='INVITED',
            designation=coalesce(excluded.designation,users.designation),
            department_id=coalesce(excluded.department_id,users.department_id),
            updated_at=now()
-         WHERE users.state='INVITED' RETURNING id,email`,
+         WHERE users.state IN ('INVITED','DIRECTORY') RETURNING id,email`,
         [
           data.email,
           data.displayName || data.email.split('@')[0],
@@ -779,7 +789,7 @@ export class AuthService {
     });
   }
   async editUser(req: AuthRequest, id: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    requireRole(req, 'SUPER_ADMIN');
     z.string().uuid().parse(id);
     const data = z
       .object({
@@ -789,9 +799,9 @@ export class AuthService {
         designation,
         departmentId,
         roles: z
-          .array(z.enum(['ADMIN', 'EMPLOYEE', 'IT_ADMIN']))
+          .array(z.enum(['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE', 'EMPLOYEE']))
           .min(1)
-          .max(3)
+          .max(4)
           .optional(),
         reason: z.string().trim().min(1).max(5000).optional(),
       })
@@ -845,12 +855,12 @@ export class AuthService {
       const newRoles = data.roles || roles;
       const newState = data.state || user.state;
       if (
-        roles.includes('ADMIN') &&
+        roles.includes('SUPER_ADMIN') &&
         user.state === 'ACTIVE' &&
-        (!newRoles.includes('ADMIN') || newState !== 'ACTIVE')
+        (!newRoles.includes('SUPER_ADMIN') || newState !== 'ACTIVE')
       ) {
         const [count] = await this.db.query(
-          `SELECT count(*)::int AS count FROM users u JOIN user_roles r ON r.user_id=u.id WHERE r.role_code='ADMIN' AND u.state='ACTIVE' AND u.id<>$1`,
+          `SELECT count(*)::int AS count FROM users u JOIN user_roles r ON r.user_id=u.id WHERE r.role_code='SUPER_ADMIN' AND u.state='ACTIVE' AND u.id<>$1`,
           [id],
           client,
         );
@@ -921,7 +931,7 @@ export class AuthService {
     };
   }
   async adminPasswordReset(req: AuthRequest, id: string, body: unknown) {
-    requireRole(req, 'ADMIN');
+    requireRole(req, 'SUPER_ADMIN');
     z.string().uuid().parse(id);
     const data = z.object({ reason: z.string().trim().min(1).max(5000) }).strict().parse(body);
     await this.throttle(req, `admin-password-reset:${id}`, 3);

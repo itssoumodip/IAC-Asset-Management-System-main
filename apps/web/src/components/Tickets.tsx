@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { usePages, useAction } from '../hooks';
-import { hasRole, isStaff, useSession } from '../session';
-import type { Asset, Page, Ticket, TimelineEvent, User } from '../types';
+import { can, hasRole, isStaff, useSession } from '../session';
+import type { Asset, Ticket, TimelineEvent } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { TICKET_LIMITS, preparePhoto } from '../photo-prepare';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
@@ -50,12 +50,17 @@ export function TicketList() {
   const refs = useReferences();
   const { user } = useSession();
   const staff = isStaff(user);
+  const teams = refs.data?.teams ?? [];
+  const teamName = (id?: string) => teams.find((t) => t.id === id)?.name ?? '';
   const [params, setParams] = useSearchParams();
+  const notice = (useLocation().state as { notice?: string } | null)?.notice;
   const status = params.get('status') ?? '';
   const priority = params.get('priority') ?? '';
+  const teamId = params.get('teamId') ?? '';
   const query = usePages<Ticket>('/tickets', {
     status: status || undefined,
     priority: priority || undefined,
+    teamId: teamId || undefined,
   });
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   function filter(name: string, value: string) {
@@ -88,12 +93,18 @@ export function TicketList() {
             await fetchAllPages('/tickets', {
               status: status || undefined,
               priority: priority || undefined,
+              teamId: teamId || undefined,
             })
           ).map((item) =>
             Object.fromEntries(ticketExportColumns.map((key) => [key, item[key] ?? ''])),
           )
         }
       />
+      {notice ? (
+        <div className="notice success" role="status">
+          {notice}
+        </div>
+      ) : null}
       <BulkTransfer module="tickets" />
       <Panel>
         <div className="filter-bar">
@@ -121,6 +132,18 @@ export function TicketList() {
               includeInactive
             />
           </Field>
+          {staff ? (
+            <Select
+              label="Team"
+              htmlFor="ticket-team-filter"
+              value={teamId}
+              onChange={(value) => filter('teamId', value)}
+              options={[
+                { value: '', label: 'All my queues' },
+                ...teams.map((t) => ({ value: t.id, label: t.name })),
+              ]}
+            />
+          ) : null}
           <p className="muted filter-hint">
             {staff
               ? 'Public replies notify the employee. Internal notes stay with your team.'
@@ -144,6 +167,7 @@ export function TicketList() {
                   <th>Status</th>
                   <th>Priority</th>
                   <th>Updated</th>
+                  {staff ? <th>Team</th> : null}
                   {staff ? <th>Ownership</th> : null}
                   <th>
                     <span className="sr-only">View</span>
@@ -170,6 +194,7 @@ export function TicketList() {
                       />
                     </td>
                     <td>{displayDate(ticket.updatedAt ?? ticket.createdAt)}</td>
+                    {staff ? <td>{teamName(ticket.teamId)}</td> : null}
                     {staff ? <td>{ticket.ownerId ? 'Assigned' : 'Unassigned'}</td> : null}
                     <td>
                       <Link
@@ -628,21 +653,34 @@ export function TicketDetail() {
   const refs = useReferences();
   const { id } = useParams();
   const { user } = useSession();
-  const staff = isStaff(user);
   const query = useQuery({
     queryKey: ['ticket', id],
     queryFn: ({ signal }) => api<Ticket>(`/tickets/${id}`, { signal }),
   });
+  const ticketTeamId = query.data?.teamId;
+  const staff =
+    hasRole(user, 'SUPER_ADMIN') || !!user?.teams?.some((t) => t.teamId === ticketTeamId);
+  const canMove =
+    hasRole(user, 'SUPER_ADMIN') ||
+    !!user?.teams?.some((t) => t.teamId === ticketTeamId && t.level === 'LEAD');
+  const [moveTeam, setMoveTeam] = useState('');
+  const [moveReason, setMoveReason] = useState('');
   const assetQuery = useQuery({
     queryKey: ['asset', query.data?.assetId],
     queryFn: ({ signal }) => api<Asset>(`/assets/${query.data?.assetId}`, { signal }),
     enabled: !!query.data?.assetId,
   });
   const history = usePages<TimelineEvent>(`/tickets/${id}/updates`);
+  const navigate = useNavigate();
+  // Members of this ticket's team plus Super Admins; open to anyone who can work the ticket.
   const staffUsers = useQuery({
-    queryKey: ['staff-users'],
-    queryFn: () => api<Page<User>>('/users?limit=100'),
-    enabled: hasRole(user, 'ADMIN'),
+    queryKey: ['ticket-owner-candidates', id],
+    queryFn: ({ signal }) =>
+      api<{ items: { id: string; displayName: string; email: string }[] }>(
+        `/tickets/${id}/owner-candidates`,
+        { signal },
+      ),
+    enabled: staff && !!id,
   });
   const [body, setBody] = useState('');
   const [visibility, setVisibility] = useState('PUBLIC');
@@ -694,6 +732,25 @@ export function TicketDetail() {
         setCompleting(false);
         setResolution('');
         setStatusVersion(undefined);
+      })
+      .catch(() => undefined);
+  }
+  async function moveToTeam() {
+    await action
+      .mutateAsync({
+        path: `/tickets/${id}/team`,
+        method: 'PATCH',
+        body: { teamId: moveTeam, reason: moveReason.trim() },
+        version: ticket?.version,
+      })
+      .then(() => {
+        setMoveTeam('');
+        setMoveReason('');
+        // The mover may no longer see this ticket; return to the queue instead of refetching into a 404.
+        const name = refs.data?.teams?.find((t) => t.id === moveTeam)?.name ?? 'another team';
+        navigate('/tickets', {
+          state: { notice: `Ticket #${ticket?.ticketNumber ?? ''} was moved to ${name}.` },
+        });
       })
       .catch(() => undefined);
   }
@@ -850,6 +907,8 @@ export function TicketDetail() {
               <dd>
                 <ReferenceBadge refs={refs.data} kind="TICKET_PRIORITY" value={ticket.priority} />
               </dd>
+              <dt>Team</dt>
+              <dd>{refs.data?.teams?.find((t) => t.id === ticket.teamId)?.name ?? '-'}</dd>
               <dt>Owner</dt>
               <dd>
                 {ticket.ownerId === user?.id
@@ -863,8 +922,7 @@ export function TicketDetail() {
               <dt>Asset</dt>
               <dd>
                 {ticket.assetId && assetQuery.data ? (
-                  hasRole(user, 'ADMIN') ||
-                  hasRole(user, 'IT_ADMIN') ||
+                  can(user, 'asset.view_all') ||
                   assetQuery.data.currentAssignment?.userId === user?.id ? (
                     <Link to={`/assets/${ticket.assetId}`}>View linked asset →</Link>
                   ) : (
@@ -891,7 +949,7 @@ export function TicketDetail() {
                     Take ownership
                   </button>
                 ) : null}
-                {hasRole(user, 'ADMIN') ? (
+                {staff ? (
                   <>
                     <Select
                       label="Assign to staff"
@@ -903,16 +961,10 @@ export function TicketDetail() {
                       }}
                       options={[
                         { value: '', label: 'Select team member' },
-                        ...(staffUsers.data?.items
-                          .filter(
-                            (item) =>
-                              item.state === 'ACTIVE' &&
-                              (item.roles.includes('ADMIN') || item.roles.includes('IT_ADMIN')),
-                          )
-                          .map((item) => ({
-                            value: item.id,
-                            label: item.displayName,
-                          })) || []),
+                        ...(staffUsers.data?.items.map((item) => ({
+                          value: item.id,
+                          label: item.displayName,
+                        })) || []),
                       ]}
                     />
                     <button
@@ -924,6 +976,40 @@ export function TicketDetail() {
                       }}
                     >
                       Update owner
+                    </button>
+                  </>
+                ) : null}
+                {canMove ? (
+                  <>
+                    <Select
+                      label="Move to team"
+                      htmlFor="ticket-move-team"
+                      value={moveTeam}
+                      onChange={setMoveTeam}
+                      options={[
+                        { value: '', label: 'Select team' },
+                        ...(refs.data?.teams ?? [])
+                          .filter((t) => t.active && t.id !== ticket.teamId)
+                          .map((t) => ({ value: t.id, label: t.name })),
+                      ]}
+                    />
+                    <Field label="Reason for moving" htmlFor="ticket-move-reason">
+                      <input
+                        id="ticket-move-reason"
+                        value={moveReason}
+                        maxLength={1000}
+                        onChange={(event) => setMoveReason(event.target.value)}
+                      />
+                    </Field>
+                    <button
+                      className="button secondary"
+                      type="button"
+                      disabled={!moveTeam || !moveReason.trim() || action.isPending}
+                      onClick={() => {
+                        void moveToTeam();
+                      }}
+                    >
+                      Move to team
                     </button>
                   </>
                 ) : null}

@@ -21,7 +21,7 @@ const visibleToUser = (versionParam = '$2') => `
   u.state='ACTIVE' AND u.email_verified_at IS NOT NULL
   AND u.portal_accepted_at IS NOT NULL AND u.portal_notice_version=${versionParam}
   AND (n.audience='ALL'
-    OR (n.audience='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ar WHERE ar.user_id=u.id AND ar.role_code='ADMIN'))
+    OR (n.audience='ADMIN' AND EXISTS(SELECT 1 FROM user_roles ar WHERE ar.user_id=u.id AND ar.role_code='SUPER_ADMIN'))
     OR (n.audience='DEPARTMENT' AND n.department_id=u.department_id))`;
 
 @Injectable()
