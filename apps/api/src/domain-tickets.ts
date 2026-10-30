@@ -129,12 +129,12 @@ export class TicketDomain extends AssetDomain {
       if (data.assetId) {
         // Serialize custody snapshot with return/reassign so the recorded assignment was current.
         const [asset] = await this.db.query(
-          'SELECT status,owning_team_id FROM assets WHERE id=$1 FOR UPDATE',
+          'SELECT a.status,a.owning_team_id,p.handling_team_id FROM assets a LEFT JOIN asset_type_policies p ON p.asset_type_code=a.asset_type WHERE a.id=$1 FOR UPDATE OF a',
           [data.assetId],
           c,
         );
         found(asset);
-        teamId = asset.owning_team_id;
+        teamId = asset.handling_team_id ?? asset.owning_team_id;
         if ((NON_REPORTABLE_STATUSES as readonly string[]).includes(asset.status))
           throw new UnprocessableEntityException(
             'This asset is not in service and cannot be reported',

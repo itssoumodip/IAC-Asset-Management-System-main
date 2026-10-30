@@ -14,7 +14,7 @@ import { ScanButton } from './components/Scanner';
 import { TicketForm, TicketList, TicketDetail } from './components/Tickets';
 import { UserDashboard } from './components/Dashboards';
 import { UserAdmin, AuditView, ImportsView } from './components/Admin';
-import { Empty, ErrorNotice, Field, Loading } from './components/ui';
+import { Empty, ErrorNotice, Field, Loading, Avatar } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
@@ -165,6 +165,7 @@ function NavIcon({ name }: { name: NavIconName }) {
 }
 function Shell() {
   const { user } = useSession();
+  if (!user) return null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutError, setLogoutError] = useState<unknown>();
   const [signingOut, setSigningOut] = useState(false);
@@ -346,7 +347,7 @@ function Shell() {
             Asset operations <span>·</span> Staff portal
           </span>
           <Link to="/profile" className="profile-link">
-            <span className="avatar">{user?.displayName?.slice(0, 1) ?? 'U'}</span>
+            <Avatar userId={user.id} name={user.displayName} hasPhoto={user.hasPhoto} size={32} />
             <span>
               {user?.displayName || 'My profile'}
               <small>
@@ -382,6 +383,7 @@ function Shell() {
 }
 function Profile() {
   const { user } = useSession();
+  if (!user) return null;
   const profileAction = useAction<{ message: string }>();
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [designation, setDesignation] = useState(user?.designation ?? '');
@@ -429,60 +431,81 @@ function Profile() {
     }
   }
   return (
-    <section className="panel profile-panel">
-      <h1>Account details</h1>
-      <p className="muted">
-        Update your profile. Role and department changes are managed by an administrator.
-      </p>
+    <section className="profile-page">
+      <div className="profile-header">
+        <Avatar userId={user.id} name={user.displayName} hasPhoto={user.hasPhoto} size={96} />
+        <div className="profile-identity">
+          <h1>{user.displayName}</h1>
+          <p className="muted">{user.email}</p>
+        </div>
+      </div>
       <ErrorNotice error={profileAction.error} />
       {saved ? (
         <p className="notice success" role="status">
           {saved}
         </p>
       ) : null}
-      <form className="form-stack" onSubmit={(event) => void saveProfile(event)}>
-        <Field label="Name" htmlFor="profile-name">
-          <input
-            id="profile-name"
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            required
-            maxLength={120}
-          />
-        </Field>
-        <Field
-          label="Work email"
-          htmlFor="profile-email"
-          hint={
-            user?.pendingEmail
-              ? `Pending confirmation: ${user.pendingEmail}`
-              : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'
-          }
-        >
-          <input
-            id="profile-email"
-            type="email"
-            value={newEmail}
-            onChange={(event) => {
-              setNewEmail(event.target.value);
-              setCancelPendingEmail(false);
-            }}
-            required
-            maxLength={254}
-          />
-        </Field>
-        {user?.pendingEmail && !cancelPendingEmail ? (
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => {
-              setNewEmail(user.email);
-              setCancelPendingEmail(true);
-            }}
+      <form className="profile-form" onSubmit={(event) => void saveProfile(event)}>
+        <div className="profile-grid">
+          <Field label="Name" htmlFor="profile-name">
+            <input
+              id="profile-name"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              required
+              maxLength={120}
+            />
+          </Field>
+          <Field
+            label="Work email"
+            htmlFor="profile-email"
+            hint={
+              user?.pendingEmail
+                ? `Pending confirmation: ${user.pendingEmail}`
+                : 'Changing your email requires your current password and email confirmation. Only addresses approved by an administrator can be used.'
+            }
           >
-            Cancel pending email change
-          </button>
-        ) : null}
+            <input
+              id="profile-email"
+              type="email"
+              value={newEmail}
+              onChange={(event) => {
+                setNewEmail(event.target.value);
+                setCancelPendingEmail(false);
+              }}
+              required
+              maxLength={254}
+            />
+          </Field>
+          {user?.pendingEmail && !cancelPendingEmail ? (
+            <button
+              className="button secondary profile-cancel-email"
+              type="button"
+              onClick={() => {
+                setNewEmail(user.email);
+                setCancelPendingEmail(true);
+              }}
+            >
+              Cancel pending email change
+            </button>
+          ) : null}
+          <Field label="Designation" htmlFor="profile-designation">
+            <input
+              id="profile-designation"
+              value={designation}
+              onChange={(event) => setDesignation(event.target.value)}
+              maxLength={120}
+            />
+          </Field>
+          <Field label="Department" htmlFor="profile-department">
+            <span className="profile-readonly">{user?.department ?? 'Not set'}</span>
+          </Field>
+          <Field label="Access roles" htmlFor="profile-roles">
+            <span className="profile-readonly">
+              {[...(user?.roles.map(roleLabel) ?? []), ...(user?.teams?.map(teamChipLabel) ?? [])].join(', ')}
+            </span>
+          </Field>
+        </div>
         {newEmail.trim().toLowerCase() !== user?.email ||
         cancelPendingEmail ||
         newPassword.length > 0 ? (
@@ -524,48 +547,29 @@ function Profile() {
             />
           </Field>
         ) : null}
-        <Field label="Designation" htmlFor="profile-designation">
-          <input
-            id="profile-designation"
-            value={designation}
-            onChange={(event) => setDesignation(event.target.value)}
-            maxLength={120}
-          />
-        </Field>
-        <Field label="Department" htmlFor="profile-department">
-          <input id="profile-department" value={user?.department ?? 'Not set'} readOnly />
-        </Field>
-        <Field label="Access roles" htmlFor="profile-roles">
-          <input
-            id="profile-roles"
-            value={[
-              ...(user?.roles.map(roleLabel) ?? []),
-              ...(user?.teams?.map(teamChipLabel) ?? []),
-            ].join(', ')}
-            readOnly
-          />
-        </Field>
-        <button className="button" disabled={profileAction.isPending}>
+        <button className="button profile-save" disabled={profileAction.isPending}>
           {profileAction.isPending ? 'Saving…' : 'Save account details'}
         </button>
       </form>
-      <p>
+      <p className="profile-notice">
         Portal notice: {user?.portalNoticeVersion ?? '1'} ·{' '}
         {user?.portalAcceptedAt ? 'Accepted' : 'Pending'}
       </p>
       <ErrorNotice error={error} />
-      <Link className="button secondary" to="/security">
-        Security settings
-      </Link>
-      <button
-        type="button"
-        className="button secondary"
-        onClick={() => {
-          void action().catch(setError);
-        }}
-      >
-        Sign out of all sessions
-      </button>
+      <div className="profile-actions">
+        <Link className="button secondary" to="/security">
+          Security settings
+        </Link>
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => {
+            void action().catch(setError);
+          }}
+        >
+          Sign out of all sessions
+        </button>
+      </div>
     </section>
   );
 }

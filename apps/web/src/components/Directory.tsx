@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
-import { Avatar, Badge, Empty, ErrorNotice, Loading, PageTitle, Panel, displayDate } from './ui';
+import { Avatar, Badge, Empty, ErrorNotice, Field, Loading, PageTitle, Panel, displayDate } from './ui';
 
 interface Run {
   id: string;
@@ -36,6 +36,8 @@ interface Person {
   zohoRecordId: string | null;
   state: string;
   designation: string | null;
+  department: string | null;
+  managerName: string | null;
   hasPhoto: boolean;
   assetsHeld: number;
 }
@@ -61,7 +63,10 @@ function PersonList({
         <thead>
           <tr>
             <th>Person</th>
-            <th>Code</th>
+            <th>Department</th>
+              <th>Designation</th>
+              <th>Code</th>
+              <th>Reports to</th>
             <th>
               <span className="sr-only">Select</span>
             </th>
@@ -79,7 +84,10 @@ function PersonList({
                   </div>
                 </div>
               </td>
-              <td>{p.employeeCode ?? ''}</td>
+              <td>{p.department ?? '—'}</td>
+                <td>{p.designation ?? '—'}</td>
+                <td>{p.employeeCode ?? ''}</td>
+              <td>{p.managerName ?? '—'}</td>
               <td>
                 <button
                   type="button"
@@ -115,6 +123,7 @@ export function Directory() {
   const [zohoPick, setZohoPick] = useState<Person>();
   const [accountPick, setAccountPick] = useState<Person>();
   const [reason, setReason] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState('');
   const refreshAll = () => {
     void status.refetch();
@@ -276,15 +285,42 @@ export function Directory() {
           <ErrorNotice error={unmatched.error} retry={() => void unmatched.refetch()} />
         ) : (
           <>
+            <div className="filter-bar staff-search-bar">
+              <Field label="Search people" htmlFor="directory-search">
+                <input
+                  id="directory-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Filter by name or email"
+                  maxLength={100}
+                  autoComplete="off"
+                />
+              </Field>
+            </div>
             <h3>Zoho people without an account</h3>
             <PersonList
-              people={unmatched.data.zohoWithoutAccount}
+              people={unmatched.data.zohoWithoutAccount.filter((person) => {
+                const q = searchQuery.trim().toLowerCase();
+                if (!q) return true;
+                return (
+                  person.displayName.toLowerCase().includes(q) ||
+                  person.email.toLowerCase().includes(q)
+                );
+              })}
               selectedId={zohoPick?.id}
               onSelect={setZohoPick}
             />
             <h3>Portal accounts without Zoho</h3>
             <PersonList
-              people={unmatched.data.accountsWithoutZoho}
+              people={unmatched.data.accountsWithoutZoho.filter((person) => {
+                const q = searchQuery.trim().toLowerCase();
+                if (!q) return true;
+                return (
+                  person.displayName.toLowerCase().includes(q) ||
+                  person.email.toLowerCase().includes(q)
+                );
+              })}
               selectedId={accountPick?.id}
               onSelect={setAccountPick}
             />

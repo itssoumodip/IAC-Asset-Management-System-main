@@ -698,7 +698,8 @@ export class AuthService {
     values.push(input.limit + 1);
     const rows = await this.db.query(
       `SELECT u.id,u.email,u.display_name AS "displayName",u.employee_reference AS "employeeReference",
-              u.designation,u.department_id AS "departmentId",d.name AS department,u.pending_email AS "pendingEmail",u.state,u.version,
+              u.designation,u.department_id AS "departmentId",d.name AS department,u.manager_name AS "managerName",
+              u.pending_email AS "pendingEmail",u.state,u.version,
               u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
               u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id=u.id) AS "hasPhoto",
               coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles,
@@ -707,7 +708,7 @@ export class AuthService {
        FROM users u
        LEFT JOIN departments d ON d.id=u.department_id
        LEFT JOIN user_roles ur ON ur.user_id=u.id
-       WHERE ${where.join(' AND ')} GROUP BY u.id,d.name ORDER BY u.created_at DESC,u.id DESC LIMIT $${values.length}`,
+       WHERE ${where.join(' AND ')} GROUP BY u.id,d.name,u.manager_name ORDER BY u.created_at DESC,u.id DESC LIMIT $${values.length}`,
       values,
     );
     const items = rows.slice(0, input.limit),

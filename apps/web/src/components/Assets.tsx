@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api } from '../api';
+import { api, ApiError } from '../api';
 import { useAction, usePages } from '../hooks';
 import { can, useSession } from '../session';
 import type { Asset, AssignablePerson } from '../types';
@@ -539,7 +539,14 @@ export function AssetDetail() {
   const [condition, setCondition] = useState('');
   const [location, setLocation] = useState('');
   if (query.isPending) return <Loading label="Loading asset details..." />;
-  if (query.error)
+  if (query.error) {
+    if (query.error instanceof ApiError && query.error.status === 404) {
+      return (
+        <Empty title="Asset not found">
+          <p>This asset does not exist or belongs to another team.</p>
+        </Empty>
+      );
+    }
     return (
       <ErrorNotice
         error={query.error}
@@ -548,6 +555,7 @@ export function AssetDetail() {
         }}
       />
     );
+  }
   const asset = query.data;
   if (!asset) return <Empty title="Asset not found" />;
   const assetTeam = asset.owningTeamId ?? undefined;

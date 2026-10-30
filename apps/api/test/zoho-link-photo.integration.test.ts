@@ -55,7 +55,7 @@ describe('Zoho photos and manual linking', { skip: !connection, concurrency: fal
     const user: any = {
       id: randomUUID(),
       email: `${tag}-${randomUUID()}@example.org`,
-      displayName: 'Synthetic link test',
+      displayName: `000 ${tag} link test`,
       roles,
       teams: [],
       state,

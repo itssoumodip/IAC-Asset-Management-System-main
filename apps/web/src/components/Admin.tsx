@@ -6,7 +6,7 @@ import { api } from '../api';
 import { useAction, usePages } from '../hooks';
 import type { ImportBatch, References, Role, User } from '../types';
 import { fetchAllPages, readTable } from '../transfer-files';
-import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
+import { ExportRecords, FormTransfer } from './DataTransfer';
 import {
   Avatar,
   Badge,
@@ -188,7 +188,6 @@ export function UserAdmin() {
           }))
         }
       />
-      <BulkTransfer module="people" disabled={action.isPending} />
       <ErrorNotice
         error={action.error}
         retry={() => {
@@ -202,26 +201,6 @@ export function UserAdmin() {
       ) : null}
       <div className="dashboard-columns">
         <Panel title="Bring someone on board">
-          <FormTransfer
-            formId="people-onboarding"
-            fields={[
-              { key: 'email', required: true },
-              { key: 'displayName' },
-              { key: 'designation' },
-              { key: 'departmentId' },
-              { key: 'invite', type: 'boolean' },
-            ]}
-            values={{ email, displayName, designation, departmentId, invite }}
-            disabled={action.isPending}
-            description="Load one approved employee into this form, then review and submit. Sending an invitation remains an explicit action."
-            onImport={(record) => {
-              if ('email' in record) setEmail(String(record.email ?? ''));
-              if ('displayName' in record) setDisplayName(String(record.displayName ?? ''));
-              if ('designation' in record) setDesignation(String(record.designation ?? ''));
-              if ('departmentId' in record) setDepartmentId(String(record.departmentId ?? ''));
-              if (typeof record.invite === 'boolean') setInvite(record.invite);
-            }}
-          />
           <form className="form-stack" onSubmit={approve}>
             <Field label="Work email" htmlFor="admin-email">
               <input
@@ -470,6 +449,7 @@ export function UserAdmin() {
                   <th>Person</th>
                   <th>Roles</th>
                   <th>Designation / department</th>
+                  <th>Reports to</th>
                   <th>State</th>
                   <th>Email verified</th>
                   <th>Portal accepted</th>
@@ -499,6 +479,7 @@ export function UserAdmin() {
                       {user.designation || 'Not set'}
                       <span className="cell-description">{user.department || 'Department not set'}</span>
                     </td>
+                    <td>{user.managerName || '—'}</td>
                     <td>
                       <Badge value={user.state} label={user.state === 'DIRECTORY' ? 'No login' : undefined} />
                     </td>

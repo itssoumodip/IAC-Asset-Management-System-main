@@ -225,7 +225,7 @@ export class AssetDomain extends MasterDomain {
     if (data.status === 'Assigned')
       throw new ConflictException('Assign custody using the assignment workflow');
     return idempotent(this.db, req, 'POST /assets', data, async (c) => {
-      await validateAsset(this.db, data, c);
+      await validateAsset(this.db, data, c, undefined, req.user);
       const assetCode = await allocateAssetCode(this.db, data.owningTeamId, c);
       const asset = await insertObject(
         this.db,
@@ -254,7 +254,7 @@ export class AssetDomain extends MasterDomain {
       assertVersion(req, before.version);
       await assertKitEditAllowed(this.db, before, changes, c);
       const merged = { ...camel(before), ...changes };
-      await validateAsset(this.db, merged, c, camel(before));
+      await validateAsset(this.db, merged, c, camel(before), req.user);
       const [custody] = await this.db.query(
         'SELECT id FROM assignments WHERE asset_id=$1 AND ended_at IS NULL',
         [assetId],

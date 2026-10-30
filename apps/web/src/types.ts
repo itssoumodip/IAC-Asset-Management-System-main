@@ -44,6 +44,7 @@ export interface User {
   designation?: string | null;
   departmentId?: string | null;
   department?: string | null;
+  managerName?: string | null;
   roles: Role[];
   teams: TeamMembership[];
   capabilities: Capabilities;

@@ -12,6 +12,8 @@ import type { Actor, AuthRequest } from './security';
 import { Db } from './db';
 import { can, teamsFor, type Action } from './policy';
 export const IT_TEAM_ID = '00000000-0000-4000-8000-000000000001';
+export const ADM_TEAM_ID = '00000000-0000-4000-8000-000000000002';
+export const PRJ_TEAM_ID = '00000000-0000-4000-8000-000000000003';
 
 export const text = (max = 5000) => z.string().trim().min(1).max(max);
 export const uuid = z.string().uuid();
@@ -212,11 +214,25 @@ export function page(rows: any[], limit: number, fields: string[]) {
       : null,
   };
 }
+/**
+ * Super Admin, Finance and Executive see every asset. Team users see their own teams'
+ * assets; anyone with the Employee role also sees assets currently assigned to them.
+ */
 export function assetScope(actor: Actor, values: any[]) {
-  if (can(actor, 'asset.view_all')) return 'TRUE';
-  if (!actor.roles.includes('EMPLOYEE')) return 'FALSE';
-  values.push(actor.id);
-  return `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`;
+  if (actor.roles.some((r) => ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r))) return 'TRUE';
+  const clauses: string[] = [];
+  const teamIds = (actor.teams ?? []).map((t) => t.teamId);
+  if (teamIds.length) {
+    values.push(teamIds);
+    clauses.push(`a.owning_team_id=ANY($${values.length}::uuid[])`);
+  }
+  if (actor.roles.includes('EMPLOYEE')) {
+    values.push(actor.id);
+    clauses.push(
+      `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`,
+    );
+  }
+  return clauses.length ? `(${clauses.join(' OR ')})` : 'FALSE';
 }
 export const employeeAssetColumns = [
   'id',
@@ -386,7 +402,7 @@ export async function validateReference(
   );
   if (!value) throw new UnprocessableEntityException(`Invalid or inactive ${field}`);
 }
-export async function validateAsset(db: Db, data: any, c: PoolClient, previous?: any) {
+export async function validateAsset(db: Db, data: any, c: PoolClient, previous?: any, actor?: Actor) {
   for (const [key, kind] of [
     ['category', 'CATEGORY'],
     ['assetType', 'ASSET_TYPE'],
@@ -442,7 +458,7 @@ export async function validateAsset(db: Db, data: any, c: PoolClient, previous?:
     throw new UnprocessableEntityException(
       'Terminal assets require disposal date and evidence reference',
     );
-  await validateOwnership(db, data, c, previous);
+  await validateOwnership(db, data, c, previous, actor);
 }
 const fieldIssue = (field: string, message: string) =>
   new UnprocessableEntityException({
@@ -450,7 +466,7 @@ const fieldIssue = (field: string, message: string) =>
     fields: { formErrors: [], fieldErrors: { [field]: [message] } },
   });
 /** Owning team, project/grant tag and room-held asset type rules. */
-async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: any) {
+async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: any, actor?: Actor) {
   const teamId = data.owningTeamId ?? IT_TEAM_ID;
   const [team] = await db.query(
     'SELECT active,requires_project FROM teams WHERE id=$1 FOR SHARE',
@@ -473,7 +489,7 @@ async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: an
   if (team.requires_project && !data.projectId && teamOrProjectChanged)
     throw fieldIssue('projectId', 'This team requires a project / grant');
   const [policy] = await db.query(
-    'SELECT requires_custodian FROM asset_type_policies WHERE asset_type_code=$1',
+    'SELECT requires_custodian, owning_team_id, handling_team_id FROM asset_type_policies WHERE asset_type_code=$1',
     [data.assetType],
     c,
   );
@@ -481,6 +497,15 @@ async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: an
     !previous || previous.assetType !== data.assetType || previous.locationId !== data.locationId;
   if (policy && !policy.requires_custodian && !data.locationId && typeOrLocationChanged)
     throw fieldIssue('locationId', 'This asset type is kept in a room; choose a location');
+
+  const typeOrTeamChanged = !previous || previous.assetType !== data.assetType || previous.owningTeamId !== data.owningTeamId;
+  if (typeOrTeamChanged && policy?.owning_team_id && !actor?.roles?.includes('SUPER_ADMIN')) {
+    const isOwner = policy.owning_team_id === teamId;
+    const isProjectsUsingAdminFacility = teamId === PRJ_TEAM_ID && policy.owning_team_id === ADM_TEAM_ID;
+    if (!isOwner && !isProjectsUsingAdminFacility) {
+      throw fieldIssue('assetType', 'This asset type belongs to another team');
+    }
+  }
 }
 export async function eligibleEmployee(
   db: Db,

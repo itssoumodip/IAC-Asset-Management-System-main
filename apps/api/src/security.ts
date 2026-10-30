@@ -31,6 +31,7 @@ export interface Actor {
   mfaVerifiedAt: string | null;
   sessionScope: string;
   sessionHash: string;
+  hasPhoto?: boolean;
 }
 export interface AuthRequest extends Request {
   user: Actor;
@@ -58,7 +59,7 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
   if (typeof id !== 'string' || id.length > 128)
     throw new UnauthorizedException('Sign in required');
   const [row] = await db.query(
-    `SELECT u.*,d.name AS department,s.scope,s.mfa_verified_at,s.id_hash,coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN departments d ON d.id=u.department_id LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE s.id_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '30 minutes' AND u.state='ACTIVE' GROUP BY u.id,d.name,s.id_hash`,
+    `SELECT u.*,d.name AS department,s.scope,s.mfa_verified_at,s.id_hash,coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles,EXISTS(SELECT 1 FROM user_photos p WHERE p.user_id=u.id) AS has_photo FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN departments d ON d.id=u.department_id LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE s.id_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '30 minutes' AND u.state='ACTIVE' GROUP BY u.id,d.name,s.id_hash`,
     [hash(id)],
   );
   if (!row || !row.email_verified_at) throw new UnauthorizedException('Sign in required');
@@ -87,6 +88,7 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
     mfaVerifiedAt: row.mfa_verified_at,
     sessionScope: row.scope,
     sessionHash: row.id_hash,
+    hasPhoto: row.has_photo,
   };
 }
 @Injectable()
@@ -154,4 +156,5 @@ export const publicUser = (user: Actor) => ({
   currentNoticeVersion: configuration().noticeVersion,
   enrollmentOnly: user.sessionScope === 'MFA_ENROLLMENT',
   mfaEnrollmentRequired: user.sessionScope === 'MFA_ENROLLMENT',
+  hasPhoto: user.hasPhoto ?? false,
 });

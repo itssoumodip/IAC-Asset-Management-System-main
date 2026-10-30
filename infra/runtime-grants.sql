@@ -21,5 +21,6 @@ GRANT INSERT,UPDATE ON ticket_category_teams TO iac_runtime;
 GRANT INSERT,UPDATE ON invoices TO iac_runtime;
 GRANT INSERT ON invoice_assets TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON team_memberships TO iac_runtime;
+GRANT INSERT,UPDATE,DELETE ON team_view_grants TO iac_runtime;
 -- No DELETE on assets/custody/tickets; no UPDATE/DELETE on immutable evidence.
 -- Reapply explicit grants after new migrations. Do not grant schema ownership.

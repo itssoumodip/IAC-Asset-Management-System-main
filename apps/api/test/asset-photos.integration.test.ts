@@ -148,7 +148,7 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
       assert.equal(result.headers.get('Cache-Control'), 'no-store');
     }
     assert.equal((await request(other)).status, 404);
-    assert.equal((await request(itAdmin)).status, 200); // team members see every asset
+    assert.equal((await request(itAdmin)).status, 404); // other team's asset is hidden
     assert.equal((await request(null)).status, 401);
   });
 
@@ -192,7 +192,7 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
     assert.notEqual(result.body.dataUrl, photo);
     assert.equal((await request(employee)).body.dataUrl, result.body.dataUrl);
     assert.equal((await request(other)).status, 404);
-    assert.equal((await request(itAdmin)).status, 200); // team members see every asset
+    assert.equal((await request(itAdmin)).status, 404); // other team's asset is hidden
     await domain.createTicket(req(employee), {
       assetId: asset.id,
       subject: 'Synthetic picture test support',
@@ -200,7 +200,6 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
       category: 'HARDWARE',
       priority: 'LOW',
     });
-    assert.equal((await request(itAdmin)).body.dataUrl, result.body.dataUrl);
   });
 
   it('rejects unsafe formats, malformed base64, oversized input and decoded pixel bombs', async () => {
@@ -328,7 +327,7 @@ describe('private asset photo HTTP integration', { skip: !connection, concurrenc
       assert.equal((await pending).status, 404);
       assert.equal((await request(employee)).status, 404);
       assert.equal((await request(admin)).status, 200);
-      assert.equal((await request(itAdmin)).status, 200);
+      assert.equal((await request(itAdmin)).status, 404);
     } finally {
       if (!committed) await client.query('ROLLBACK');
       client.release();

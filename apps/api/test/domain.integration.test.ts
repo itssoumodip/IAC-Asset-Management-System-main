@@ -197,7 +197,7 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     ])
       assert.equal(privateKey in mine.items[0], false);
     await assert.rejects(service.asset(request(other), asset.id), status(404));
-    assert.equal((await service.asset(request(itAdmin), asset.id)).id, asset.id); // team members see every asset
+    await assert.rejects(service.asset(request(itAdmin), asset.id), status(404)); // other team's asset is hidden
     assert.equal((await service.asset(request(admin), asset.id)).purchaseCost, '100.00');
   });
   it('enforces acknowledgement ownership, one decision and independent custody', async () => {

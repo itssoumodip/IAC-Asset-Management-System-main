@@ -284,17 +284,18 @@ export class ZohoSyncService {
 
   async unmatched(req: AuthRequest) {
     assertCan(req.user, 'system.admin');
-    const cols = `u.id,u.email,u.display_name,u.employee_code,u.zoho_record_id,u.state,u.designation,u.left_at,
+    const cols = `u.id,u.email,u.display_name,u.employee_code,u.zoho_record_id,u.state,u.designation,u.manager_name,u.department_id,u.left_at,
       EXISTS(SELECT 1 FROM user_photos p WHERE p.user_id=u.id) AS has_photo,
-      (SELECT count(*)::int FROM assignments s WHERE s.user_id=u.id AND s.ended_at IS NULL) AS assets_held`;
+      (SELECT count(*)::int FROM assignments s WHERE s.user_id=u.id AND s.ended_at IS NULL) AS assets_held,
+      d.name AS department_name`;
     const zoho = await this.db.query(
-      `SELECT ${cols} FROM users u WHERE u.state='DIRECTORY' AND u.zoho_record_id IS NOT NULL ORDER BY u.display_name LIMIT 500`,
+      `SELECT ${cols} FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.state='DIRECTORY' AND u.zoho_record_id IS NOT NULL ORDER BY u.display_name LIMIT 500`,
     );
     const accounts = await this.db.query(
-      `SELECT ${cols} FROM users u WHERE u.state IN ('ACTIVE','INVITED') AND u.zoho_record_id IS NULL ORDER BY u.display_name LIMIT 500`,
+      `SELECT ${cols} FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.state IN ('ACTIVE','INVITED') AND u.zoho_record_id IS NULL ORDER BY u.display_name LIMIT 500`,
     );
     const blocked = await this.db.query(
-      `SELECT ${cols},u.zoho_unlinked_record_id FROM users u WHERE u.zoho_unlinked_record_id IS NOT NULL AND u.zoho_record_id IS NULL AND u.merged_into_user_id IS NULL ORDER BY u.display_name LIMIT 500`,
+      `SELECT ${cols},u.zoho_unlinked_record_id FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.zoho_unlinked_record_id IS NOT NULL AND u.zoho_record_id IS NULL AND u.merged_into_user_id IS NULL ORDER BY u.display_name LIMIT 500`,
     );
     return {
       zohoWithoutAccount: zoho.map(camel),
@@ -521,6 +522,19 @@ export class ZohoSyncService {
       }
     }
     return this.db.tx(async (c) => {
+      // Resolve manager_name to manager_id by matching display_name (case-insensitive).
+      // Handles managers created earlier in this sync or in previous syncs.
+      await this.db.query(
+        `UPDATE users u
+         SET manager_id = m.id
+         FROM users m
+         WHERE u.manager_name IS NOT NULL
+           AND u.manager_id IS NULL
+           AND lower(u.manager_name) = lower(m.display_name)
+           AND m.id IS DISTINCT FROM u.id`,
+        [],
+        c,
+      );
       const [run] = await this.db.query(
         "INSERT INTO zoho_sync_runs(trigger,started_at,finished_at,status,created_count,updated_count,left_count,skipped_count,error,started_by) VALUES($1,$2,now(),'SUCCEEDED',$3,$4,$5,$6,$7,$8) RETURNING id",
         [
@@ -576,8 +590,8 @@ export class ZohoSyncService {
     const departmentId = p.department ? await this.department(c, p.department) : null;
     if (!user) {
       const [row] = await this.db.query(
-        `INSERT INTO users(email,display_name,state,designation,department_id,zoho_record_id,employee_code,manager_name,zoho_status,zoho_synced_at)
-         VALUES($1,$2,'DIRECTORY',$3,$4,$5,$6,$7,$8,now()) RETURNING id`,
+        `INSERT INTO users(email,display_name,state,designation,department_id,zoho_record_id,employee_code,manager_name,manager_id,zoho_status,zoho_synced_at)
+         VALUES($1,$2,'DIRECTORY',$3,$4,$5,$6,$7,NULL,$8,now()) RETURNING id`,
         [
           p.email,
           p.displayName,
@@ -601,7 +615,7 @@ export class ZohoSyncService {
     const directory = user.state === 'DIRECTORY';
     const nowLeft = !p.active && !user.left_at;
     await this.db.query(
-      `UPDATE users SET zoho_record_id=$2,employee_code=$3,manager_name=$4,zoho_status=$5,zoho_synced_at=now(),
+      `UPDATE users SET zoho_record_id=$2,employee_code=$3,manager_name=$4,manager_id=NULL,zoho_status=$5,zoho_synced_at=now(),
          left_at=CASE WHEN $6::boolean THEN coalesce(left_at,now()) ELSE NULL END,
          display_name=CASE WHEN $7::boolean THEN $8 ELSE display_name END,
          designation=CASE WHEN $7::boolean THEN coalesce($9,designation) ELSE coalesce(designation,$9) END,

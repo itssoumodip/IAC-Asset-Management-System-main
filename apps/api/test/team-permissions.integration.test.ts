@@ -3,6 +3,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
+import { ExecutiveDashboardService } from '../src/executive-dashboard';
 import { DomainService } from '../src/domain';
 import type { AuthRequest } from '../src/security';
 
@@ -11,7 +12,8 @@ if (connection && !new URL(connection).pathname.endsWith('_test'))
   throw new Error('Team permission integration tests require a database name ending _test');
 const IT = '00000000-0000-4000-8000-000000000001';
 const ADM = '00000000-0000-4000-8000-000000000002';
-const teamCodes: Record<string, string> = { [IT]: 'IT', [ADM]: 'ADM' };
+const PRJ = '00000000-0000-4000-8000-000000000003';
+const teamCodes: Record<string, string> = { [IT]: 'IT', [ADM]: 'ADM', [PRJ]: 'PRJ' };
 const tag = `teamperm-${randomUUID()}`;
 const request = (actor: any, version?: number, key = randomUUID()) =>
   ({
@@ -31,7 +33,8 @@ const status = (code: number) => (error: any) => {
 };
 
 describe('team permissions PostgreSQL integration', { skip: !connection, concurrency: false }, () => {
-  let db: Db, service: DomainService;
+  let db: Db, service: DomainService, execService: ExecutiveDashboardService;
+  let admMember: any, prjMember: any, projectId: string, locationId: string;
   let superAdmin: any, itMember: any, itLead: any, finance: any, executive: any, employee: any;
   const input = {
     category: 'Team Perm Category',
@@ -111,6 +114,25 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
     finance = await make(['FINANCE']);
     executive = await make(['EXECUTIVE']);
     employee = await make(['EMPLOYEE']);
+    admMember = await make(['EMPLOYEE'], [{ teamId: ADM, level: 'MEMBER' }]);
+    prjMember = await make(['EMPLOYEE'], [{ teamId: PRJ, level: 'MEMBER' }]);
+    execService = new ExecutiveDashboardService(db);
+    for (const [kind, code] of [
+      ['ASSET_TYPE', 'Laptop'],
+      ['ASSET_TYPE', 'Chair'],
+      ['CATEGORY', 'HARDWARE'],
+    ])
+      await db.query(
+        'INSERT INTO reference_values(kind,code,label) VALUES($1,$2,$2) ON CONFLICT DO NOTHING',
+        [kind, code],
+      );
+    const [prjRow] = await db.query(
+      "INSERT INTO projects(code,name,start_date) VALUES($1,'Dept Rules Project','2026-01-01') ON CONFLICT(code) DO UPDATE SET name=excluded.name RETURNING id",
+      [tag.slice(0, 10)],
+    );
+    projectId = prjRow.id;
+    const [locRow] = await db.query("INSERT INTO locations(code,site,floor,room) VALUES($1,'Site','1','Room') ON CONFLICT(code) DO UPDATE SET room=excluded.room RETURNING id", [tag.slice(0, 10)]);
+    locationId = locRow.id;
   });
   after(async () => {
     if (db) await db.onModuleDestroy();
@@ -135,15 +157,26 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
     assert.deepEqual(await snapshot(admAsset.id), before);
   });
 
-  it('IT member sees every asset in list', async () => {
+  it('team member sees only own team assets; global roles see all', async () => {
     await createAsset(IT);
     await createAsset(ADM);
     const all = await service.assets(request(superAdmin), { limit: 100, q: tag });
     const mine = await service.assets(request(itMember), { limit: 100, q: tag });
-    assert.ok(all.items.length >= 2);
-    assert.equal(mine.items.length, all.items.length);
+    const fin = await service.assets(request(finance), { limit: 100, q: tag });
+    const exec = await service.assets(request(executive), { limit: 100, q: tag });
+    assert.ok(all.items.some((a: any) => a.owningTeamId === ADM));
+    assert.ok(mine.items.length > 0);
+    assert.ok(mine.items.every((a: any) => a.owningTeamId === IT));
+    assert.equal(fin.items.length, all.items.length);
+    assert.equal(exec.items.length, all.items.length);
     const anyAdm = (await db.query('SELECT id FROM assets WHERE owning_team_id=$1 AND description LIKE $2 LIMIT 1', [ADM, `${tag}%`]))[0];
-    assert.equal((await service.asset(request(itMember), anyAdm.id)).id, anyAdm.id);
+    await assert.rejects(service.asset(request(itMember), anyAdm.id), status(404));
+  });
+
+  it('team member still sees another team asset assigned to them', async () => {
+    const adm = await createAsset(ADM);
+    await service.assign(request(superAdmin, adm.version), adm.id, { userId: itMember.id });
+    assert.equal((await service.asset(request(itMember), adm.id)).id, adm.id);
   });
 
   it('member cannot retire, lead can', async () => {
@@ -309,5 +342,139 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
     const admins = await db.tx((c) => service.adminRecipients(c));
     assert.ok(admins.includes(superAdmin.email));
     assert.equal(admins.includes(itMember.email), false);
+  });
+
+  it('type to team enforcement rejects mismatch with 422 and allows super admin override and Projects facility use', async () => {
+    // 1. ADM member tries to create Laptop in ADM -> 422 This asset type belongs to another team
+    await assert.rejects(
+      service.createAsset(request(admMember), {
+        ...input,
+        assetType: 'Laptop',
+        owningTeamId: ADM,
+        description: tag + ' adm laptop',
+      }),
+      (err: any) => {
+        assert.equal(err.status, 422);
+        assert.match(err.message, /This asset type belongs to another team/i);
+        return true;
+      },
+    );
+
+    // 2. IT member tries to create Chair in IT -> 422
+    await assert.rejects(
+      service.createAsset(request(itMember), {
+        ...input,
+        assetType: 'Chair',
+        owningTeamId: IT,
+        locationId,
+        description: tag + ' it chair',
+      }),
+      (err: any) => {
+        assert.equal(err.status, 422);
+        assert.match(err.message, /This asset type belongs to another team/i);
+        return true;
+      },
+    );
+
+    // 3. Super Admin can override (create Laptop for ADM)
+    const overridden = await service.createAsset(request(superAdmin), {
+      ...input,
+      assetType: 'Laptop',
+      owningTeamId: ADM,
+      description: tag + ' super admin override',
+    });
+    assert.equal(overridden.owningTeamId, ADM);
+
+    // 4. Projects member creates Admin facility type (Chair) -> allowed
+    const prjChair = await service.createAsset(request(prjMember), {
+      ...input,
+      assetType: 'Chair',
+      owningTeamId: PRJ,
+      projectId,
+      locationId,
+      description: tag + ' prj chair',
+    });
+    assert.equal(prjChair.owningTeamId, PRJ);
+  });
+
+  it('shared viewing: ADM user sees PRJ assets but cannot edit them', async () => {
+    const prjAsset = await service.createAsset(request(superAdmin), {
+      ...input,
+      assetType: 'Chair',
+      owningTeamId: PRJ,
+      projectId,
+      locationId,
+      description: tag + ' shared prj asset',
+    });
+
+    // ADM member sees PRJ asset in list
+    const list = await service.assets(request(admMember), { limit: 100, q: tag });
+    assert.ok(list.items.some((x: any) => x.id === prjAsset.id));
+
+    // ADM member can view PRJ asset detail
+    const viewed = await service.asset(request(admMember), prjAsset.id);
+    assert.equal(viewed.id, prjAsset.id);
+
+    // ADM member CANNOT edit PRJ asset
+    await assert.rejects(
+      service.editAsset(request(admMember, prjAsset.version), prjAsset.id, {
+        description: 'ADM trying to edit PRJ asset',
+        reason: 'Unauthorized cross-team edit',
+      }),
+      status(403),
+    );
+  });
+
+  it('PRJ user cannot see IT assets', async () => {
+    const itAsset = await createAsset(IT);
+
+    // PRJ member does not see IT asset in list
+    const list = await service.assets(request(prjMember), { limit: 100, q: tag });
+    assert.equal(list.items.some((x: any) => x.id === itAsset.id), false);
+
+    // PRJ member gets 404 when trying to view IT asset
+    await assert.rejects(service.asset(request(prjMember), itAsset.id), status(404));
+  });
+
+  it('Projects-owned chair ticket routes to Admin', async () => {
+    const prjChair = await service.createAsset(request(superAdmin), {
+      ...input,
+      assetType: 'Chair',
+      owningTeamId: PRJ,
+      projectId,
+      locationId,
+      description: tag + ' prj chair for ticket',
+    });
+
+    const ticket = await service.createTicket(request(employee), {
+      assetId: prjChair.id,
+      subject: tag + ' broken chair',
+      description: 'The chair leg is broken',
+      category: 'HARDWARE',
+      priority: 'LOW',
+    });
+
+    assert.equal(ticket.teamId, ADM);
+  });
+
+  it('team dashboard counts only scoped items', async () => {
+    const itAsset = await createAsset(IT, { purchaseCost: '1000.00' });
+    const admAsset = await createAsset(ADM, { purchaseCost: '500.00' });
+    const prjAsset = await service.createAsset(request(superAdmin), {
+      ...input,
+      assetType: 'Chair',
+      owningTeamId: PRJ,
+      projectId,
+      locationId,
+      purchaseCost: '300.00',
+      description: tag + ' prj asset for dashboard',
+    });
+
+    const dash = await execService.team(request(admMember));
+    assert.ok(dash);
+    // ADM member sees ADM and PRJ assets, but NOT IT assets
+    const countedTeamIds = dash.assetsByTeam ? dash.assetsByTeam.map((x: any) => x.teamId) : [];
+    assert.ok(countedTeamIds.includes(ADM) || countedTeamIds.includes(PRJ));
+    assert.equal(countedTeamIds.includes(IT), false);
   });
 });

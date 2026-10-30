@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Injectable, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Inject, Injectable, Req, UseGuards } from '@nestjs/common';
 import { Db } from './db';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
@@ -79,6 +79,64 @@ export class ExecutiveDashboardService {
       ticketTrends: { weeks, teams },
     };
   }
+
+  async team(req: AuthRequest) {
+    const isGlobal = req.user.roles.some((r) => ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r));
+    const userTeams = (req.user.teams ?? []).map((t) => t.teamId);
+    if (!isGlobal && !userTeams.length) {
+      throw new ForbiddenException('Team members only');
+    }
+
+    let scopedTeamIds: string[] | null = null;
+    if (!isGlobal) {
+      const grantRows = await this.db.query(
+        'SELECT owner_team_id FROM team_view_grants WHERE viewer_team_id = ANY($1::uuid[])',
+        [userTeams],
+      );
+      scopedTeamIds = Array.from(new Set([...userTeams, ...grantRows.map((r: any) => r.owner_team_id)]));
+    }
+
+    const assetFilter = scopedTeamIds
+      ? 'WHERE a.owning_team_id = ANY($1::uuid[])'
+      : '';
+    const assetFilterAnd = scopedTeamIds
+      ? 'AND a.owning_team_id = ANY($1::uuid[])'
+      : '';
+    const values = scopedTeamIds ? [scopedTeamIds] : [];
+
+    const [assetsByTeam, [attention], openTickets] = await Promise.all([
+      this.db.query(
+        `SELECT a.owning_team_id AS "teamId",t.name AS "teamName",a.status,count(*)::int AS count,
+           coalesce(sum(a.purchase_cost) FILTER(WHERE a.currency='INR'),0)::float8 AS value
+         FROM assets a JOIN teams t ON t.id=a.owning_team_id
+         ${assetFilter}
+         GROUP BY a.owning_team_id,t.name,a.status ORDER BY t.name,a.status`,
+        values,
+      ),
+      this.db.query(
+        `SELECT
+           (SELECT count(*)::int FROM assets a WHERE a.finance_status<>'APPROVED' ${assetFilterAnd}) AS "pendingFinance",
+           (SELECT count(DISTINCT g.asset_id)::int FROM assignments g JOIN users u ON u.id=g.user_id JOIN assets a ON a.id=g.asset_id
+             WHERE g.ended_at IS NULL AND u.left_at IS NOT NULL ${assetFilterAnd}) AS "leftHoldersWithAssets",
+           (SELECT count(*)::int FROM assets a WHERE a.warranty_expiry BETWEEN ${TODAY} AND ${TODAY}+30 ${assetFilterAnd}) AS "warrantyExpiring30",
+           (SELECT count(*)::int FROM assets a WHERE a.amc_applies AND a.amc_expiry BETWEEN ${TODAY} AND ${TODAY}+30 ${assetFilterAnd}) AS "amcExpiring30"`,
+        values,
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS count
+         FROM tickets t
+         WHERE t.status<>'COMPLETED' ${userTeams.length && !isGlobal ? 'AND t.team_id = ANY($1::uuid[])' : ''}`,
+        userTeams.length && !isGlobal ? [userTeams] : [],
+      ),
+    ]);
+
+    return {
+      assetsByTeam,
+      needsAttention: attention,
+      openTickets: openTickets[0]?.count ?? 0,
+      scopedTeamIds: scopedTeamIds ?? 'ALL',
+    };
+  }
 }
 
 @Controller('dashboard')
@@ -89,5 +147,10 @@ export class ExecutiveDashboardController {
   @Get('executive')
   summary(@Req() req: AuthRequest) {
     return this.service.summary(req);
+  }
+
+  @Get('team')
+  team(@Req() req: AuthRequest) {
+    return this.service.team(req);
   }
 }
