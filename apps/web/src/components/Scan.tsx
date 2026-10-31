@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { api, ApiError } from '../api';
 import { can, useSession } from '../session';
 import type { ScanView } from '../types';
@@ -12,6 +13,13 @@ const LOST = 'This asset is marked lost or stolen. Please hand it to IT.';
 const PHOTO_PATTERN = /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/=]+$/;
 const isNotFoundError = (error: unknown) =>
   error instanceof ApiError && (error.status === 404 || error.status === 422);
+type NdefReadingEvent = Event & {
+  message: { records: { recordType: string; data: ArrayBuffer }[] };
+};
+type NdefReaderLike = {
+  scan: () => Promise<void>;
+  addEventListener: (type: 'reading', listener: (event: NdefReadingEvent) => void) => void;
+};
 
 function ScanPhoto({ code, scan }: { code: string; scan: ScanView }) {
   const query = useQuery({
@@ -39,6 +47,26 @@ function ScanPhoto({ code, scan }: { code: string; scan: ScanView }) {
 export function ScanPage() {
   const { assetCode = '' } = useParams();
   const { user } = useSession();
+  const navigate = useNavigate();
+  const [nfcError, setNfcError] = useState('');
+  const nfcAvailable = 'NDEFReader' in window;
+  const scanNfc = async () => {
+    const Reader = (window as Window & { NDEFReader?: new () => NdefReaderLike }).NDEFReader;
+    if (!Reader) return;
+    setNfcError('');
+    const reader = new Reader();
+    reader.addEventListener('reading', (event) => {
+      const record = event.message.records[0];
+      if (!record) return;
+      const value = new TextDecoder().decode(record.data).trim();
+      if (value) void navigate(`/a/${encodeURIComponent(value)}`);
+    });
+    try {
+      await reader.scan();
+    } catch {
+      setNfcError('NFC scanning could not start. Check browser permission and try again.');
+    }
+  };
   const query = useQuery({
     queryKey: ['scan', assetCode],
     queryFn: ({ signal }) => api<ScanView>(`/scan/${encodeURIComponent(assetCode)}`, { signal }),
@@ -71,7 +99,8 @@ export function ScanPage() {
   const status = scan.status.toLowerCase();
   const lostOrStolen = status === 'lost' || status === 'stolen';
   const where = scan.location
-    ? [scan.location.site, scan.location.floor, scan.location.room].filter(Boolean).join(' · ')
+    ? scan.location.path ||
+      [scan.location.site, scan.location.floor, scan.location.room].filter(Boolean).join(' · ')
     : null;
   const details: [string, string | null][] = [
     ['Category', scan.category],
@@ -132,6 +161,14 @@ export function ScanPage() {
           </p>
         ) : null}
         <div className="scan-actions">
+          {nfcAvailable ? (
+            <>
+              <button type="button" className="button secondary full" onClick={() => void scanNfc()}>
+                Scan NFC tag
+              </button>
+              {nfcError ? <p className="notice danger" role="alert">{nfcError}</p> : null}
+            </>
+          ) : null}
           {scan.reportable ? (
             <Link
               className="button full"

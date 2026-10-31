@@ -1,4 +1,5 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
+import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Db } from './db';
 import { MasterDomain } from './domain-masters';
@@ -15,7 +16,13 @@ import {
   lockKitParts,
 } from './asset-kits';
 import { Actor, AuthRequest, assertVersion, requireRole } from './security';
-import { FINANCE_FIELDS, WRITE_OFF_STATUSES, assertCan, can } from './policy';
+import {
+  FINANCE_FIELDS,
+  WRITE_OFF_STATUSES,
+  approvalOwner,
+  assertCan,
+  can,
+} from './policy';
 import {
   IT_TEAM_ID,
   assertCanSomewhere,
@@ -39,6 +46,7 @@ import {
   patchObject,
   requestPage,
   terminal,
+  text,
   validateAsset,
 } from './domain-helpers';
 
@@ -115,6 +123,12 @@ function assertEditAllowed(actor: Actor, before: any, changes: Record<string, un
   const status = changes.status as string | undefined;
   if (status && status !== before.status && WRITE_OFF_STATUSES.has(status))
     assertCan(actor, 'asset.retire', before.owning_team_id);
+  if (status === 'Ready to Assign' && status !== before.status) {
+    const lead =
+      actor.roles.includes('SUPER_ADMIN') ||
+      actor.teams?.some((team) => team.teamId === before.owning_team_id && team.level === 'LEAD');
+    if (!lead) throw new ForbiddenException('Only an owning-team lead can mark an asset Ready to Assign');
+  }
 }
 
 export class AssetDomain extends MasterDomain {
@@ -129,10 +143,31 @@ export class AssetDomain extends MasterDomain {
       ['owningTeamId', 'owning_team_id'],
       ['projectId', 'project_id'],
     ] as const)
-      if (p[key]) {
+      if (p[key] && key !== 'status') {
         values.push(p[key]);
         where.push(`a.${column}=$${values.length}`);
       }
+    if (p.status) {
+      if (['Assigned', 'In Use'].includes(p.status)) where.push(`a.status IN ('Assigned','In Use')`);
+      else {
+        values.push(p.status);
+        where.push(`a.status=$${values.length}`);
+      }
+    }
+    if (p.locationId) {
+      values.push(p.locationId);
+      where.push(
+        `a.location_id IN (
+          WITH RECURSIVE location_subtree AS (
+            SELECT id FROM locations WHERE id=$${values.length}
+            UNION ALL
+            SELECT child.id FROM locations child
+            JOIN location_subtree parent ON child.parent_id=parent.id
+          )
+          SELECT id FROM location_subtree
+        )`,
+      );
+    }
     if (p.labelPrinted && canSomewhere(req.user, 'asset.label'))
       where.push('NOT EXISTS(SELECT 1 FROM asset_label_prints lp WHERE lp.asset_id=a.id)');
     if (p.q) {
@@ -147,7 +182,7 @@ export class AssetDomain extends MasterDomain {
     }
     values.push(p.limit + 1);
     const rows = await this.db.query(
-      `SELECT ${assetColumns(req.user)}${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
+      `SELECT ${assetColumns(req.user)},EXISTS(SELECT 1 FROM asset_photos ph WHERE ph.asset_id=a.id) AS has_photo${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
       values,
     );
     const result = page(rows, p.limit, ['asset_code', 'id']);
@@ -188,6 +223,13 @@ export class AssetDomain extends MasterDomain {
       )[0],
     );
     const result = camel(row);
+    result.identifiers = (
+      await this.db.query(
+        'SELECT id,kind,value,created_at,created_by FROM asset_identifiers WHERE asset_id=$1 ORDER BY kind,value',
+        [assetId],
+        client,
+      )
+    ).map(camel);
     Object.assign(result, await kitView(this.db, assetId, client));
     await this.attachCurrentAssignments(req.user, [result], client);
     // Custody evidence is for private-column viewers or the employee's own currently
@@ -213,19 +255,20 @@ export class AssetDomain extends MasterDomain {
   }
   async createAsset(req: AuthRequest, body: unknown) {
     assertCanSomewhere(req.user, 'asset.create');
-    const parsed = parse(assetInput, body);
+    const parsed = parse(assetInput.extend({ overrideReason: text(1000).optional() }), body);
+    const { overrideReason, ...assetData } = parsed;
     // Callers that predate team ownership create IT assets.
-    const data = { ...parsed, owningTeamId: parsed.owningTeamId ?? IT_TEAM_ID };
+    const data = { ...assetData, owningTeamId: assetData.owningTeamId ?? IT_TEAM_ID };
     assertCan(req.user, 'asset.create', data.owningTeamId);
     if (
       FINANCE_FIELDS.some((f) => (data as any)[f] != null) &&
       !can(req.user, 'asset.finance_edit')
     )
       throw new ForbiddenException('Finance fields are set by Finance');
-    if (data.status === 'Assigned')
+    if (['Assigned', 'In Use'].includes(data.status))
       throw new ConflictException('Assign custody using the assignment workflow');
     return idempotent(this.db, req, 'POST /assets', data, async (c) => {
-      await validateAsset(this.db, data, c, undefined, req.user);
+      await validateAsset(this.db, data, c, undefined, req.user, overrideReason ?? undefined);
       const assetCode = await allocateAssetCode(this.db, data.owningTeamId, c);
       const asset = await insertObject(
         this.db,
@@ -237,6 +280,12 @@ export class AssetDomain extends MasterDomain {
         assetCode,
         fields: Object.keys(data),
       });
+      if (overrideReason)
+        await this.db.audit(c, req.user, 'asset', asset.id, 'ASSET_CATEGORY_OVERRIDE', {
+          reason: overrideReason,
+          category: data.category,
+          assetType: data.assetType,
+        });
       return this.asset(req, asset.id, c);
     });
   }
@@ -244,7 +293,7 @@ export class AssetDomain extends MasterDomain {
     if (!canSomewhere(req.user, 'asset.edit') && !can(req.user, 'asset.finance_edit'))
       throw new ForbiddenException('Insufficient permission');
     id(assetId);
-    const { reason, ...changes } = parse(assetPatch, body);
+    const { reason, overrideReason, ...changes } = parse(assetPatch, body);
     if (!Object.keys(changes).length) throw new ConflictException('No catalog changes supplied');
     return this.db.tx(async (c) => {
       const before = found(
@@ -252,9 +301,33 @@ export class AssetDomain extends MasterDomain {
       );
       assertEditAllowed(req.user, before, changes);
       assertVersion(req, before.version);
+      const owner = can(req.user, 'asset.edit', before.owning_team_id)
+        ? null
+        : approvalOwner(
+            Object.keys(changes)
+              .filter((field) => !FINANCE_FIELDS.includes(field))
+              .map((field) => field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)),
+            req.user.roles,
+          );
+      if (owner) {
+        const [request] = await this.db.query(
+          `INSERT INTO asset_change_requests(asset_id,requester_id,owner_role,proposed_changes,reason,asset_version)
+           VALUES($1,$2,$3,$4,$5,$6)
+           RETURNING id,status,owner_role,asset_version,created_at`,
+          [assetId, req.user.id, owner, changes, reason, before.version],
+          c,
+        );
+        await this.db.audit(c, req.user, 'asset_change_request', request.id, 'CREATED', {
+          assetId,
+          ownerRole: owner,
+          fields: Object.keys(changes),
+          reason,
+        });
+        return { approvalRequested: true, request: camel(request) };
+      }
       await assertKitEditAllowed(this.db, before, changes, c);
       const merged = { ...camel(before), ...changes };
-      await validateAsset(this.db, merged, c, camel(before), req.user);
+      await validateAsset(this.db, merged, c, camel(before), req.user, overrideReason ?? undefined);
       const [custody] = await this.db.query(
         'SELECT id FROM assignments WHERE asset_id=$1 AND ended_at IS NULL',
         [assetId],
@@ -262,8 +335,8 @@ export class AssetDomain extends MasterDomain {
       );
       if (terminal.has(before.status) && changes.status && changes.status !== before.status)
         throw new ConflictException('Terminal assets cannot return to active inventory');
-      if (merged.status === 'Assigned' && !custody)
-        throw new ConflictException('Assigned status requires assignment workflow');
+      if (['Assigned', 'In Use'].includes(merged.status) && !custody)
+        throw new ConflictException('Assigned or In Use status requires assignment workflow');
       if (custody && (terminal.has(merged.status) || merged.status === 'In Store'))
         throw new ConflictException('Return custody before changing this status');
       const after = await patchObject(this.db, 'assets', assetId, changes, c);
@@ -283,6 +356,12 @@ export class AssetDomain extends MasterDomain {
         fields: Object.keys(changes),
         reason,
       });
+      if (overrideReason)
+        await this.db.audit(c, req.user, 'asset', assetId, 'ASSET_CATEGORY_OVERRIDE', {
+          reason: overrideReason,
+          category: changes.category ?? before.category,
+          assetType: changes.assetType ?? before.asset_type,
+        });
       if (changes.owningTeamId !== undefined && changes.owningTeamId !== before.owning_team_id)
         await this.db.audit(c, req.user, 'asset', assetId, 'ASSET_TEAM_CHANGED', {
           from: before.owning_team_id,
@@ -290,6 +369,95 @@ export class AssetDomain extends MasterDomain {
           reason,
         });
       return this.asset(req, assetId, c);
+    });
+  }
+  async changeRequests(req: AuthRequest) {
+    const values: string[] = [];
+    const where = ['r.status=$1'];
+    values.push('PENDING');
+    if (!req.user.roles.includes('SUPER_ADMIN')) {
+      values.push(...req.user.roles);
+      where.push(`r.owner_role=ANY($${values.length}::text[])`);
+    }
+    return (
+      await this.db.query(
+        `SELECT r.id,r.asset_id,r.requester_id,r.owner_role,r.proposed_changes,r.reason,
+                r.asset_version,r.status,r.created_at,u.display_name AS requester_name,
+                a.asset_code,a.description
+         FROM asset_change_requests r
+         JOIN users u ON u.id=r.requester_id
+         JOIN assets a ON a.id=r.asset_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY r.created_at DESC`,
+        values,
+      )
+    ).map(camel);
+  }
+  async reviewChangeRequest(req: AuthRequest, requestId: string, body: unknown) {
+    id(requestId);
+    const input = parse(
+      z.object({ decision: z.enum(['APPROVE', 'REJECT']), reason: text(1000) }).strict(),
+      body,
+    );
+    return this.db.tx(async (c) => {
+      const request = found(
+        (
+          await this.db.query(
+            'SELECT * FROM asset_change_requests WHERE id=$1 FOR UPDATE',
+            [requestId],
+            c,
+          )
+        )[0],
+      );
+      if (!req.user.roles.includes('SUPER_ADMIN') && !req.user.roles.includes(request.owner_role))
+        throw new ForbiddenException('Only the owning role can review this request');
+      if (request.status !== 'PENDING') throw new ConflictException('This request was already reviewed');
+      if (input.decision === 'REJECT') {
+        const [updated] = await this.db.query(
+          `UPDATE asset_change_requests
+           SET status='REJECTED',reviewed_by=$2,review_reason=$3,reviewed_at=now()
+           WHERE id=$1 RETURNING *`,
+          [requestId, req.user.id, input.reason],
+          c,
+        );
+        await this.db.audit(c, req.user, 'asset_change_request', requestId, 'REJECTED', {
+          reason: input.reason,
+        });
+        return camel(updated);
+      }
+      const asset = found(
+        (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [request.asset_id], c))[0],
+      );
+      if (asset.version !== request.asset_version)
+        throw new ConflictException('The asset changed; submit a new request');
+      const changes = request.proposed_changes;
+      const merged = { ...camel(asset), ...changes };
+      await assertKitEditAllowed(this.db, asset, changes, c);
+      await validateAsset(this.db, merged, c, camel(asset), req.user);
+      const [after] = await this.db.query(
+        `UPDATE assets SET ${Object.keys(changes)
+          .map((key, index) => `${key.replace(/[A-Z]/g, (letter: string) => `_${letter.toLowerCase()}`)}=$${index + 2}`)
+          .join(',')},version=version+1,updated_at=now()
+         WHERE id=$1 RETURNING *`,
+        [request.asset_id, ...Object.values(changes)],
+        c,
+      );
+      const [updated] = await this.db.query(
+        `UPDATE asset_change_requests
+         SET status='APPROVED',reviewed_by=$2,review_reason=$3,reviewed_at=now()
+         WHERE id=$1 RETURNING *`,
+        [requestId, req.user.id, input.reason],
+        c,
+      );
+      await this.db.audit(c, req.user, 'asset_change_request', requestId, 'APPROVED', {
+        reason: input.reason,
+        fields: Object.keys(changes),
+      });
+      await this.db.audit(c, req.user, 'asset', request.asset_id, 'ASSET_UPDATED_BY_APPROVAL', {
+        requestId,
+        fields: Object.keys(changes),
+      });
+      return { request: camel(updated), asset: camel(after) };
     });
   }
   async assign(
@@ -325,8 +493,8 @@ export class AssetDomain extends MasterDomain {
           if (!old) throw new ConflictException('There is no current custody to reassign');
           if (old.user_id === data.userId)
             throw new ConflictException('Employee already holds this asset');
-        } else if (old || asset.status !== 'In Store')
-          throw new ConflictException('Asset must be In Store without current custody');
+        } else if (old || !['In Store', 'Ready to Assign'].includes(asset.status))
+          throw new ConflictException('Asset must be In Store or Ready to Assign without current custody');
         const user = await eligibleEmployee(this.db, data.userId, c, options.allowInvited === true);
         if (old) {
           await this.db.query(
@@ -352,7 +520,7 @@ export class AssetDomain extends MasterDomain {
           c,
         );
         const [updated] = await this.db.query(
-          "UPDATE assets SET status='Assigned',version=version+1,updated_at=now() WHERE id=$1 RETURNING version",
+          "UPDATE assets SET status='In Use',version=version+1,updated_at=now() WHERE id=$1 RETURNING version",
           [assetId],
           c,
         );
@@ -410,6 +578,50 @@ export class AssetDomain extends MasterDomain {
       },
     );
   }
+  async receiveIntoStore(req: AuthRequest, assetId: string, body: unknown) {
+    assertCanSomewhere(req.user, 'asset.custody');
+    id(assetId);
+    const data = parse(
+      z.object({ locationId: z.string().uuid(), note: text(5000) }).strict(),
+      body,
+    );
+    return this.db.tx(async (c) => {
+      const asset = found(
+        (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
+      );
+      assertCan(req.user, 'asset.custody', asset.owning_team_id);
+      const [location] = await this.db.query(
+        "SELECT id FROM locations WHERE id=$1 AND active AND level IN ('STORE','RACK')",
+        [data.locationId],
+        c,
+      );
+      if (!location) throw new UnprocessableEntityException('Choose an active store or rack location');
+      const [assignment] = await this.db.query(
+        'SELECT id FROM assignments WHERE asset_id=$1 AND ended_at IS NULL',
+        [assetId],
+        c,
+      );
+      if (assignment) throw new ConflictException('Return current custody before receiving into store');
+      if (terminal.has(asset.status)) throw new ConflictException('Terminal assets cannot be received into store');
+      await this.db.query(
+        "UPDATE assets SET location_id=$2,status='In Store',version=version+1,updated_at=now() WHERE id=$1 RETURNING *",
+        [assetId, data.locationId],
+        c,
+      );
+      await this.db.query(
+        'INSERT INTO asset_movements(asset_id,kind,from_location_id,to_location_id,reason,actor_id) VALUES($1,\'RELOCATE\',$2,$3,$4,$5)',
+        [assetId, asset.location_id, data.locationId, data.note, req.user.id],
+        c,
+      );
+      await this.db.audit(c, req.user, 'asset', assetId, 'ASSET_RECEIVED_IN_STORE', {
+        fromLocationId: asset.location_id,
+        toLocationId: data.locationId,
+        note: data.note,
+      });
+      return this.asset(req, assetId, c);
+    });
+  }
+
   async returnAsset(req: AuthRequest, assignmentId: string, body: unknown) {
     assertCanSomewhere(req.user, 'asset.custody');
     id(assignmentId);

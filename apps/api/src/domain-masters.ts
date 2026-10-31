@@ -5,6 +5,7 @@ import { Db } from './db';
 import { AuthRequest, assertVersion } from './security';
 import { assertCan } from './policy';
 import { camel, found, id, parse, text } from './domain-helpers';
+import { LOCATION_PATHS_SQL } from './locations';
 import {
   createTeamOrProject,
   isTeamMasterKind,
@@ -105,16 +106,39 @@ const referencePatch = referenceCreate
 export class MasterDomain {
   constructor(protected readonly db: Db) {}
   async references() {
-    const [values, departments, locations] = await Promise.all([
+    const [values, departments, locations, categoryPolicies] = await Promise.all([
       this.db.query(
         'SELECT kind,code,label,active,version FROM reference_values ORDER BY kind,label,code',
       ),
       this.db.query('SELECT id,code,name,active,version FROM departments ORDER BY name,code'),
+      this.db
+        .query(
+          `${LOCATION_PATHS_SQL}
+           SELECT l.id,l.code,l.site,l.building,l.floor,l.room,l.name,l.level,l.parent_id,tree.path,l.active,l.version
+           FROM locations l LEFT JOIN tree ON tree.id=l.id ORDER BY tree.path NULLS LAST,l.code`,
+        )
+        .then((rows) => rows.map(camel)),
       this.db.query(
-        'SELECT id,code,site,building,floor,room,active,version FROM locations ORDER BY code',
+        `SELECT p.category_code,p.handling_team_id,p.version,
+                coalesce(array_agg(DISTINCT ct.team_id) FILTER (WHERE ct.team_id IS NOT NULL),'{}') AS team_ids
+         FROM category_policies p
+         LEFT JOIN category_teams ct USING (category_code)
+         GROUP BY p.category_code,p.handling_team_id,p.version
+         ORDER BY p.category_code`,
       ),
     ]);
-    return { values, departments, locations, ...(await teamAndProjectLists(this.db)) };
+    return {
+      values,
+      departments,
+      locations,
+      categoryPolicies: categoryPolicies.map((row) => ({
+        categoryCode: row.category_code,
+        handlingTeamId: row.handling_team_id,
+        teamIds: row.team_ids,
+        version: row.version,
+      })),
+      ...(await teamAndProjectLists(this.db)),
+    };
   }
   async setTicketCategoryTeam(req: AuthRequest, category: string, body: unknown) {
     assertCan(req.user, 'system.admin');

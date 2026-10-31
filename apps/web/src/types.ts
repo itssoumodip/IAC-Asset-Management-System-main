@@ -83,6 +83,7 @@ export interface Asset {
   projectId?: string | null;
   status: string;
   version: number;
+  identifiers?: AssetIdentifier[];
   manufacturer?: string;
   model?: string;
   serialNumber?: string;
@@ -107,6 +108,7 @@ export interface Asset {
   nextAuditDate?: string;
   lastAuditDate?: string;
   lastLabelPrintedAt?: string | null;
+  hasPhoto?: boolean;
   remarks?: string;
   financePending?: boolean;
   financeStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -116,6 +118,13 @@ export interface Asset {
   kitParent?: { id: string; assetCode: string } | null;
   timeline?: TimelineEvent[];
   [key: string]: unknown;
+}
+export interface AssetIdentifier {
+  id: string;
+  kind: 'QR' | 'BARCODE' | 'NFC' | 'RFID';
+  value: string;
+  createdAt?: string;
+  createdBy?: string | null;
 }
 export interface TimelineEvent {
   id: string;
@@ -170,6 +179,9 @@ export interface LocationReference {
   floor?: string | null;
   room?: string | null;
   name?: string;
+  path?: string;
+  level?: string;
+  parentId?: string | null;
   active: boolean;
   version: number;
 }
@@ -263,7 +275,7 @@ export interface ScanView {
     acknowledgement: string;
     assignedAt: string;
   } | null;
-  location: { site: string; floor: string | null; room: string | null } | null;
+  location: { site: string; floor: string | null; room: string | null; path?: string } | null;
   status: string;
   hasPhoto: boolean;
   reportable: boolean;

@@ -174,7 +174,12 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
     assert.equal(result.body.custodian.designation, 'Speech Therapist');
     assert.equal(result.body.custodian.department, `${tag}-dept`);
     assert.equal(result.body.custodian.acknowledgement, 'PENDING');
-    assert.deepEqual(result.body.location, { site: `${tag} site`, floor: '2', room: '204' });
+    assert.deepEqual(result.body.location, {
+      site: `${tag} site`,
+      floor: '2',
+      room: '204',
+      path: `${tag} site › 2 › 204`,
+    });
     assert.equal((await scan(itAdmin)).status, 200);
   });
 
@@ -205,6 +210,32 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
     const result = await scan(other, ` ${asset.assetCode.toLowerCase()} `);
     assert.equal(result.status, 200);
     assert.equal(result.body.id, asset.id);
+  });
+
+  it('scans a custom QR identifier and returns identifiers on the full asset view', async () => {
+    await db.query(
+      "INSERT INTO asset_identifiers(asset_id,kind,value,created_by) VALUES($1,'QR',$2,$3)",
+      [asset.id, `QR-${tag}`, admin.id],
+    );
+    const result = await scan(other, ` QR-${tag} `);
+    assert.equal(result.status, 200);
+    assert.equal(result.body.id, asset.id);
+    const detail = await get(admin, `/assets/${asset.id}`);
+    assert.equal(detail.status, 200);
+    assert.ok(detail.body.identifiers.some((item: any) => item.kind === 'QR' && item.value === `QR-${tag}`));
+    const add = await fetch(`${base}/assets/${asset.id}/identifiers`, {
+      method: 'POST',
+      headers: { ...headers(admin), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'NFC', value: `NFC-${tag}`, reason: 'Attach NFC tag' }),
+    });
+    assert.equal(add.status, 201);
+    const added = await add.json();
+    const remove = await fetch(`${base}/assets/${asset.id}/identifiers/${added.id}`, {
+      method: 'DELETE',
+      headers: { ...headers(admin), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Replace NFC tag' }),
+    });
+    assert.equal(remove.status, 200);
   });
 
   it('unknown code 404, unauthenticated 401', async () => {

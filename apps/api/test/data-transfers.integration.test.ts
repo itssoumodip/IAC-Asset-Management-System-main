@@ -324,6 +324,36 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     assert.equal(stored.source_sha256, 'a'.repeat(64));
     assert.equal((await commit(admin, batch)).status, 409);
   });
+
+  it('returns a row-level category ownership error while previewing other valid asset rows', async () => {
+    const locationCode = `TR-${randomUUID().slice(0, 8).toUpperCase()}`;
+    await db.query('INSERT INTO locations(code,site,floor,room) VALUES($1,$2,$3,$4)', [
+      locationCode,
+      tag,
+      '1',
+      '1',
+    ]);
+    const base = {
+      action: 'CREATE',
+      category: 'Furniture',
+      assetType: 'Chair',
+      description: `${tag} chair`,
+      ownershipType: assetInput.ownershipType,
+      status: 'In Store',
+      condition: assetInput.condition,
+      riskLevel: assetInput.riskLevel,
+      locationCode,
+    };
+    const batch = await preview(admin, 'assets', [
+      { ...base, owningTeamCode: 'ADM' },
+      { ...base, description: `${tag} invalid chair`, owningTeamCode: 'IT' },
+    ]);
+    assert.equal(batch.valid, false);
+    assert.equal(batch.rows[0].valid, true);
+    assert.equal(batch.rows[1].valid, false);
+    assert.match(batch.rows[1].errors[0], /category|team/i);
+  });
+
   it('commits atomically, returns one stored receipt on repeats, binds the actor and protects source payload', async () => {
     const rows = [1, 2].map((index) => ({
       action: 'CREATE',

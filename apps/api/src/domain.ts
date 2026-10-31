@@ -43,7 +43,7 @@ export class DomainService extends ImportDomain {
     const assetValues: any[] = [];
     const assetWhere = assetScope(req.user, assetValues);
     const [assets] = await this.db.query(
-      `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status='Assigned')::int AS assigned,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${can(req.user, 'asset.view_private') ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
+      `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status IN ('Assigned','In Use'))::int AS assigned,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${can(req.user, 'asset.view_private') ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
       assetValues,
     );
     const pendingValues: any[] = [req.user.id];
@@ -246,6 +246,18 @@ export class DomainController {
   ) {
     return etag(res, await this.service.editAsset(req, id, body));
   }
+  @Get('asset-change-requests')
+  changeRequests(@Req() req: AuthRequest) {
+    return this.service.changeRequests(req);
+  }
+  @Put('asset-change-requests/:id')
+  reviewChangeRequest(
+    @Req() req: AuthRequest,
+    @Param('id') requestId: string,
+    @Body() body: unknown,
+  ) {
+    return this.service.reviewChangeRequest(req, requestId, body);
+  }
   @Post('assets/:id/assignments') async assign(
     @Req() req: AuthRequest,
     @Param('id') id: string,
@@ -261,6 +273,14 @@ export class DomainController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return etag(res, await this.service.assign(req, id, body, true));
+  }
+  @Post('assets/:id/receive') async receiveIntoStore(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return etag(res, await this.service.receiveIntoStore(req, id, body));
   }
   @Post('assets/:id/kit') async attachKitPart(
     @Req() req: AuthRequest,

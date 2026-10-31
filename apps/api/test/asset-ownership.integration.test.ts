@@ -230,7 +230,7 @@ describe(
         userId: employee.id,
       });
       const assigned = await service.asset(request(superAdmin), printer.id);
-      assert.equal(assigned.status, 'Assigned');
+      assert.equal(assigned.status, 'In Use');
       assert.equal(assigned.locationId, locationId);
       assert.equal(assigned.currentAssignment.userId, employee.id);
     });

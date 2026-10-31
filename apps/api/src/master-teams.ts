@@ -75,7 +75,7 @@ export async function teamAndProjectLists(db: Db) {
        FROM projects ORDER BY name,code`,
     ),
     db.query(
-      `SELECT asset_type_code,requires_custodian,owning_team_id,handling_team_id FROM asset_type_policies ORDER BY 1`,
+      `SELECT asset_type_code,requires_custodian,owning_team_id,handling_team_id,category_code FROM asset_type_policies ORDER BY 1`,
     ),
     db.query('SELECT category_code,team_id FROM ticket_category_teams ORDER BY 1'),
   ]);

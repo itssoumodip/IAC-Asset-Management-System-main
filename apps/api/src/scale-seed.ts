@@ -100,7 +100,7 @@ export async function seedScale(
          SELECT id,row_number() OVER (ORDER BY email) AS rn FROM users WHERE email LIKE $1||'-%@example.invalid'),
        picked AS (
          SELECT id,row_number() OVER (ORDER BY asset_code) AS rn FROM assets
-         WHERE description LIKE $1||' %' AND status='Assigned')
+         WHERE description LIKE $1||' %' AND status IN ('Assigned','In Use'))
        INSERT INTO assignments(asset_id,user_id,assigned_by)
        SELECT p.id,h.id,h.id FROM picked p JOIN holders h ON h.rn=1+p.rn%40 WHERE p.rn%10=0`,
       [label],

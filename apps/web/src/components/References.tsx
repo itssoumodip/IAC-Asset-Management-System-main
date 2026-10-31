@@ -39,6 +39,7 @@ export function referenceLabel(
 }
 export function locationLabel(item: LocationReference) {
   return (
+    item.path ||
     item.name ||
     [item.site, item.building, item.floor, item.room].filter(Boolean).join(' / ') ||
     item.code

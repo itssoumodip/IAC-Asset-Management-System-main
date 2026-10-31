@@ -382,6 +382,7 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       assetType: 'Laptop',
       owningTeamId: ADM,
       description: tag + ' super admin override',
+      overrideReason: 'Synthetic cross-team ownership test',
     });
     assert.equal(overridden.owningTeamId, ADM);
 

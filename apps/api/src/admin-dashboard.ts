@@ -70,7 +70,7 @@ export class AdminDashboardService {
         coalesce(sum(a.purchase_cost) FILTER(WHERE ${priced} AND ${inFy}),0)::float8 AS fy_spend,
         ${fyStart} AS fy_start,
         count(*) FILTER(WHERE a.purchase_cost IS NULL)::int AS missing_cost,
-        count(*) FILTER(WHERE a.status='Assigned')::int AS assigned,
+        count(*) FILTER(WHERE a.status IN ('Assigned','In Use'))::int AS assigned,
         count(*) FILTER(WHERE a.warranty_expiry BETWEEN ${TODAY} AND ${TODAY}+30)::int AS warranty_expiring,
         (SELECT count(*)::int FROM tickets t WHERE t.status<>'COMPLETED' AND ${ticketAsset}) AS open_tickets
        FROM assets a WHERE ${assetWhere}`,

@@ -87,3 +87,42 @@ Each phase ends with tests passing and a demo.
 
 - This software is single-organisation today. The spec says "multi-tenant-safe"; if several companies will share one install, that is extra work (about 2 weeks) and should be confirmed.
 - Estimates assume one developer with an AI assistant and include tests.
+
+## 5. Build order (agreed 2026-10-30)
+
+One opencode prompt at a time; check each result before starting the next.
+
+| # | Work | Client input needed | Status |
+|---|---|---|---|
+| 1 | Phase 1: location tree, new statuses, tags (QR/barcode/NFC, RFID-ready), store receiving. Prompt: `docs/superpowers/opencode-prompt-phase1.md` | No | In progress (location tree API done: migration 028, `apps/api/src/locations.ts`) |
+| 2 | Asset page with tabs: Summary, Details, Tickets, Users, History (new file, not inside `Assets.tsx`) | No | Prompt to be rewritten |
+| 3 | Phase 2: roles (Store, Auditor, Technician, Insurer), field visibility per role, approval for overwriting another role's data | Insurer fields | Waiting |
+| 4 | Phase 4: periodic user verification with escalation, auditor scan mode, user-vs-auditor gap report | Escalation rule | Waiting |
+| 5 | Request cart: product catalog, cart, approvals, fulfil | No | Not started (earlier attempt deleted) |
+| 6 | Phase 5: transfer approval, preventive maintenance, warranty/AMC emails, location dashboard | No | Not started |
+| 7 | Phase 3: depreciation and fixed asset register | Method, rates, format | Waiting |
+
+**Ask the client now:** (1) exact Insurer fields; (2) who is notified, and after how many days, when a user does not confirm; (3) depreciation method (SLM/WDV), rates and register format.
+
+**Lessons from the failed opencode run (put in every prompt):** small steps with typecheck after each edit; never rewrite `Assets.tsx`, put new screens in new files; never hand-pick asset codes in tests; no global jsdom in vitest; no commits; report real test numbers.
+
+## 6. Asset page layout (step 2 detail, from the client's Zoho screen)
+
+Build as a NEW file `apps/web/src/components/AssetDetail.tsx`; `Assets.tsx` only imports it. Keep every feature the current page has (photo, kit, custody, return form, correction request, finance review, history).
+
+**Header:** back link "← Asset catalog"; asset code; name and model (e.g. "iPhone 17 Pro Max"); badges for status (e.g. Active / Ready to Assign) and owning team; **Edit** button and a ⋮ menu (Assign/Transfer, Print label, Report a problem), each shown only if the user may do it.
+
+**Tabs** (selected tab kept in the URL, `?tab=`):
+1. **Summary**
+   - **Work orders** for this asset (open tickets). Empty: "No work order found. Please check back later or create a new work order if needed." with a "Report a problem" link.
+   - **Recent maintenance** with a **+** to add one. Empty: "No maintenance found." (Placeholder until preventive maintenance is built in step 6.)
+   - **Depreciation** box, visible only to Finance / Super Admin / Executive: Purchased cost, Current value, Depreciated value, Depreciation %, End of life (purchase date + useful life), Expense cost. Until step 7 (depreciation rules), show purchased cost and end of life, and "—" with a short note for the calculated values. Never show made-up numbers.
+2. **Product details:** all asset fields in a two-column label/value grid (current Asset overview, Configuration, Coverage & dates; Finance metadata hidden as today).
+3. **Work orders:** all tickets for the asset, open and closed.
+4. **Maintenance:** maintenance records (placeholder until step 6).
+5. **Asset users:** everyone who held it: name, from, to, how it ended.
+6. **History:** the existing timeline.
+
+**Right column (all tabs):** barcode/QR image of the asset code with the code under it; key facts (Serial number, Product, Model, Category, Subcategory, Location path); **Current user** card (photo or initials, name, role/department), or the room for room-held items, or "Not assigned".
+
+**Phone width:** the right column moves above the tabs; the tab bar scrolls sideways.

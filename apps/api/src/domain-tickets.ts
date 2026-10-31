@@ -129,7 +129,12 @@ export class TicketDomain extends AssetDomain {
       if (data.assetId) {
         // Serialize custody snapshot with return/reassign so the recorded assignment was current.
         const [asset] = await this.db.query(
-          'SELECT a.status,a.owning_team_id,p.handling_team_id FROM assets a LEFT JOIN asset_type_policies p ON p.asset_type_code=a.asset_type WHERE a.id=$1 FOR UPDATE OF a',
+          `SELECT a.status,a.owning_team_id,
+                  coalesce(cp.handling_team_id,p.handling_team_id) AS handling_team_id
+           FROM assets a
+           LEFT JOIN asset_type_policies p ON p.asset_type_code=a.asset_type
+           LEFT JOIN category_policies cp ON cp.category_code=a.category
+           WHERE a.id=$1 FOR UPDATE OF a`,
           [data.assetId],
           c,
         );

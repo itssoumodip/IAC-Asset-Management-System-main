@@ -5,7 +5,10 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO iac_runtime;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM iac_runtime;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO iac_runtime;
-GRANT INSERT,UPDATE ON reference_values,departments,locations,users,assets,asset_photos,assignments,tickets,import_batches,import_rows,notification_groups,data_transfers TO iac_runtime;
+GRANT INSERT,UPDATE ON role_field_permissions TO iac_runtime;
+GRANT INSERT,UPDATE ON asset_change_requests TO iac_runtime;
+GRANT INSERT,UPDATE,DELETE ON asset_identifiers TO iac_runtime;
+GRANT INSERT,UPDATE ON reference_values,departments,locations,location_levels,users,assets,asset_photos,assignments,tickets,import_batches,import_rows,notification_groups,data_transfers TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON user_roles,approved_emails,sessions,auth_tokens,mfa_recovery_codes,mfa_enrollments,auth_rate_limits,notification_recipients,idempotency_keys TO iac_runtime;
 GRANT INSERT ON audit_events,assignment_events,asset_movements,ticket_updates,email_attempts TO iac_runtime;
 GRANT INSERT,UPDATE ON notification_outbox,email_deliveries TO iac_runtime;
@@ -24,3 +27,5 @@ GRANT INSERT,UPDATE,DELETE ON team_memberships TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON team_view_grants TO iac_runtime;
 -- No DELETE on assets/custody/tickets; no UPDATE/DELETE on immutable evidence.
 -- Reapply explicit grants after new migrations. Do not grant schema ownership.
+GRANT SELECT,INSERT,UPDATE ON category_policies TO iac_runtime;
+GRANT SELECT,INSERT,UPDATE,DELETE ON category_teams TO iac_runtime;

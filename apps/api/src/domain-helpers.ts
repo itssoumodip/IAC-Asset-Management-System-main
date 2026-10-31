@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Actor, AuthRequest } from './security';
 import { Db } from './db';
-import { can, teamsFor, type Action } from './policy';
+import { can, teamsFor, visibleAssetFields, type Action } from './policy';
 export const IT_TEAM_ID = '00000000-0000-4000-8000-000000000001';
 export const ADM_TEAM_ID = '00000000-0000-4000-8000-000000000002';
 export const PRJ_TEAM_ID = '00000000-0000-4000-8000-000000000003';
@@ -35,6 +35,10 @@ export const statuses = [
   'Active',
   'In Store',
   'Assigned',
+  'In Use',
+  'Ready to Assign',
+  'Broken',
+  'Scrapped',
   'Under Repair',
   'Lost',
   'Stolen',
@@ -44,8 +48,8 @@ export const statuses = [
   'Under Verification',
   'Sold',
 ] as const;
-export const NON_REPORTABLE_STATUSES = ['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen'] as const;
-export const terminal = new Set(['Retired', 'Disposed', 'Sold']);
+export const NON_REPORTABLE_STATUSES = ['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen', 'Scrapped'] as const;
+export const terminal = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
 export const assetInput = z
   .object({
     category: text(100),
@@ -89,7 +93,10 @@ export const assetInput = z
     commentType: optionalText(),
   })
   .strict();
-export const assetPatch = assetInput.partial().extend({ reason: text() }).strict();
+export const assetPatch = assetInput
+  .partial()
+  .extend({ reason: text(), overrideReason: optionalText(1000) })
+  .strict();
 export const ticketInput = z
   .object({
     assetId: uuid.optional(),
@@ -172,6 +179,7 @@ export function requestPage(query: any, fields: string[]) {
         departmentId: uuid.optional(),
         owningTeamId: uuid.optional(),
         projectId: uuid.optional(),
+        locationId: uuid.optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
         teamId: uuid.optional(),
@@ -222,6 +230,13 @@ export function page(rows: any[], limit: number, fields: string[]) {
  */
 export function assetScope(actor: Actor, values: any[]) {
   if (actor.roles.some((r) => ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r))) return 'TRUE';
+  if (actor.roles.includes('TECHNICIAN')) {
+    values.push(actor.id);
+    return `EXISTS(
+      SELECT 1 FROM tickets assigned_ticket
+      WHERE assigned_ticket.asset_id=a.id AND assigned_ticket.owner_id=$${values.length}
+    )`;
+  }
   const clauses: string[] = [];
   const teamIds = (actor.teams ?? []).map((t) => t.teamId);
   if (!teamIds.length) {
@@ -317,7 +332,11 @@ export const privateAssetColumns = [
   'updated_at',
 ];
 export function assetColumns(actor: Actor) {
-  return [...employeeAssetColumns, ...(can(actor, 'asset.view_private') ? privateAssetColumns : [])]
+  const insurerFields = visibleAssetFields(actor);
+  const columns = insurerFields.length
+    ? ['id', 'asset_code', 'version', ...insurerFields]
+    : [...employeeAssetColumns, ...(can(actor, 'asset.view_private') ? privateAssetColumns : [])];
+  return columns
     .map((c) => `a.${c}`)
     .join(',');
 }
@@ -431,7 +450,14 @@ export async function validateReference(
   );
   if (!value) throw new UnprocessableEntityException(`Invalid or inactive ${field}`);
 }
-export async function validateAsset(db: Db, data: any, c: PoolClient, previous?: any, actor?: Actor) {
+export async function validateAsset(
+  db: Db,
+  data: any,
+  c: PoolClient,
+  previous?: any,
+  actor?: Actor,
+  overrideReason?: string,
+) {
   for (const [key, kind] of [
     ['category', 'CATEGORY'],
     ['assetType', 'ASSET_TYPE'],
@@ -487,7 +513,7 @@ export async function validateAsset(db: Db, data: any, c: PoolClient, previous?:
     throw new UnprocessableEntityException(
       'Terminal assets require disposal date and evidence reference',
     );
-  await validateOwnership(db, data, c, previous, actor);
+  await validateOwnership(db, data, c, previous, actor, overrideReason);
 }
 const fieldIssue = (field: string, message: string) =>
   new UnprocessableEntityException({
@@ -495,7 +521,14 @@ const fieldIssue = (field: string, message: string) =>
     fields: { formErrors: [], fieldErrors: { [field]: [message] } },
   });
 /** Owning team, project/grant tag and room-held asset type rules. */
-async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: any, actor?: Actor) {
+async function validateOwnership(
+  db: Db,
+  data: any,
+  c: PoolClient,
+  previous?: any,
+  actor?: Actor,
+  overrideReason?: string,
+) {
   const teamId = data.owningTeamId ?? IT_TEAM_ID;
   const [team] = await db.query(
     'SELECT active,requires_project FROM teams WHERE id=$1 FOR SHARE',
@@ -527,13 +560,45 @@ async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: an
   if (policy && !policy.requires_custodian && !data.locationId && typeOrLocationChanged)
     throw fieldIssue('locationId', 'This asset type is kept in a room; choose a location');
 
-  const typeOrTeamChanged = !previous || previous.assetType !== data.assetType || previous.owningTeamId !== data.owningTeamId;
-  if (typeOrTeamChanged && policy?.owning_team_id && !actor?.roles?.includes('SUPER_ADMIN')) {
-    const isOwner = policy.owning_team_id === teamId;
-    const isProjectsUsingAdminFacility = teamId === PRJ_TEAM_ID && policy.owning_team_id === ADM_TEAM_ID;
-    if (!isOwner && !isProjectsUsingAdminFacility) {
-      throw fieldIssue('assetType', 'This asset type belongs to another team');
+  const categoryOrTeamChanged =
+    !previous ||
+    previous.category !== data.category ||
+    previous.assetType !== data.assetType ||
+    previous.owningTeamId !== data.owningTeamId;
+  if (categoryOrTeamChanged) {
+    const [type] = await db.query(
+      'SELECT category_code,owning_team_id FROM asset_type_policies WHERE asset_type_code=$1',
+      [data.assetType],
+      c,
+    );
+    const [category] = await db.query(
+      `SELECT p.category_code,array_agg(ct.team_id) AS teams
+       FROM category_policies p LEFT JOIN category_teams ct USING (category_code)
+       WHERE p.category_code=$1 GROUP BY p.category_code`,
+      [data.category],
+      c,
+    );
+    if (!category) {
+      if (
+        type?.owning_team_id &&
+        type.owning_team_id !== teamId &&
+        !(teamId === PRJ_TEAM_ID && type.owning_team_id === ADM_TEAM_ID)
+      ) {
+        if (!actor?.roles?.includes('SUPER_ADMIN') || !overrideReason)
+          throw fieldIssue('assetType', 'This asset type belongs to another team');
+      }
+      return;
     }
+    const categoryTeams = category.teams ?? [];
+    const categoryAllowed = categoryTeams.includes(teamId);
+    if (!categoryAllowed) {
+      if (!actor?.roles?.includes('SUPER_ADMIN') || !overrideReason)
+        throw fieldIssue('category', 'This category belongs to another team');
+    }
+    if (!type || (type.category_code && type.category_code !== data.category))
+      throw fieldIssue('assetType', 'Choose a subcategory of the selected category');
+    if (actor?.roles?.includes('SUPER_ADMIN') && !categoryAllowed && !overrideReason)
+      throw fieldIssue('category', 'An override reason is required');
   }
 }
 export async function eligibleEmployee(

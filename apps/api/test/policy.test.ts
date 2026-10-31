@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { ForbiddenException } from '@nestjs/common';
 import {
   can, assertCan, teamsFor, capabilities, privileged, TEAM_SCOPED, FINANCE_FIELDS, WRITE_OFF_STATUSES,
-  type Action, type PolicyActor
+  type Action, type PolicyActor, approvalOwner, visibleAssetFields
 } from '../src/policy';
 
 const IT = '00000000-0000-4000-8000-000000000001';
@@ -29,7 +29,7 @@ const grants: Array<[string, PolicyActor, Set<Action>, Set<Action>]> = [
   ['super admin', sa, new Set(ALL), new Set(ALL)],
   ['IT lead', itLead, new Set([...TEAM_ALL, ...ANY_TEAM]), new Set(ANY_TEAM)],
   ['IT member', itMember, new Set([...MEMBER_OWN, ...ANY_TEAM]), new Set(ANY_TEAM)],
-  ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit'])],
+  ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'report.view'])],
   ['executive', exec, new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view'])],
   ['employee', employee, new Set<Action>(), new Set<Action>()]
 ];
@@ -107,12 +107,50 @@ test('capabilities is JSON-serialisable and splits global vs team', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(c)), c);
   assert.deepEqual(new Set(capabilities(sa).global), new Set(ALL));
   assert.deepEqual(capabilities(employee), { global: [], teams: {} });
-  assert.deepEqual(new Set(capabilities(finance).global), new Set(['asset.view_all', 'asset.view_private', 'asset.finance_edit']));
+  assert.deepEqual(new Set(capabilities(finance).global), new Set(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'report.view']));
 });
 
 test('constants', () => {
   assert.deepEqual([...TEAM_SCOPED].sort(), [...TEAM_ALL].sort());
   assert.equal(FINANCE_FIELDS.length, 11);
   assert.ok(FINANCE_FIELDS.includes('financePending'));
-  assert.deepEqual([...WRITE_OFF_STATUSES].sort(), ['Disposed', 'Lost', 'Retired', 'Sold', 'Stolen']);
+  assert.deepEqual([...WRITE_OFF_STATUSES].sort(), ['Disposed', 'Lost', 'Retired', 'Scrapped', 'Sold', 'Stolen']);
+});
+
+test('Phase 2 roles have focused capability grants', () => {
+  const store: PolicyActor = { roles: ['STORE'] };
+  const auditor: PolicyActor = { roles: ['AUDITOR'] };
+  const technician: PolicyActor = { roles: ['TECHNICIAN'] };
+  const insurer: PolicyActor = { roles: ['INSURER'] };
+  const procurement: PolicyActor = { roles: ['PROCUREMENT'] };
+  assert.equal(can(store, 'asset.view_all'), true);
+  assert.equal(can(store, 'asset.custody'), true);
+  assert.equal(can(auditor, 'asset.view_all'), true);
+  assert.equal(can(auditor, 'asset.view_private'), false);
+  assert.equal(can(auditor, 'report.view'), true);
+  assert.equal(can(technician, 'asset.view_all'), true);
+  assert.equal(can(technician, 'asset.view_private'), false);
+  assert.equal(can(technician, 'ticket.work'), true);
+  assert.equal(can(insurer, 'asset.view_all'), true);
+  assert.equal(can(procurement, 'asset.view_all'), true);
+  for (const actor of [store, auditor, technician, insurer, procurement]) {
+    assert.equal(can(actor, 'asset.edit'), false);
+    assert.equal(can(actor, 'asset.retire'), false);
+    assert.equal(can(actor, 'asset.finance_edit'), false);
+  }
+});
+
+test('Insurer sees only approved asset fields', () => {
+  const fields = visibleAssetFields({ roles: ['INSURER'] });
+  assert.deepEqual(fields, ['description', 'purchase_cost', 'purchase_date']);
+  assert.ok(!fields.includes('supplier'));
+  assert.ok(!fields.includes('serial_number'));
+});
+
+test('protected edits identify one owning role for approval', () => {
+  assert.equal(approvalOwner(['location_id'], ['EMPLOYEE']), 'STORE');
+  assert.equal(approvalOwner(['condition'], ['EMPLOYEE']), 'TECHNICIAN');
+  assert.equal(approvalOwner(['location_id', 'condition'], ['EMPLOYEE']), null);
+  assert.equal(approvalOwner(['location_id'], ['STORE']), null);
+  assert.equal(approvalOwner(['status'], ['SUPER_ADMIN']), null);
 });

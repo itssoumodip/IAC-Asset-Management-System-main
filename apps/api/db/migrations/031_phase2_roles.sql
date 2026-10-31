@@ -1,0 +1,23 @@
+BEGIN;
+
+DO $$
+DECLARE c text;
+BEGIN
+  FOR c IN SELECT conname FROM pg_constraint
+    WHERE conrelid='roles'::regclass AND contype='c'
+  LOOP
+    EXECUTE format('ALTER TABLE roles DROP CONSTRAINT %I', c);
+  END LOOP;
+END $$;
+
+ALTER TABLE roles ADD CONSTRAINT roles_code_valid
+  CHECK (code IN (
+    'ADMIN','IT_ADMIN','EMPLOYEE','SUPER_ADMIN','FINANCE','EXECUTIVE',
+    'STORE','AUDITOR','TECHNICIAN','INSURER','PROCUREMENT'
+  ));
+
+INSERT INTO roles(code) VALUES
+  ('STORE'),('AUDITOR'),('TECHNICIAN'),('INSURER'),('PROCUREMENT')
+ON CONFLICT DO NOTHING;
+
+COMMIT;

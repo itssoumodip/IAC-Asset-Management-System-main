@@ -23,6 +23,9 @@ import { Directory } from './components/Directory';
 import { FinanceReview } from './components/FinanceReview';
 import { PushAnnouncements } from './components/PushAnnouncements';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
+import { Locations } from './components/Locations';
+import { FieldPermissions } from './components/FieldPermissions';
+import { ChangeRequests } from './components/ChangeRequests';
 import { useAction } from './hooks';
 import type { Action } from './types';
 function Guard({ action, anyOf }: { action?: Action; anyOf?: Action[] }) {
@@ -304,6 +307,18 @@ function Shell() {
                 </span>
                 Teams & projects
               </NavLink>
+              <NavLink to="/admin/locations">
+                <span className="nav-icon">
+                  <NavIcon name="master" />
+                </span>
+                Locations
+              </NavLink>
+              <NavLink to="/admin/field-permissions">
+                <span className="nav-icon">
+                  <NavIcon name="master" />
+                </span>
+                Field permissions
+              </NavLink>
               <NavLink to="/admin/directory">
                 <span className="nav-icon">
                   <NavIcon name="people" />
@@ -323,6 +338,14 @@ function Shell() {
                 Audit trail
               </NavLink>
             </>
+          ) : null}
+          {user.roles.some((role) => ['SUPER_ADMIN', 'STORE', 'AUDITOR', 'TECHNICIAN'].includes(role)) ? (
+            <NavLink to="/admin/change-requests">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Change approvals
+            </NavLink>
           ) : null}
         </nav>
         <div className="sidebar-footer">
@@ -628,6 +651,9 @@ export function App() {
             <Route element={<Guard action="system.admin" />}>
               <Route path="/master-control" element={<MasterControl />} />
               <Route path="/admin/teams" element={<TeamsAndProjects />} />
+              <Route path="/admin/locations" element={<Locations />} />
+              <Route path="/admin/field-permissions" element={<FieldPermissions />} />
+              <Route path="/admin/change-requests" element={<ChangeRequests />} />
               <Route path="/admin/directory" element={<Directory />} />
               <Route path="/admin/users" element={<UserAdmin />} />
               <Route path="/admin/audit" element={<AuditView />} />

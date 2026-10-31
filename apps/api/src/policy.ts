@@ -1,9 +1,22 @@
 import { ForbiddenException } from '@nestjs/common';
 
-export type GlobalRole = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE';
+export type GlobalRole =
+  | 'SUPER_ADMIN'
+  | 'FINANCE'
+  | 'EXECUTIVE'
+  | 'EMPLOYEE'
+  | 'STORE'
+  | 'AUDITOR'
+  | 'TECHNICIAN'
+  | 'INSURER'
+  | 'PROCUREMENT';
 export type TeamLevel = 'LEAD' | 'MEMBER';
 export interface TeamMembership { teamId: string; teamCode: string; level: TeamLevel }
-export interface PolicyActor { roles: string[]; teams?: TeamMembership[] }
+export interface PolicyActor {
+  roles: string[];
+  teams?: TeamMembership[];
+  assetViewFields?: string[];
+}
 export type Action =
   | 'asset.view_all' | 'asset.view_private' | 'asset.create' | 'asset.edit' | 'asset.custody'
   | 'asset.retire' | 'asset.import' | 'asset.label' | 'asset.photo' | 'asset.finance_edit'
@@ -20,7 +33,52 @@ export const FINANCE_FIELDS: readonly string[] = [
   'usefulLifeYears', 'invoiceNumber', 'supplier', 'insurancePolicyNumber', 'insuranceExpiry', 'financePending'
 ];
 
-export const WRITE_OFF_STATUSES: ReadonlySet<string> = new Set(['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen']);
+export const INSURER_ASSET_FIELDS: readonly string[] = [
+  'description',
+  'purchase_cost',
+  'purchase_date',
+];
+
+export const FIELD_PERMISSION_ROLES = [
+  'STORE',
+  'AUDITOR',
+  'TECHNICIAN',
+  'INSURER',
+  'PROCUREMENT',
+] as const;
+export const ASSET_PERMISSION_FIELDS = [
+  'description',
+  'purchase_cost',
+  'purchase_date',
+  'serial_number',
+  'location_id',
+  'status',
+  'condition',
+] as const;
+export const ASSET_FIELD_OWNERS: Readonly<Record<string, GlobalRole>> = {
+  description: 'AUDITOR',
+  purchase_cost: 'FINANCE',
+  purchase_date: 'FINANCE',
+  serial_number: 'AUDITOR',
+  location_id: 'STORE',
+  status: 'STORE',
+  condition: 'TECHNICIAN',
+};
+
+export function approvalOwner(fields: string[], roles: string[]): GlobalRole | null {
+  if (roles.includes('SUPER_ADMIN')) return null;
+  const owners = [...new Set(fields.map((field) => ASSET_FIELD_OWNERS[field]).filter(Boolean))];
+  const owner = owners[0];
+  if (owners.length !== 1 || !owner || roles.includes(owner)) return null;
+  return owner;
+}
+
+export function visibleAssetFields(actor: PolicyActor): string[] {
+  if (!actor.roles.includes('INSURER')) return [];
+  return actor.assetViewFields === undefined ? [...INSURER_ASSET_FIELDS] : actor.assetViewFields;
+}
+
+export const WRITE_OFF_STATUSES: ReadonlySet<string> = new Set(['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen', 'Scrapped']);
 
 interface Rule {
   superAdmin: boolean;
@@ -33,11 +91,13 @@ const R = (superAdmin: boolean, lead: boolean, member: boolean, roles: GlobalRol
   ({ superAdmin, lead, member, roles });
 
 const RULES: Record<Action, Rule> = {
-  'asset.view_all': R(true, true, true, ['FINANCE', 'EXECUTIVE']),
+  'asset.view_all': R(true, true, true, [
+    'FINANCE', 'EXECUTIVE', 'STORE', 'AUDITOR', 'TECHNICIAN', 'INSURER', 'PROCUREMENT'
+  ]),
   'asset.view_private': R(true, true, true, ['FINANCE', 'EXECUTIVE']),
   'asset.create': R(true, true, true),
   'asset.edit': R(true, true, true),
-  'asset.custody': R(true, true, true),
+  'asset.custody': R(true, true, true, ['STORE']),
   'asset.retire': R(true, true, false),
   'asset.import': R(true, true, false),
   'asset.label': R(true, true, true),
@@ -45,9 +105,9 @@ const RULES: Record<Action, Rule> = {
   'asset.finance_edit': R(true, false, false, ['FINANCE']),
   'asset.change_team': R(true, false, false),
   'team.manage_members': R(true, true, false),
-  'ticket.work': R(true, true, true),
+  'ticket.work': R(true, true, true, ['TECHNICIAN']),
   'announcement.send': R(true, true, true),
-  'report.view': R(true, false, false, ['EXECUTIVE']),
+  'report.view': R(true, false, false, ['EXECUTIVE', 'FINANCE', 'AUDITOR']),
   'system.admin': R(true, false, false)
 };
 
@@ -57,6 +117,8 @@ const levelOk = (rule: Rule, level: TeamLevel) => (level === 'LEAD' ? rule.lead 
 
 export function can(actor: PolicyActor, action: Action, teamId?: string): boolean {
   if (isSuper(actor)) return true;
+  if (action === 'asset.view_private' && actor.roles.some((role) => ['TECHNICIAN', 'AUDITOR'].includes(role)))
+    return false;
   const rule = RULES[action];
   if (rule.roles.some((r) => actor.roles.includes(r))) return true;
   const teams = actor.teams ?? [];
