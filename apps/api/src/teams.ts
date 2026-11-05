@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -76,6 +77,22 @@ export class TeamService {
     });
   }
 
+  /** Search active (onboarded) employees by email or name for team member lookup. */
+  async searchEmployees(req: AuthRequest, q: string) {
+    assertCan(req.user, 'team.manage_members');
+    const term = `%${q.trim().toLowerCase()}%`;
+    const rows = await this.db.query(
+      `SELECT u.id,u.display_name,u.email,u.state
+       FROM users u
+       WHERE u.state='ACTIVE'
+         AND (lower(u.email) LIKE lower($1) OR lower(u.display_name) LIKE lower($1))
+       ORDER BY u.display_name
+       LIMIT 10`,
+      [term],
+    );
+    return { items: rows.map((r) => ({ id: r.id, displayName: r.display_name, email: r.email })) };
+  }
+
   /** Shared path: permission, locks, audit and session revocation so access changes apply now. */
   private async change(
     req: AuthRequest,
@@ -130,6 +147,11 @@ export class TeamController {
   @Get(':id/members')
   members(@Req() req: AuthRequest, @Param('id') teamId: string) {
     return this.service.members(req, teamId);
+  }
+
+  @Get('search-employees')
+  searchEmployees(@Req() req: AuthRequest, @Query('q') q: string) {
+    return this.service.searchEmployees(req, q ?? '');
   }
 
   @Post(':id/members')

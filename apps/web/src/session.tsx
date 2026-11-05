@@ -55,3 +55,18 @@ export function roleLabel(role: Role) {
 export function teamChipLabel(team: TeamMembership) {
   return `${team.teamCode} · ${team.level === 'LEAD' ? 'Lead' : 'Member'}`;
 }
+export function isStore(user: User | undefined) {
+  return hasRole(user, 'STORE');
+}
+export function isTechnician(user: User | undefined) {
+  return hasRole(user, 'TECHNICIAN');
+}
+export function isAuditor(user: User | undefined) {
+  return hasRole(user, 'AUDITOR');
+}
+export function isInsurer(user: User | undefined) {
+  return hasRole(user, 'INSURER');
+}
+export function isProcurement(user: User | undefined) {
+  return hasRole(user, 'PROCUREMENT');
+}

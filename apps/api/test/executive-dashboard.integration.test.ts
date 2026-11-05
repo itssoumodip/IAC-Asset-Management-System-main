@@ -18,7 +18,7 @@ const letters = () =>
 
 describe('executive dashboard integration', { skip: !connection, concurrency: false }, () => {
   let app: INestApplication, db: Db, base: string;
-  let executive: any, member: any, teamId: string, projectId: string, prefix: string;
+  let executive: any, member: any, teamId: string, prefix: string;
   let counter = 0;
   const get = async (user: any) => {
     const response = await fetch(`${base}/dashboard/executive`, {
@@ -36,7 +36,6 @@ describe('executive dashboard integration', { skip: !connection, concurrency: fa
       status: 'In Store',
       purchase_cost: null as number | null,
       purchase_date: null as string | null,
-      project_id: null as string | null,
       warranty_expiry: null as string | null,
       amc_applies: false,
       amc_expiry: null as string | null,
@@ -46,14 +45,13 @@ describe('executive dashboard integration', { skip: !connection, concurrency: fa
     counter += 1;
     const [created] = await db.query(
       `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,
-         owning_team_id,project_id,purchase_cost,purchase_date,warranty_expiry,amc_applies,amc_expiry,finance_pending)
-       VALUES($1,'Cat','Type',$2,'Owned',$3,'Good','Low',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+         owning_team_id,purchase_cost,purchase_date,warranty_expiry,amc_applies,amc_expiry,finance_pending)
+       VALUES($1,'Cat','Type',$2,'Owned',$3,'Good','Low',$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [
         `IAC-${prefix}-${String(counter).padStart(6, '0')}`,
         `${tag} asset`,
         row.status,
         teamId,
-        row.project_id,
         row.purchase_cost,
         row.purchase_date,
         row.warranty_expiry,
@@ -104,11 +102,6 @@ describe('executive dashboard integration', { skip: !connection, concurrency: fa
     );
     teamId = team.id;
     await db.query('INSERT INTO team_asset_counters(team_id,next_value) VALUES($1,1)', [teamId]);
-    const [project] = await db.query(
-      `INSERT INTO projects(code,name) VALUES($1,$2) RETURNING id`,
-      [tag.slice(0, 40), `${tag} project`],
-    );
-    projectId = project.id;
   });
 
   after(async () => {
@@ -166,15 +159,12 @@ describe('executive dashboard integration', { skip: !connection, concurrency: fa
     assert.equal(after.openHighTickets - before.openHighTickets, 1);
   });
 
-  it('buckets spend by project and by Indian financial year', async () => {
+  it('buckets spend by Indian financial year', async () => {
     const before = (await get(executive)).body;
-    await asset({ project_id: projectId, purchase_cost: 100, purchase_date: '2020-03-31' });
-    await asset({ project_id: projectId, purchase_cost: 250, purchase_date: '2020-04-01' });
-    await asset({ project_id: projectId, purchase_cost: 40, purchase_date: '2020-04-02' });
+    await asset({ purchase_cost: 100, purchase_date: '2020-03-31' });
+    await asset({ purchase_cost: 250, purchase_date: '2020-04-01' });
+    await asset({ purchase_cost: 40, purchase_date: '2020-04-02' });
     const { body } = await get(executive);
-    const project = body.spendByProject.find((row: any) => row.projectId === projectId);
-    assert.deepEqual([project.spend, project.count], [390, 3]);
-    assert.equal(project.label, `${tag} project`);
     assert.equal(fyRow(body, 2019).spend - fyRow(before, 2019).spend, 100);
     assert.equal(fyRow(body, 2020).spend - fyRow(before, 2020).spend, 290);
     assert.equal(fyRow(body, 2020).count - fyRow(before, 2020).count, 2);

@@ -1,19 +1,28 @@
+import { useParams, Link } from 'react-router-dom';
 import { useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
 import { can, useSession } from '../session';
-import type { ProjectReference, TeamReference } from '../types';
 import { useReferences } from './References';
-import { Checkbox, Empty, ErrorNotice, Field, Loading, PageTitle, Panel, Select } from './ui';
+import {
+  Badge,
+  Checkbox,
+  Empty,
+  ErrorNotice,
+  Field,
+  Loading,
+  PageTitle,
+  Panel,
+  Select,
+} from './ui';
 
-/** Super Admin page: teams (with permanent code prefixes), projects/grants and room-held asset types. */
+/** Super Admin page: teams (with permanent code prefixes) and room-held asset types. */
 export function TeamsAndProjects() {
   const refs = useReferences();
   const action = useAction();
   const refresh = () => void refs.refetch();
-  if (refs.isPending) return <Loading />;
+  if (refs.isPending) return <Loading label="Loading teams…" />;
   if (refs.error) return <ErrorNotice error={refs.error} retry={refresh} />;
   const data = refs.data;
   const save = (path: string, method: 'POST' | 'PATCH' | 'PUT', body: unknown, version?: number) =>
@@ -25,34 +34,106 @@ export function TeamsAndProjects() {
     <>
       <PageTitle
         eyebrow="ADMINISTRATION / MASTER CONTROL"
-        title="Teams & projects"
-        description="Teams own assets and set their code prefix. Projects and grants tag what was bought with them."
+        title="Teams"
+        description="Teams own assets and set their permanent asset code prefix."
       />
       <ErrorNotice error={action.error} />
       <Panel title="Teams">
         <NewTeam onCreate={(body) => save('/master-data/teams', 'POST', body)} />
-        {(data.teams ?? []).map((team) => (
-          <TeamRow
-            key={team.id}
-            team={team}
-            onSave={(body) => save(`/master-data/teams/${team.id}`, 'PATCH', body, team.version)}
-          />
-        ))}
-      </Panel>
-      <Panel title="Projects & grants">
-        <NewProject onCreate={(body) => save('/master-data/projects', 'POST', body)} />
-        {(data.projects ?? []).length ? (
-          (data.projects ?? []).map((project) => (
-            <ProjectRow
-              key={project.id}
-              project={project}
-              onSave={(body) =>
-                save(`/master-data/projects/${project.id}`, 'PATCH', body, project.version)
-              }
-            />
-          ))
+        {(data.teams ?? []).length ? (
+          <div className="table-scroll">
+            <table className="category-table">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Asset code prefix</th>
+                  <th>Active</th>
+                  <th>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.teams ?? []).map((team) => (
+                  <tr key={team.id} className="team-row">
+                    <td>
+                      <strong>{team.name}</strong>
+                      <span className="muted small-text block">· {team.code}</span>
+                    </td>
+                    <td>
+                      <Badge value={team.assetCodePrefix} />
+                      {team.prefixInUse ? (
+                        <span className="muted small-text block">Locked by assets</span>
+                      ) : null}
+                    </td>
+                    <td>
+                      {team.active ? (
+                        <span className="badge" style={{ background: '#e7f5e9', color: '#166534', border: '1px solid #86d496' }}>
+                          Active
+                        </span>
+                      ) : (
+                        <span className="badge" style={{ background: '#fdecea', color: '#991b1b', border: '1px solid #fca5a5' }}>
+                          Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="form-actions">
+                        <Link
+                          to={`/team/${team.id}`}
+                          className="button secondary small"
+                          type="button"
+                        >
+                          Manage members
+                        </Link>
+                        <button
+                          className="button secondary small"
+                          type="button"
+                          onClick={() => {
+                            // handled by inline edit below
+                          }}
+                          disabled={team.prefixInUse}
+                        >
+                          Edit prefix
+                        </button>
+                        <input
+                          className="prefix-input"
+                          value=""
+                          readOnly={team.prefixInUse}
+                          maxLength={5}
+                          onBlur={(event) => {
+                            const next = event.target.value.toUpperCase();
+                            if (next && next !== team.assetCodePrefix && !team.prefixInUse) {
+                              void save(
+                                `/master-data/teams/${team.id}`,
+                                'PATCH',
+                                { assetCodePrefix: next, reason: 'Prefix changed before first use' },
+                                team.version,
+                              );
+                            }
+                          }}
+                        />
+                        <Checkbox
+                          label={team.active ? 'Active' : 'Inactive'}
+                          checked={team.active}
+                          onChange={(active) =>
+                            save(
+                              `/master-data/teams/${team.id}`,
+                              'PATCH',
+                              { active, reason: active ? 'Team reactivated' : 'Team retired' },
+                              team.version,
+                            )
+                          }
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <Empty title="No projects yet" />
+          <Empty title="No teams yet" />
         )}
       </Panel>
       <Panel title="Ticket categories">
@@ -76,7 +157,7 @@ export function TeamsAndProjects() {
                   ? save(
                       `/master-data/ticket-category-teams/${encodeURIComponent(category.code)}`,
                       'PUT',
-                      { teamId, reason: 'Ticket routing changed in Teams & projects' },
+                      { teamId, reason: 'Ticket routing changed in Teams' },
                     )
                   : undefined
               }
@@ -101,7 +182,7 @@ export function TeamsAndProjects() {
               save(
                 `/master-data/ASSET_TYPE/${encodeURIComponent(type.code)}`,
                 'PATCH',
-                { requiresCustodian: checked, reason: 'Custody rule changed in Teams & projects' },
+                { requiresCustodian: checked, reason: 'Custody rule changed in Teams' },
                 type.version,
               )
             }
@@ -113,8 +194,8 @@ export function TeamsAndProjects() {
 }
 
 function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }) {
-  const [form, setForm] = useState({ code: '', name: '', prefix: '', reason: '', project: false });
-  const set = (key: keyof typeof form, value: string | boolean) =>
+  const [form, setForm] = useState({ code: '', name: '', prefix: '', reason: '' });
+  const set = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
   const ready = form.code && form.name && /^[A-Z]{2,5}$/.test(form.prefix) && form.reason.trim();
   async function submit(event: FormEvent) {
@@ -123,23 +204,23 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
       code: form.code,
       name: form.name.trim(),
       assetCodePrefix: form.prefix,
-      requiresProject: form.project,
       reason: form.reason.trim(),
     });
-    setForm({ code: '', name: '', prefix: '', reason: '', project: false });
+    setForm({ code: '', name: '', prefix: '', reason: '' });
   }
   return (
-    <form className="form-grid" onSubmit={submit}>
+    <form className="form-stack" onSubmit={submit}>
       <Field label="New team code" htmlFor="team-code" hint="2-5 capital letters, permanent.">
         <input
           id="team-code"
           value={form.code}
           onChange={(e) => set('code', e.target.value.toUpperCase())}
           maxLength={5}
+          required
         />
       </Field>
       <Field label="New team name" htmlFor="team-name">
-        <input id="team-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
+        <input id="team-name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
       </Field>
       <Field
         label="New team asset code prefix"
@@ -151,6 +232,7 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
           value={form.prefix}
           onChange={(e) => set('prefix', e.target.value.toUpperCase())}
           maxLength={5}
+          required
         />
       </Field>
       <Field label="Reason for new team" htmlFor="team-reason">
@@ -158,156 +240,16 @@ function NewTeam({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }
           id="team-reason"
           value={form.reason}
           onChange={(e) => set('reason', e.target.value)}
+          required
         />
       </Field>
-      <Checkbox
-        label="Assets must be tagged to a project / grant"
-        checked={form.project}
-        onChange={(v) => set('project', v)}
-      />
-      <button className="button" disabled={!ready}>
-        Create team
-      </button>
+      <div className="form-actions">
+        <button className="button" disabled={!ready} type="submit">
+          Create team
+        </button>
+      </div>
     </form>
   );
-}
-
-function TeamRow({ team, onSave }: { team: TeamReference; onSave: (body: unknown) => unknown }) {
-  const [prefix, setPrefix] = useState(team.assetCodePrefix);
-  return (
-    <div className="form-grid" data-testid={`team-${team.code}`}>
-      <strong>
-        {team.name} ({team.code})
-      </strong>
-      <Field
-        label={`Asset code prefix for ${team.code}`}
-        htmlFor={`prefix-${team.id}`}
-        hint={team.prefixInUse ? 'Locked: assets already use this prefix.' : undefined}
-      >
-        <input
-          id={`prefix-${team.id}`}
-          value={prefix}
-          readOnly={team.prefixInUse}
-          maxLength={5}
-          onChange={(e) => setPrefix(e.target.value.toUpperCase())}
-          onBlur={() =>
-            prefix !== team.assetCodePrefix &&
-            onSave({ assetCodePrefix: prefix, reason: 'Prefix changed before first use' })
-          }
-        />
-      </Field>
-      <Checkbox
-        label="Active"
-        checked={team.active}
-        onChange={(active) =>
-          onSave({ active, reason: active ? 'Team reactivated' : 'Team retired' })
-        }
-      />
-    </div>
-  );
-}
-
-function NewProject({ onCreate }: { onCreate: (body: unknown) => Promise<unknown> }) {
-  const empty = { code: '', name: '', funder: '', start: '', end: '', reason: '' };
-  const [form, setForm] = useState(empty);
-  const set = (key: keyof typeof empty, value: string) => setForm((f) => ({ ...f, [key]: value }));
-  const ready = form.code.trim() && form.name.trim() && form.start && form.reason.trim();
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    await onCreate({
-      code: form.code.trim(),
-      name: form.name.trim(),
-      funder: form.funder.trim() || null,
-      startDate: form.start,
-      endDate: form.end || null,
-      reason: form.reason.trim(),
-    });
-    setForm(empty);
-  }
-  return (
-    <form className="form-grid" onSubmit={submit}>
-      <Field label="New project code" htmlFor="project-code">
-        <input
-          id="project-code"
-          value={form.code}
-          onChange={(e) => set('code', e.target.value)}
-          maxLength={40}
-        />
-      </Field>
-      <Field label="New project name" htmlFor="project-name">
-        <input id="project-name" value={form.name} onChange={(e) => set('name', e.target.value)} />
-      </Field>
-      <Field label="Funder" htmlFor="project-funder">
-        <input
-          id="project-funder"
-          value={form.funder}
-          onChange={(e) => set('funder', e.target.value)}
-        />
-      </Field>
-      <Field label="Project start date" htmlFor="project-start">
-        <input
-          id="project-start"
-          type="date"
-          value={form.start}
-          onChange={(e) => set('start', e.target.value)}
-        />
-      </Field>
-      <Field label="Project end date" htmlFor="project-end">
-        <input
-          id="project-end"
-          type="date"
-          value={form.end}
-          min={form.start}
-          onChange={(e) => set('end', e.target.value)}
-        />
-      </Field>
-      <Field label="Reason for new project" htmlFor="project-reason">
-        <input
-          id="project-reason"
-          value={form.reason}
-          onChange={(e) => set('reason', e.target.value)}
-        />
-      </Field>
-      <button className="button" disabled={!ready}>
-        Create project
-      </button>
-    </form>
-  );
-}
-
-function ProjectRow({
-  project,
-  onSave,
-}: {
-  project: ProjectReference;
-  onSave: (body: unknown) => unknown;
-}) {
-  return (
-    <div className="form-grid">
-      <strong>
-        {project.name} ({project.code})
-      </strong>
-      <span className="muted">
-        {project.startDate}
-        {project.endDate ? ` to ${project.endDate}` : ''}
-        {project.funder ? ` · ${project.funder}` : ''}
-      </span>
-      <Checkbox
-        label="Active"
-        checked={project.active}
-        onChange={(active) =>
-          onSave({ active, reason: active ? 'Project reopened' : 'Project closed' })
-        }
-      />
-    </div>
-  );
-}
-
-interface Member {
-  userId: string;
-  displayName: string;
-  email: string;
-  level: 'LEAD' | 'MEMBER';
 }
 
 /** Team page for its Leads (and Super Admins): add, promote or remove members. */
@@ -325,6 +267,9 @@ export function TeamMembers() {
   const [email, setEmail] = useState('');
   const [level, setLevel] = useState('MEMBER');
   const [reason, setReason] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; displayName: string; email: string }>>([]);
+  const [showSearch, setShowSearch] = useState(false);
   if (!allowed)
     return (
       <Panel>
@@ -337,10 +282,37 @@ export function TeamMembers() {
       () => {
         setReason('');
         setEmail('');
+        setSearchQuery('');
+        setSearchResults([]);
+        setShowSearch(false);
         void members.refetch();
       },
       () => undefined,
     );
+  async function searchEmployees(q: string) {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setShowSearch(false);
+      return;
+    }
+    try {
+      const data = await api<EmployeeSearchResponse>(
+        `/teams/search-employees?q=${encodeURIComponent(trimmed)}`,
+      );
+      setSearchResults(data.items);
+      setShowSearch(data.items.length > 0);
+    } catch {
+      setSearchResults([]);
+      setShowSearch(false);
+    }
+  }
+  function selectEmployee(employee: { id: string; displayName: string; email: string }) {
+    setEmail(employee.email);
+    setSearchQuery(employee.displayName);
+    setSearchResults([]);
+    setShowSearch(false);
+  }
   return (
     <>
       <PageTitle eyebrow="TEAM" title={team ? `${team.name} team` : 'Team members'} />
@@ -351,15 +323,41 @@ export function TeamMembers() {
         </p>
         <div className="form-grid">
           <Field label="Reason for membership change" htmlFor="member-reason">
-            <input id="member-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <input id="member-reason" value={reason} onChange={(e) => setReason(e.target.value)} required />
           </Field>
-          <Field label="Colleague email" htmlFor="member-email">
-            <input
-              id="member-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <Field label="Employee email" htmlFor="member-email">
+            <div className="email-search-wrapper">
+              <input
+                id="member-email"
+                type="email"
+                value={searchQuery || email}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  setEmail(val);
+                  void searchEmployees(val);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setShowSearch(false), 150);
+                }}
+                required
+              />
+              {showSearch && searchResults.length > 0 ? (
+                <div className="search-dropdown">
+                  {searchResults.map((emp) => (
+                    <button
+                      key={emp.id}
+                      type="button"
+                      className="search-dropdown-item"
+                      onClick={() => selectEmployee(emp)}
+                    >
+                      <span className="muted small-text">{emp.email}</span>
+                      <div>{emp.displayName}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </Field>
           <Select
             label="Level"
@@ -370,21 +368,24 @@ export function TeamMembers() {
               { value: 'MEMBER', label: 'Member' },
               { value: 'LEAD', label: 'Lead' },
             ]}
+            required
           />
-          <button
-            className="button"
-            type="button"
-            disabled={!email.trim() || !reason.trim() || action.isPending}
-            onClick={() =>
-              change(`/teams/${teamId}/members`, 'POST', {
-                email: email.trim(),
-                level,
-                reason: reason.trim(),
-              })
-            }
-          >
-            Add to team
-          </button>
+          <div className="form-actions">
+            <button
+              className="button"
+              type="button"
+              disabled={!email.trim() || !reason.trim() || action.isPending}
+              onClick={() =>
+                change(`/teams/${teamId}/members`, 'POST', {
+                  email: email.trim(),
+                  level,
+                  reason: reason.trim(),
+                })
+              }
+            >
+              Add to team
+            </button>
+          </div>
         </div>
       </Panel>
       <Panel title="Members">
@@ -392,36 +393,38 @@ export function TeamMembers() {
           <Loading />
         ) : members.data?.items.length ? (
           members.data.items.map((m) => (
-            <div key={m.userId} className="form-grid">
+            <div key={m.userId} className="team-member-row">
               <span>
                 <strong>{m.displayName}</strong> <span className="muted">{m.email}</span>
               </span>
-              <span>{m.level === 'LEAD' ? 'Lead' : 'Member'}</span>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={!reason.trim()}
-                onClick={() =>
-                  change(`/teams/${teamId}/members/${m.userId}`, 'PUT', {
-                    level: m.level === 'LEAD' ? 'MEMBER' : 'LEAD',
-                    reason: reason.trim(),
-                  })
-                }
-              >
-                {m.level === 'LEAD' ? 'Make member' : 'Make lead'}
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                disabled={!reason.trim()}
-                onClick={() =>
-                  change(`/teams/${teamId}/members/${m.userId}`, 'DELETE', {
-                    reason: reason.trim(),
-                  })
-                }
-              >
-                Remove
-              </button>
+              <span className="badge">{m.level === 'LEAD' ? 'Lead' : 'Member'}</span>
+              <div className="form-actions">
+                <button
+                  className="button secondary small"
+                  type="button"
+                  disabled={!reason.trim()}
+                  onClick={() =>
+                    change(`/teams/${teamId}/members/${m.userId}`, 'PUT', {
+                      level: m.level === 'LEAD' ? 'MEMBER' : 'LEAD',
+                      reason: reason.trim(),
+                    })
+                  }
+                >
+                  {m.level === 'LEAD' ? 'Make member' : 'Make lead'}
+                </button>
+                <button
+                  className="button secondary small"
+                  type="button"
+                  disabled={!reason.trim()}
+                  onClick={() =>
+                    change(`/teams/${teamId}/members/${m.userId}`, 'DELETE', {
+                      reason: reason.trim(),
+                    })
+                  }
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           ))
         ) : (
@@ -430,4 +433,15 @@ export function TeamMembers() {
       </Panel>
     </>
   );
+}
+
+interface Member {
+  userId: string;
+  displayName: string;
+  email: string;
+  level: 'LEAD' | 'MEMBER';
+}
+
+interface EmployeeSearchResponse {
+  items: Array<{ id: string; displayName: string; email: string }>;
 }

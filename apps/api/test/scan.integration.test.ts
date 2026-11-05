@@ -174,7 +174,12 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
     assert.equal(result.body.custodian.designation, 'Speech Therapist');
     assert.equal(result.body.custodian.department, `${tag}-dept`);
     assert.equal(result.body.custodian.acknowledgement, 'PENDING');
-    assert.deepEqual(result.body.location, { site: `${tag} site`, floor: '2', room: '204' });
+    assert.deepEqual(result.body.location, {
+      site: `${tag} site`,
+      floor: '2',
+      room: '204',
+      path: `${tag} site`,
+    });
     assert.equal((await scan(itAdmin)).status, 200);
   });
 

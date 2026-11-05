@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { PoolClient } from 'pg';
 import { Db } from '../src/db';
+import { RoleFieldService } from '../src/role-field';
 const url = process.env.TEST_DATABASE_URL;
 if (!url || !new URL(url).pathname.endsWith('_test'))
   throw new Error('Roles migration test requires isolated _test DB');
@@ -35,12 +36,12 @@ async function insertAsset(c: PoolClient, code: string, teamId?: string) {
 }
 test('seeds three teams with fixed ids and prefixes', async () => {
   const rows = await db.query(
-    "SELECT code, asset_code_prefix, requires_project FROM teams WHERE code IN ('IT','ADM','PRJ') ORDER BY code",
+    "SELECT code, asset_code_prefix FROM teams WHERE code IN ('IT','ADM','PRJ') ORDER BY code",
   );
   assert.deepEqual(rows, [
-    { code: 'ADM', asset_code_prefix: 'ADM', requires_project: false },
-    { code: 'IT', asset_code_prefix: 'IT', requires_project: false },
-    { code: 'PRJ', asset_code_prefix: 'PRJ', requires_project: true },
+    { code: 'ADM', asset_code_prefix: 'ADM' },
+    { code: 'IT', asset_code_prefix: 'IT' },
+    { code: 'PRJ', asset_code_prefix: 'PRJ' },
   ]);
 });
 test('rejects asset whose code prefix does not match its team', async () => {
@@ -126,9 +127,6 @@ test('runtime role can use new tables', async () => {
       id,
       IT,
     ]);
-    await c.query("INSERT INTO projects(code,name) VALUES($1,'Synthetic project')", [
-      `P-${randomUUID()}`,
-    ]);
   });
 });
 test('convert_legacy_roles converts ADMIN and IT_ADMIN grants and audits each user', async () => {
@@ -142,6 +140,10 @@ test('convert_legacy_roles converts ADMIN and IT_ADMIN grants and audits each us
       ).rows[0].id as string;
     const admin = await mk('legacy-admin');
     const itAdmin = await mk('legacy-itadmin');
+    // Recreate the pre-migration state: legacy codes must exist in `roles` and the
+    // guards that now reject them must be absent, or the legacy grants cannot be stored.
+    await c.query('ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_code_valid');
+    await c.query("INSERT INTO roles(code) VALUES ('ADMIN'),('IT_ADMIN') ON CONFLICT DO NOTHING");
     await c.query('ALTER TABLE user_roles DROP CONSTRAINT user_roles_no_legacy');
     await c.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN'),($2,'IT_ADMIN')", [
       admin,
@@ -176,5 +178,25 @@ test('convert_legacy_roles converts ADMIN and IT_ADMIN grants and audits each us
     assert.equal((await audit(admin)).length, 1);
     assert.equal((await audit(itAdmin)).length, 1);
     assert.deepEqual(await roles(itAdmin), ['EMPLOYEE']);
+  });
+});
+test('field permission rows keep their camelCase names for the admin page', async () => {
+  const service = new RoleFieldService(db);
+  const actor = { roles: ['SUPER_ADMIN'], teams: [] } as any;
+  await scratch(async (c) => {
+    await c.query(
+      `INSERT INTO role_field_permissions(role_code, field_name, can_view, can_edit)
+       VALUES('EMPLOYEE','description',true,true)
+       ON CONFLICT (role_code, field_name) DO UPDATE SET can_view=true, can_edit=true`,
+    );
+    const result = await service.allFields({ user: actor } as any);
+    const group = result.permissions.find((permission) => permission.roleCode === 'EMPLOYEE');
+    assert.ok(group, 'the employee role must be returned');
+    const field = group.fields.find((item: any) => item.fieldName === 'description');
+    assert.ok(field, 'the description field must be returned');
+    assert.equal(field.roleCode, 'EMPLOYEE');
+    assert.equal(field.fieldName, 'description');
+    assert.equal(field.canView, true);
+    assert.equal(field.canEdit, true);
   });
 });

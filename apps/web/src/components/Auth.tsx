@@ -6,7 +6,6 @@ import { api, captureFragmentToken, resetCsrf } from '../api';
 import { useSession } from '../session';
 import { takeReturnTo } from '../return-to';
 import { ErrorNotice, Field, Loading } from './ui';
-import { BrandMark } from './BrandMark';
 import QRCode from 'qrcode';
 
 /** Saves recovery codes as a local text file; nothing is sent to the server. */
@@ -65,18 +64,26 @@ export function AccessLayout({ children }: PropsWithChildren) {
   return (
     <div className="access-layout">
       <main className="access-content" id="main">
-        <Link to="/login" className="brand access-brand">
-          <BrandMark />
-          <span className="brand-text">
-            <span className="brand-org">IAC Patrons Foundation</span>
-            <strong>Asset workspace</strong>
-          </span>
-        </Link>
-        <div className="access-sheet">
+        <div className="access-sheet sm:-ml-4">
+          <Link to="/login" className="access-brand">
+            <img className="access-logo" src="/image.png" alt="" width={64} height={64} />
+            <span className="access-brand-org">India Autism Center</span>
+            <strong className="access-brand-name">Asset workspace</strong>
+          </Link>
           {children}
           <p className="access-footer">IAC Asset Management · Staff access only</p>
         </div>
       </main>
+      <div className="access-tagline">
+        <p className="access-tagline-title">
+          A workspace built
+          <br />
+          for the work that matters.
+        </p>
+        <p className="access-tagline-place">
+          Manage IAC assets with clarity, accountability and care.
+        </p>
+      </div>
     </div>
   );
 }

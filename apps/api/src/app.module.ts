@@ -10,6 +10,16 @@ import { LabelController, LabelService } from './labels';
 import { DataTransferController, DataTransferService } from './data-transfers';
 import { AdminDashboardController, AdminDashboardService } from './admin-dashboard';
 import { ExecutiveDashboardController, ExecutiveDashboardService } from './executive-dashboard';
+import { RoleFieldController, RoleFieldService } from './role-field';
+import { LocationsController, LocationsService } from './locations';
+import { CategoriesController, CategoriesService } from './categories';
+import { InventoryController, InventoryService } from './inventory';
+import { StoreController, StoreService } from './store';
+import { VerificationController, VerificationService } from './verification';
+import { DepreciationController, DepreciationService } from './depreciation';
+import { ReportsController, ReportsService } from './reports';
+import { InsuranceController, InsuranceService } from './insurance';
+import { ProcurementController, ProcurementService } from './procurement';import { ApprovalsController, ApprovalsService } from './approvals';
 import { PushController, PushService } from './push';
 import { NotificationsController, NotificationsService } from './notifications';
 import { TeamController, TeamService } from './teams';
@@ -33,12 +43,23 @@ import {
     DataTransferController,
     AdminDashboardController,
     ExecutiveDashboardController,
+    RoleFieldController,
+    LocationsController,
+    CategoriesController,
+    InventoryController,
+    StoreController,
+    VerificationController,
+    DepreciationController,
+    ReportsController,
+    InsuranceController,
+    ProcurementController,
     PushController,
     NotificationsController,
     TeamController,
     DirectoryController,
     UserPhotoController,
     PeopleController,
+    ApprovalsController,
   ],
   providers: [
     Db,
@@ -52,12 +73,24 @@ import {
     DataTransferService,
     AdminDashboardService,
     ExecutiveDashboardService,
+    RoleFieldService,
+    LocationsService,
+    CategoriesService,
+    InventoryService,
     PushService,
     NotificationsService,
     TeamService,
     PeopleService,
+    StoreService,
+    VerificationService,
+    DepreciationService,
+    ReportsService,
+    InsuranceService,
+    ProcurementService,
+    ApprovalsService,
     ZohoSyncService,
     { provide: ZOHO_CLIENT, useFactory: zohoClientFromEnv },
   ],
 })
 export class AppModule {}
+

@@ -196,6 +196,19 @@ p {
   inset: 0 auto 0 0;
   z-index: 30;
 }
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #ffffff1a;
+  border-radius: 3px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #ffffff33;
+}
 .brand {
   color: white;
   display: block;
@@ -686,6 +699,45 @@ a.metric:hover {
   gap: 12px;
   align-items: center;
   justify-content: flex-end;
+}
+.email-search-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d7dee5;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 50;
+  margin-top: 2px;
+}
+.search-dropdown-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #f2f5f8;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1f2937;
+}
+.search-dropdown-item:hover,
+.search-dropdown-item:focus {
+  background: #f7f9fc;
+  outline: none;
 }
 .form-stack > .panel {
   margin-bottom: 0;
@@ -2922,6 +2974,7 @@ legend {
 .dashboard-columns > .panel {
   display: flex;
   flex-direction: column;
+  grid-column: 1 / -1;
 }
 .dashboard-columns .quick-actions {
   flex: 1;
@@ -3549,6 +3602,253 @@ td {
   }
   .auth-links {
     flex-wrap: wrap;
+  }
+}
+
+/* Access screens: campus photo with a frosted-glass card */
+/* No reserved scrollbar strip here; if a scrollbar is needed it sits on the dark tone, not white */
+html:has(.access-layout) {
+  scrollbar-gutter: auto;
+  background: #2b3a4a;
+}
+body:has(.access-layout) {
+  background: transparent;
+}
+.access-layout {
+  min-height: 100dvh;
+  --iac-blue: #1e5bc6;
+  --iac-sky: #4fb6e8;
+  --iac-red: #e0322b;
+  --iac-yellow: #f2c21b;
+  position: relative;
+  justify-content: flex-start;
+  padding: 32px clamp(16px, 8vw, 120px);
+  /* Dark layer: strongest behind the card, clear before the IAC sign, light vignette top and bottom */
+  background:
+    linear-gradient(
+      90deg,
+      rgb(8 15 28 / 0.62) 0%,
+      rgb(8 15 28 / 0.4) 28%,
+      rgb(8 15 28 / 0.08) 48%,
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(8 15 28 / 0.28) 0%,
+      transparent 22%,
+      transparent 68%,
+      rgb(8 15 28 / 0.45) 100%
+    ),
+    url('/iac-campus.webp') center right / cover no-repeat,
+    #2b3a4a;
+}
+.access-tagline {
+  position: absolute;
+  right: clamp(24px, 4vw, 64px);
+  bottom: clamp(24px, 4vh, 48px);
+  text-align: right;
+  color: #fff;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 0.45);
+  pointer-events: none;
+}
+.access-tagline p {
+  margin: 0;
+}
+.access-tagline-title {
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.access-tagline-place {
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.access-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+@media (max-width: 900px) {
+  .access-tagline {
+    display: none;
+  }
+}
+.access-content {
+  width: min(400px, 100%);
+}
+.access-sheet {
+  position: relative;
+  overflow: hidden;
+  padding: 36px 30px 24px;
+  border: 0;
+  border-radius: 22px;
+  background: rgb(255 255 255 / 0.8);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 24px 60px -20px rgb(10 20 35 / 0.45);
+}
+/* Brand stripe in the IAC logo colours */
+.access-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--iac-blue) 0 25%,
+    var(--iac-sky) 25% 50%,
+    var(--iac-red) 50% 75%,
+    var(--iac-yellow) 75% 100%
+  );
+}
+.access-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: 0 0 26px;
+  text-align: center;
+  text-decoration: none;
+}
+.access-brand,
+.access-brand:hover,
+.access-brand:focus,
+.access-brand * {
+  text-decoration: none;
+}
+.access-brand img {
+  margin-bottom: 8px;
+  filter: drop-shadow(0 6px 12px rgb(10 20 35 / 0.18));
+}
+.access-brand-org {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.access-brand .access-brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--iac-blue);
+}
+.access-sheet .auth-card h1 {
+  font-size: 26px;
+  color: #101828;
+}
+.access-sheet .auth-card > .muted,
+.access-sheet .field .hint,
+.access-sheet .field small {
+  color: #2f3c49;
+}
+.access-sheet input,
+.access-sheet select,
+.access-sheet textarea {
+  background: rgb(255 255 255 / 0.9);
+  border: 1px solid #cfd7e0;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+}
+.access-sheet input:focus,
+.access-sheet select:focus,
+.access-sheet textarea:focus {
+  background: #fff;
+  border-color: var(--iac-blue);
+  box-shadow: 0 0 0 3px rgb(30 91 198 / 0.18);
+  outline: none;
+}
+.access-sheet .button.full {
+  min-height: 44px;
+  border-radius: 10px;
+  background: #233a8f;
+  border-color: #233a8f;
+  color: #fff;
+  transition:
+    background-color 160ms ease-out,
+    border-color 160ms ease-out,
+    box-shadow 160ms ease-out,
+    transform 160ms ease-out;
+}
+/* Logo-box navy at rest; hover brightens one step */
+.access-sheet .button.full:hover:not(:disabled) {
+  background: #2b47ad;
+  border-color: #2b47ad;
+  color: #fff;
+  box-shadow: none;
+  transform: none;
+}
+.access-sheet .button.full:active:not(:disabled) {
+  background: #1b2d70;
+  border-color: #1b2d70;
+  box-shadow: none;
+  transform: none;
+}
+.access-sheet .button.full:focus-visible {
+  outline: 2px solid var(--iac-sky);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .access-sheet .button.full,
+  .access-sheet .button.full:hover:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+}
+.access-sheet .auth-links {
+  justify-content: space-between;
+}
+.access-sheet .auth-links a,
+.access-sheet .affix-toggle {
+  color: var(--iac-blue);
+}
+.access-sheet .auth-note {
+  border-top-color: rgb(16 24 40 / 0.12);
+  color: #2f3c49;
+}
+.access-sheet .access-footer {
+  text-align: center;
+  color: #3d4b59;
+}
+/* Fallback when the browser has no backdrop blur: a more opaque card keeps text readable */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .access-sheet {
+    background: rgb(255 255 255 / 0.93);
+  }
+}
+@media (max-width: 650px) {
+  .access-layout {
+    justify-content: center;
+    align-items: center;
+    padding: 24px 16px;
+    background:
+      linear-gradient(180deg, rgb(10 20 35 / 0.1) 0%, rgb(10 20 35 / 0.35) 100%),
+      url('/iac-campus.webp') 57% center / cover no-repeat,
+      #2b3a4a;
+  }
+  /* Small screens sit right over the colourful sign: a more opaque card stops it bleeding through */
+  .access-sheet {
+    padding: 28px 20px 20px;
+    border-radius: 18px;
+    background: rgb(255 255 255 / 0.9);
+    backdrop-filter: blur(24px) saturate(1.1);
+    -webkit-backdrop-filter: blur(24px) saturate(1.1);
+  }
+  .access-brand {
+    margin-bottom: 20px;
+  }
+  .access-sheet .auth-card h1 {
+    font-size: 23px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .access-sheet {
+    background: #fff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
 .scan-page {
@@ -4481,3 +4781,606 @@ a.exec-bar-row:hover .exec-bar-label { text-decoration: underline; }
 .exec-completed { fill: #a86f0c; }
 .exec-axis { stroke: #cdced1; stroke-width: 0.3; }
 .exec-key { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+/* ===== 2-step asset editor ===== */
+.step-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #7f92a2;
+}
+.step.active {
+  color: var(--navy);
+}
+.step.done {
+  color: #518a68;
+}
+.step-connector {
+  width: 32px;
+  height: 2px;
+  background: #dce5ed;
+}
+.step.active .step-connector,
+.step.done .step-connector {
+  background: var(--navy);
+}
+.asset-editor-step-panel .panel {
+  max-width: 900px;
+}
+.invoice-preview {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.invoice-preview li {
+  margin: 4px 0;
+}
+.invoice-preview .mono {
+  font-size: 11px;
+}
+
+
+/* ===== Zoho-style Asset Page Layout ===== */
+.zoho-header {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow);
+}
+.zoho-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zoho-header-id {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.zoho-header-name {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+.zoho-header-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.zoho-header-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.zoho-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.zoho-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.zoho-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 14px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #7f92a2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.zoho-tab:hover {
+  color: var(--navy);
+  background: #f4f7fa;
+}
+.zoho-tab.active {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+  background: #eef4fa;
+}
+.zoho-content {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: start;
+}
+.zoho-main {
+  min-width: 0;
+}
+.zoho-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 300px;
+}
+.sidebar-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sidebar-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar-user {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+.sidebar-user-name {
+  font-weight: 650;
+  color: var(--ink);
+  font-size: 15px;
+}
+.sidebar-user-role {
+  font-size: 13px;
+  color: var(--muted);
+}
+.asset-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.asset-card {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid #edf1f5;
+  align-items: center;
+  color: var(--ink);
+}
+.asset-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.asset-card:first-child {
+  padding-top: 0;
+}
+.asset-card .card-photo {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #eef5fa;
+  color: #698ba4;
+  font-size: 20px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.asset-card .card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.asset-card .card-body {
+  min-width: 0;
+}
+.asset-card .card-name {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.asset-card .card-description {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #6b8091;
+}
+.asset-card .card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.asset-card .card-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.asset-card .card-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.asset-card .card-footer .button {
+  flex: 1;
+  font-size: 12px;
+  padding: 9px 12px;
+}
+.asset-card .card-footer .button.text {
+  padding: 9px 12px;
+}
+
+@media (max-width: 900px) {
+  .zoho-content {
+    grid-template-columns: 1fr;
+  }
+  .zoho-sidebar {
+    min-width: auto;
+  }
+  .zoho-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .zoho-header-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ===== Approvals ===== */
+.approval-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.approval-tabs .tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #7f92a2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.approval-tabs .tab:hover {
+  color: var(--navy);
+  background: #f4f7fa;
+}
+.approval-tabs .tab.active {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+  background: #eef4fa;
+}
+.approval-tabs .tab-count {
+  background: #e74c3c;
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 10px;
+  margin-left: 6px;
+}
+.approval-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.approval-table td {
+  font-size: 12px;
+  padding: 12px 14px;
+}
+.approval-request {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.approval-request strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+.approval-request .cell-description {
+  font-size: 11px;
+  color: var(--muted);
+}
+.approval-table .actions {
+  display: flex;
+  gap: 6px;
+  flex-direction: column;
+}
+.approval-table .actions .button {
+  width: 100%;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+
+
+/* ---------- App refresh: IAC brand ---------- */
+:root {
+  --iac-navy: #233a8f;
+  --iac-navy-hover: #2b47ad;
+  --iac-navy-press: #1b2d70;
+  --iac-navy-soft: #eaeefa;
+}
+
+/* Primary buttons: IAC navy instead of black (no shadow, no movement on hover) */
+.button:not(.secondary):not(.text) {
+  background: var(--iac-navy);
+  border-color: var(--iac-navy);
+  color: #fff;
+  box-shadow: none;
+  transition:
+    background-color 160ms ease-out,
+    border-color 160ms ease-out;
+}
+.button:not(.secondary):not(.text):hover:not(:disabled) {
+  background: var(--iac-navy-hover);
+  border-color: var(--iac-navy-hover);
+  color: #fff;
+  box-shadow: none;
+}
+.button:not(.secondary):not(.text):active:not(:disabled) {
+  background: var(--iac-navy-press);
+  border-color: var(--iac-navy-press);
+}
+.button.secondary {
+  background: #fff;
+  border-color: #d5dce4;
+  color: var(--ink);
+  box-shadow: none;
+}
+.button.secondary:hover:not(:disabled) {
+  background: var(--iac-navy-soft);
+  border-color: #c3cdea;
+  color: var(--iac-navy);
+}
+.button:focus-visible {
+  outline: 2px solid var(--iac-navy-hover);
+  outline-offset: 2px;
+}
+
+/* Sidebar: soft navy tint with a left accent instead of a boxed outline */
+.sidebar nav > a {
+  position: relative;
+}
+.sidebar nav > a:focus:not(:focus-visible) {
+  outline: none;
+}
+.sidebar nav > a.active {
+  background: var(--iac-navy-soft);
+  color: var(--iac-navy);
+  font-weight: 600;
+  box-shadow: none;
+  outline: none;
+}
+.sidebar nav > a.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--iac-navy);
+}
+.sidebar nav > a.active .nav-icon {
+  color: var(--iac-navy);
+}
+
+/* Badges: colour-coded, pill shaped */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: capitalize;
+  background: #eef1f5;
+  color: #445261;
+}
+.badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+.badge.success {
+  background: #e7f5ec;
+  color: #1f6b42;
+}
+.badge.warning {
+  background: #fdf3df;
+  color: #8a5a00;
+}
+.badge.danger {
+  background: #fdeceb;
+  color: #a1302b;
+}
+.badge.info {
+  background: var(--iac-navy-soft);
+  color: var(--iac-navy);
+}
+
+/* Tables: clearer header, roomier rows, hover highlight */
+.table-scroll table thead th {
+  background: #f4f6fa;
+  color: #4a5866;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e3e8ef;
+}
+.table-scroll table tbody td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef1f5;
+}
+.table-scroll table tbody tr:hover {
+  background: #f7f9fd;
+}
+.table-link {
+  color: var(--iac-navy);
+  font-weight: 600;
+}
+.table-link:hover {
+  color: var(--iac-navy-hover);
+}
+
+/* Collapsible sections (bulk import etc.): quieter, compact rows */
+.panel > details,
+details.disclosure,
+main details:not(.table-view) {
+  border-color: #e3e8ef;
+}
+main details > summary {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+main details > summary:hover {
+  color: var(--iac-navy);
+}
+
+/* Tabs on detail pages: navy underline */
+.zoho-tab.active,
+.approval-tabs .tab.active {
+  color: var(--iac-navy);
+  border-bottom-color: var(--iac-navy);
+}
+
+/* Notifications bell, top right */
+.topbar-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+.topbar-bell svg {
+  width: 20px;
+  height: 20px;
+}
+.topbar-bell:hover,
+.topbar-bell.active {
+  background: var(--iac-navy-soft);
+  color: var(--iac-navy);
+  text-decoration: none;
+}
+.topbar-bell:focus-visible {
+  outline: 2px solid var(--iac-navy-hover);
+  outline-offset: 2px;
+}
+.topbar-bell-count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 2px solid var(--frame);
+  border-radius: 999px;
+  background: #e0322b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* Asset catalog: photo thumbnail column */
+.asset-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #f1f4f9;
+  border: 1px solid #e3e8ef;
+  color: #8ea0b4;
+  flex-shrink: 0;
+}
+.asset-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.asset-thumb svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.asset-list-photo {
+  width: 64px;
+}
+
+/* Hide scrollbars everywhere; scrolling by touch, wheel and keyboard still works */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Locations tree + inventory number columns */
+.location-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--iac-navy);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.location-node.selected {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.location-branch {
+  color: #9aa8b8;
+  font-weight: 400;
+}
+.inventory-table .num,
+.inventory-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

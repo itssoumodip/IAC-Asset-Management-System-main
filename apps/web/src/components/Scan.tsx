@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
-import { can, useSession } from '../session';
+import { useSession } from '../session';
 import type { ScanView } from '../types';
 import { GenericLaptop } from './AssetPhoto';
 import { Badge, Empty, ErrorNotice, Loading, Panel } from './ui';
@@ -34,6 +34,56 @@ function ScanPhoto({ code, scan }: { code: string; scan: ScanView }) {
       )}
     </div>
   );
+}
+
+function roleActions(
+  scan: ScanView,
+  user: { roles: string[] } | undefined,
+): Array<{ label: string; href: string; secondary?: boolean }> {
+  const actions: Array<{ label: string; href: string; secondary?: boolean }> = [];
+  const roles = user?.roles ?? [];
+  const isStore = roles.includes('STORE');
+  const isAuditor = roles.includes('AUDITOR');
+  const isEmployee = roles.includes('EMPLOYEE');
+  const isSuperAdmin = roles.includes('SUPER_ADMIN');
+  const isTeamLead = roles.includes('TEAM_LEAD');
+  const isTeamMember = roles.includes('TEAM_MEMBER');
+
+  if (scan.reportable) {
+    actions.push({
+      label: 'Report a problem',
+      href: `/tickets/new?asset=${encodeURIComponent(scan.assetCode)}&assetId=${encodeURIComponent(scan.id)}`,
+    });
+  }
+
+  // Receive into store (Store role, or Super Admin / Team Lead)
+  if (!scan.custodian && (isStore || isSuperAdmin || isTeamLead)) {
+    actions.push({
+      label: 'Receive into store',
+      href: `/assets/${scan.id}/assign`,
+      secondary: true,
+    });
+  }
+
+  // Verify (Auditor, Employee, or Team Lead/Member)
+  if ((isAuditor || isEmployee || isTeamLead || isTeamMember || isSuperAdmin) && scan.custodian) {
+    actions.push({
+      label: 'Verify this asset',
+      href: `/verification?asset=${encodeURIComponent(scan.assetCode)}`,
+      secondary: true,
+    });
+  }
+
+  // Open full record
+  if (scan.canViewFull) {
+    actions.push({
+      label: roles.includes('SUPER_ADMIN') ? 'Open full record' : 'View my asset',
+      href: `/assets/${scan.id}`,
+      secondary: true,
+    });
+  }
+
+  return actions;
 }
 
 export function ScanPage() {
@@ -70,9 +120,7 @@ export function ScanPage() {
   const scan = query.data;
   const status = scan.status.toLowerCase();
   const lostOrStolen = status === 'lost' || status === 'stolen';
-  const where = scan.location
-    ? [scan.location.site, scan.location.floor, scan.location.room].filter(Boolean).join(' · ')
-    : null;
+  const where = scan.location?.path ?? null;
   const details: [string, string | null][] = [
     ['Category', scan.category],
     ['Type', scan.assetType],
@@ -80,6 +128,7 @@ export function ScanPage() {
     ['Asset department', scan.department],
     ['Location', where],
   ];
+  const actions = roleActions(scan, user);
   return (
     <div className="scan-page">
       <Panel>
@@ -132,19 +181,15 @@ export function ScanPage() {
           </p>
         ) : null}
         <div className="scan-actions">
-          {scan.reportable ? (
+          {actions.map((action, index) => (
             <Link
-              className="button full"
-              to={`/tickets/new?asset=${encodeURIComponent(scan.assetCode)}&assetId=${encodeURIComponent(scan.id)}`}
+              key={index}
+              className={`button ${action.secondary ? 'secondary' : ''} full`}
+              to={action.href}
             >
-              Report a problem
+              {action.label}
             </Link>
-          ) : null}
-          {scan.canViewFull ? (
-            <Link className="button secondary full" to={`/assets/${scan.id}`}>
-              {can(user, 'asset.view_all') ? 'Open full record' : 'View my asset'}
-            </Link>
-          ) : null}
+          ))}
         </div>
       </Panel>
     </div>

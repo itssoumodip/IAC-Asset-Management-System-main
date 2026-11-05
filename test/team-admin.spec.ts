@@ -38,7 +38,6 @@ const references = {
       code: 'IT',
       name: 'IT',
       assetCodePrefix: 'IT',
-      requiresProject: false,
       active: true,
       version: 1,
       prefixInUse: true,
@@ -48,13 +47,11 @@ const references = {
       code: 'ADM',
       name: 'Admin',
       assetCodePrefix: 'ADM',
-      requiresProject: false,
       active: true,
       version: 1,
       prefixInUse: false,
     },
   ],
-  projects: [],
   assetTypePolicies: [{ assetTypeCode: 'Printer', requiresCustodian: false }],
 };
 
@@ -93,7 +90,7 @@ async function mockApi(page: Page, who: keyof typeof people) {
 test('super admin creates team with prefix; prefix field locked after use', async ({ page }) => {
   const writes = await mockApi(page, 'superAdmin');
   await page.goto('/admin/teams');
-  await expect(page.getByRole('heading', { name: 'Teams & projects' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Teams', exact: true })).toBeVisible();
   await expect(page.getByLabel('Asset code prefix for IT')).toHaveAttribute('readonly', '');
   await page.getByLabel('New team code').fill('LIB');
   await page.getByLabel('New team name').fill('Library');
@@ -105,18 +102,6 @@ test('super admin creates team with prefix; prefix field locked after use', asyn
     .toMatchObject({ code: 'LIB', name: 'Library', assetCodePrefix: 'LIB' });
 });
 
-test('project create requires start date', async ({ page }) => {
-  await mockApi(page, 'superAdmin');
-  await page.goto('/admin/teams');
-  await page.getByLabel('New project code').fill('CSR-1');
-  await page.getByLabel('New project name').fill('CSR Project One');
-  await page.getByLabel('Reason for new project').fill('Grant received');
-  const create = page.getByRole('button', { name: 'Create project' });
-  await expect(create).toBeDisabled();
-  await page.getByLabel('Project start date').fill('2026-04-01');
-  await expect(create).toBeEnabled();
-});
-
 test('lead sees only own team page', async ({ page }) => {
   await mockApi(page, 'itLead');
   await page.goto(`/team/${itId}`);
@@ -124,7 +109,7 @@ test('lead sees only own team page', async ({ page }) => {
   await page.goto(`/team/${admId}`);
   await expect(page.getByText('You can only manage teams you lead.')).toBeVisible();
   await page.goto('/admin/teams');
-  await expect(page.getByRole('heading', { name: 'Teams & projects' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Teams', exact: true })).toHaveCount(0);
 });
 
 test('membership change asks for reason and warns sessions will be revoked', async ({ page }) => {
@@ -133,7 +118,7 @@ test('membership change asks for reason and warns sessions will be revoked', asy
   await expect(
     page.getByText('Saving signs that person out so the change applies straight away.'),
   ).toBeVisible();
-  await page.getByLabel('Colleague email').fill('new.person@example.test');
+  await page.getByLabel('Employee email').fill('new.person@example.test');
   const add = page.getByRole('button', { name: 'Add to team' });
   await expect(add).toBeDisabled();
   await page.getByLabel('Reason for membership change').fill('Joined IT');

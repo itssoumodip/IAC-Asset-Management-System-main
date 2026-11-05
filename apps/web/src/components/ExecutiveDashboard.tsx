@@ -24,7 +24,6 @@ export interface ExecutiveData {
     amcExpiring30: number;
     openHighTickets: number;
   };
-  spendByProject: { projectId: string | null; label: string; spend: number; count: number }[];
   spendByFy: { fyStart: number; label: string; spend: number; count: number }[];
   ticketTrends: {
     weeks: TrendWeek[];
@@ -306,18 +305,6 @@ export function ExecutiveDashboard() {
       </div>
 
       <div className="dashboard-columns">
-        <Panel title="Spend by project">
-          <HBars
-            caption="Purchase spend by project"
-            headers={['Project', 'Spend']}
-            format={formatInr}
-            rows={data.spendByProject.map((project) => ({
-              label: project.label,
-              value: project.spend,
-              to: project.projectId ? `/assets?projectId=${project.projectId}` : undefined,
-            }))}
-          />
-        </Panel>
         <Panel title="Spend by financial year (April to March)">
           <HBars
             caption="Purchase spend by financial year"

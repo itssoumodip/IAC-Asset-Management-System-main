@@ -50,7 +50,7 @@ function assertTeamImport(req: AuthRequest, teamId: string) {
 }
 type RowResult = { rowNumber: number; id?: string; summary: string };
 const assetFields = Object.keys(assetInput.shape).filter(
-  (key) => !['departmentId', 'locationId', 'owningTeamId', 'projectId'].includes(key),
+  (key) => !['departmentId', 'locationId', 'owningTeamId'].includes(key),
 );
 const definitions: Definition[] = [
   {
@@ -61,7 +61,6 @@ const definitions: Definition[] = [
       'assetCode',
       'version',
       'owningTeamCode',
-      'projectCode',
       ...assetFields,
       'departmentCode',
       'locationCode',
@@ -328,7 +327,7 @@ export class DataTransferService {
     } as AuthRequest;
   }
   private async code(
-    table: 'assets' | 'departments' | 'locations' | 'teams' | 'projects',
+    table: 'assets' | 'departments' | 'locations' | 'teams',
     code: string,
   ) {
     const [row] = await this.db.query(
@@ -417,7 +416,6 @@ export class DataTransferService {
               'assetCode',
               'version',
               'owningTeamCode',
-              'projectCode',
               'departmentCode',
               'locationCode',
             ].includes(key),
@@ -434,7 +432,6 @@ export class DataTransferService {
       if (row.locationCode) fields.locationId = (await this.code('locations', row.locationCode)).id;
       if (row.owningTeamCode)
         fields.owningTeamId = (await this.code('teams', row.owningTeamCode)).id;
-      if (row.projectCode) fields.projectId = (await this.code('projects', row.projectCode)).id;
       if (action === 'CREATE') {
         if (row.assetCode)
           throw new UnprocessableEntityException(

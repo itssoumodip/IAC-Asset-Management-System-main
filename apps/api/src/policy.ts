@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 
-export type GlobalRole = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE';
+export type GlobalRole = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE' | 'TEAM_LEAD' | 'TEAM_MEMBER' | 'STORE' | 'TECHNICIAN' | 'AUDITOR' | 'INSURER' | 'PROCUREMENT';
 export type TeamLevel = 'LEAD' | 'MEMBER';
 export interface TeamMembership { teamId: string; teamCode: string; level: TeamLevel }
 export interface PolicyActor { roles: string[]; teams?: TeamMembership[] }
@@ -8,7 +8,8 @@ export type Action =
   | 'asset.view_all' | 'asset.view_private' | 'asset.create' | 'asset.edit' | 'asset.custody'
   | 'asset.retire' | 'asset.import' | 'asset.label' | 'asset.photo' | 'asset.finance_edit'
   | 'asset.change_team' | 'team.manage_members' | 'ticket.work' | 'announcement.send'
-  | 'report.view' | 'system.admin';
+  | 'report.view' | 'system.admin'
+  | 'store.operations' | 'verification.perform' | 'insurer.view' | 'procurement.view' | 'approvals.act';
 
 export const TEAM_SCOPED: ReadonlySet<Action> = new Set<Action>([
   'asset.create', 'asset.edit', 'asset.custody', 'asset.retire', 'asset.import',
@@ -48,7 +49,12 @@ const RULES: Record<Action, Rule> = {
   'ticket.work': R(true, true, true),
   'announcement.send': R(true, true, true),
   'report.view': R(true, false, false, ['EXECUTIVE']),
-  'system.admin': R(true, false, false)
+  'system.admin': R(true, false, false),
+  'store.operations': R(true, false, false, ['STORE']),
+  'verification.perform': R(true, false, false, ['AUDITOR']),
+  'insurer.view': R(true, false, false, ['INSURER']),
+  'procurement.view': R(true, false, false, ['PROCUREMENT']),
+  'approvals.act': R(true, false, false, ['TEAM_LEAD'])
 };
 
 const ACTIONS = Object.keys(RULES) as Action[];

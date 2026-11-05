@@ -41,14 +41,7 @@ export async function seedScale(
     );
     await db.query("DELETE FROM assets WHERE description LIKE $1||' %'", [label], c);
     await db.query("DELETE FROM users WHERE email LIKE $1||'-%@example.invalid'", [label], c);
-    await db.query("DELETE FROM projects WHERE code LIKE $1||'-%'", [label], c);
 
-    await db.query(
-      `INSERT INTO projects(code,name,funder)
-       SELECT $1||'-'||g,'Scale grant '||g||' ('||$2||')','Synthetic funder' FROM generate_series(1,8) g`,
-      [label, tag],
-      c,
-    );
     // 40 holders: the even-numbered ones have left the organisation.
     await db.query(
       `INSERT INTO users(email,display_name,state,left_at)
@@ -63,11 +56,9 @@ export async function seedScale(
       await db.query(
         `WITH base AS (
            SELECT coalesce(max(right(asset_code,6)::int) FILTER(WHERE asset_code ~ '^IAC-[A-Z]+-[0-9]{6}$'),0) AS n
-           FROM assets WHERE owning_team_id=$1),
-         projects_ AS (
-           SELECT array_agg(id ORDER BY code) AS ids FROM projects WHERE code LIKE $3||'-%')
+           FROM assets WHERE owning_team_id=$1)
          INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,
-           owning_team_id,project_id,purchase_cost,purchase_date,warranty_expiry,amc_applies,amc_expiry,finance_pending)
+           owning_team_id,purchase_cost,purchase_date,warranty_expiry,amc_applies,amc_expiry,finance_pending)
          SELECT 'IAC-'||$2||'-'||lpad((base.n+g)::text,6,'0'),
            (ARRAY['IT Hardware','Furniture','Networking','Appliance'])[1+g%4],
            (ARRAY['Laptop','Monitor','Desk','Router','Printer','Phone'])[1+g%6],
@@ -75,14 +66,13 @@ export async function seedScale(
            (ARRAY['Assigned','Assigned','Assigned','Assigned','Assigned','Assigned','Assigned','Assigned','In Store','In Store',
                   'In Store','In Store','Active','Active','Under Repair','Under Verification','Leased','Lost','Active','Assigned'])[1+g%20],
            'Good','Low',$1,
-           CASE WHEN g%4=0 THEN NULL ELSE projects_.ids[1+g%8] END,
            CASE WHEN g%25=0 THEN NULL ELSE 500+(g*37)%90000 END,
            CASE WHEN g%40=0 THEN NULL ELSE date '2018-04-01'+((g*13)%3000) END,
            CASE WHEN g%5=0 THEN NULL ELSE (now() AT TIME ZONE 'Asia/Kolkata')::date+((g*7)%400-30) END,
            g%7=0,
            CASE WHEN g%7=0 THEN (now() AT TIME ZONE 'Asia/Kolkata')::date+((g*11)%300) END,
            g%10=0
-         FROM base,projects_,generate_series(1,$4::int) g`,
+         FROM base,generate_series(1,$4::int) g`,
         [team, PREFIX[team], label, share],
         c,
       );

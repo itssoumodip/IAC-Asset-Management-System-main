@@ -20,10 +20,24 @@ export class ScanService {
                   custody.employee_name,custody.employee_designation,custody.employee_department,
                   custody.acknowledgement AS custody_acknowledgement,custody.assigned_at,
                   EXISTS(SELECT 1 FROM asset_photos p WHERE p.asset_id=a.id) AS has_photo,
-                  (${scope}) AS can_view_full
+                  (${scope}) AS can_view_full,
+                  loc_path.path AS location_path
            FROM assets a
            LEFT JOIN departments d ON d.id=a.department_id
            LEFT JOIN locations l ON l.id=a.location_id
+           LEFT JOIN LATERAL (
+             WITH RECURSIVE loc_tree AS (
+               SELECT l3.id,l3.name,l3.site,l3.code,l3.parent_id,1 AS depth
+               FROM locations l3 WHERE l3.id = l.id
+               UNION ALL
+               SELECT p.id,p.name,p.site,p.code,p.parent_id,ct.depth+1
+               FROM locations p JOIN loc_tree ct ON p.id=ct.parent_id
+             )
+             SELECT string_agg(
+                      COALESCE(NULLIF(btrim(name),''), site, code), ' › ' ORDER BY depth DESC
+                    ) AS path
+             FROM loc_tree
+           ) loc_path ON true
            LEFT JOIN LATERAL (
              SELECT u.display_name AS employee_name,u.designation AS employee_designation,
                     ud.name AS employee_department,s.acknowledgement,s.assigned_at
@@ -60,6 +74,7 @@ export class ScanService {
             site: (row.site ?? row.location_code) as string,
             floor: (row.floor ?? null) as string | null,
             room: (row.room ?? null) as string | null,
+            path: (row.location_path ?? null) as string | null,
           }
         : null,
       status: row.status as string,

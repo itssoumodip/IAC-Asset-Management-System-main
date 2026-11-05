@@ -1,0 +1,203 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api';
+import { useAction } from '../hooks';
+import { useSession } from '../session';
+import { can } from '../session';
+import {
+  Empty,
+  ErrorNotice,
+  Loading,
+  PageTitle,
+  Panel,
+  Select,
+} from './ui';
+
+interface DepreciationRow {
+  id: string;
+  assetCode: string;
+  description: string;
+  assetType: string;
+  category: string;
+  owningTeamId: string;
+  teamName: string;
+  status: string;
+  purchaseDate: string | null;
+  purchaseCost: number | null;
+  residualValue: number | null;
+  depreciationMethod: string | null;
+  usefulLifeYears: number | null;
+  capitalisationDate: string | null;
+  currentValue: number;
+  depreciatedValue: number;
+}
+
+/** Depreciation page: per-asset purchase date, capitalisation date, method, rate,
+ * current value, depreciated value. Run by period; Companies Act and Income Tax views. */
+export function Depreciation() {
+  const { user } = useSession();
+  const allowed = can(user, 'asset.finance_edit');
+  if (!allowed)
+    return (
+      <Panel>
+        <p role="alert">You need finance edit permission to view depreciation.</p>
+      </Panel>
+    );
+
+  const [fyStart, setFyStart] = useState<number>(new Date().getFullYear());
+  const [method, setMethod] = useState<'SLM' | 'WDV'>('SLM');
+
+  const query = useQuery({
+    queryKey: ['depreciation'],
+    queryFn: ({ signal }) => api<{ items: DepreciationRow[] }>('/depreciation', { signal }),
+  });
+  const action = useAction();
+
+  const data = query.data?.items ?? [];
+
+  // Summary stats
+  const totalPurchaseCost = data.reduce((sum, a) => sum + (a.purchaseCost ?? 0), 0);
+  const totalCurrentValue = data.reduce((sum, a) => sum + a.currentValue, 0);
+  const uncappeditalised = data.filter((a) => !a.capitalisationDate).length;
+
+  async function runDepreciation() {
+    if (action.isPending) return;
+    await action
+      .mutateAsync({
+        path: '/depreciation/run',
+        method: 'POST',
+        body: { financialYearStart: fyStart, method },
+      })
+      .then(() => {
+        void query.refetch();
+      })
+      .catch(() => undefined);
+  }
+
+  return (
+    <>
+      <PageTitle
+        eyebrow="FINANCE & REPORTS"
+        title="Depreciation"
+        description="Per-asset purchase date, capitalisation date, method, rate, current value and depreciated value. Run by period."
+      />
+      <ErrorNotice error={action.error ?? query.error} />
+
+      <div className="dashboard-columns">
+        <div className="mini-stats">
+          <div className="stat">
+            <strong>{data.length}</strong>
+            <span className="muted small-text">assets with cost</span>
+          </div>
+          <div className="stat">
+            <strong>₹{totalPurchaseCost.toLocaleString('en-IN')}</strong>
+            <span className="muted small-text">purchase cost</span>
+          </div>
+          <div className="stat">
+            <strong>₹{totalCurrentValue.toLocaleString('en-IN')}</strong>
+            <span className="muted small-text">current value</span>
+          </div>
+          <div className="stat warn">
+            <strong>{uncappeditalised}</strong>
+            <span className="muted small-text">not capitalised</span>
+          </div>
+        </div>
+      </div>
+
+      <Panel title="Depreciation register">
+        <div className="form-actions" style={{ marginBottom: 12, gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="muted small-text">Financial year:</span>
+            <input
+              type="number"
+              value={fyStart}
+              onChange={(e) => setFyStart(parseInt(e.target.value, 10) || new Date().getFullYear())}
+              min="2000"
+              max="2100"
+              style={{ width: 90 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="muted small-text">Method:</span>
+            <Select
+              label=""
+              htmlFor="dep-method"
+              value={method}
+              onChange={(v) => setMethod(v as 'SLM' | 'WDV')}
+              options={[
+                { value: 'SLM', label: 'Straight Line' },
+                { value: 'WDV', label: 'Written Down Value' },
+              ]}
+            />
+          </div>
+          <button
+            className="button"
+            type="button"
+            disabled={action.isPending}
+            onClick={runDepreciation}
+          >
+            {action.isPending ? 'Running…' : 'Run depreciation'}
+          </button>
+        </div>
+        <p className="muted small-text">
+          Companies Act view: SLM depreciation over useful life. Income Tax view: WDV at
+          prescribed rate. Capitalisation date is set automatically at first assignment.
+        </p>
+        {query.isPending ? (
+          <Loading />
+        ) : data.length ? (
+          <div className="table-scroll">
+            <table className="category-table">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>Team</th>
+                  <th>Purchase date</th>
+                  <th>Purchase cost</th>
+                  <th>Capitalisation date</th>
+                  <th>Method</th>
+                  <th>Current value</th>
+                  <th>Depreciated value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((a) => (
+                  <tr key={a.id}>
+                    <td className="mono">{a.assetCode}</td>
+                    <td>{a.description}</td>
+                    <td>{a.category}</td>
+                    <td>{a.teamName}</td>
+                    <td>{a.purchaseDate ?? '—'}</td>
+                    <td className="mono">
+                      {a.purchaseCost != null ? `₹${a.purchaseCost.toLocaleString('en-IN')}` : '—'}
+                    </td>
+                    <td>{a.capitalisationDate ?? '—'}</td>
+                    <td>{a.depreciationMethod ?? '—'}</td>
+                    <td className="mono">₹{a.currentValue.toLocaleString('en-IN')}</td>
+                    <td className="mono">₹{a.depreciatedValue.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty title="No depreciable assets" />
+        )}
+      </Panel>
+
+      <Panel title="Depreciation schedules by period">
+        <p className="muted">
+          Run depreciation for a financial year to generate per-asset schedules. Use the buttons
+          above to run for the selected year and method.
+        </p>
+        <div className="muted small-text">
+          Companies Act (SLM): Depreciation = (Purchase cost − Residual value) ÷ Useful life
+          years, charged each year until residual value is reached. Income Tax (WDV): Depreciation
+          = Rate% × Opening written-down value, reducing balance each year.
+        </div>
+      </Panel>
+    </>
+  );
+}

@@ -125,9 +125,9 @@ export class AssetDomain extends MasterDomain {
     for (const [key, column] of [
       ['status', 'status'],
       ['category', 'category'],
+      ['assetType', 'asset_type'],
       ['departmentId', 'department_id'],
       ['owningTeamId', 'owning_team_id'],
-      ['projectId', 'project_id'],
     ] as const)
       if (p[key]) {
         values.push(p[key]);
@@ -147,7 +147,7 @@ export class AssetDomain extends MasterDomain {
     }
     values.push(p.limit + 1);
     const rows = await this.db.query(
-      `SELECT ${assetColumns(req.user)}${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
+      `SELECT ${assetColumns(req.user)},EXISTS(SELECT 1 FROM asset_photos ph WHERE ph.asset_id=a.id) AS has_photo${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
       values,
     );
     const result = page(rows, p.limit, ['asset_code', 'id']);
@@ -340,10 +340,16 @@ export class AssetDomain extends MasterDomain {
             c,
           );
           if (options.sendEmail !== false)
-            await this.db.notify(c, `assignment:${old.id}:ended`, 'ASSIGNMENT_ENDED', old.holder_state === 'DIRECTORY' ? [] : [old.email], {
-              subject: `Asset ${asset.asset_code} returned`,
-              text: 'Your custody record was closed. Sign in to review your assigned assets.',
-            });
+            await this.db.notify(
+              c,
+              `assignment:${old.id}:ended`,
+              'ASSIGNMENT_ENDED',
+              old.holder_state === 'DIRECTORY' ? [] : [old.email],
+              {
+                subject: `Asset ${asset.asset_code} returned`,
+                text: 'Your custody record was closed. Sign in to review your assigned assets.',
+              },
+            );
         }
         const row = await insertObject(
           this.db,
@@ -476,10 +482,16 @@ export class AssetDomain extends MasterDomain {
         data,
         asset,
       );
-      await this.db.notify(c, `assignment:${assignmentId}:ended`, 'ASSIGNMENT_ENDED', row.holder_state === 'DIRECTORY' ? [] : [row.email], {
-        subject: `Asset ${asset.asset_code} returned`,
-        text: 'Your custody record was closed. Sign in to review your assigned assets.',
-      });
+      await this.db.notify(
+        c,
+        `assignment:${assignmentId}:ended`,
+        'ASSIGNMENT_ENDED',
+        row.holder_state === 'DIRECTORY' ? [] : [row.email],
+        {
+          subject: `Asset ${asset.asset_code} returned`,
+          text: 'Your custody record was closed. Sign in to review your assigned assets.',
+        },
+      );
       return { ...camel(ended), assetVersion: updated.version };
     });
   }

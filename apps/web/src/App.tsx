@@ -3,9 +3,11 @@ import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, resetCsrf } from './api';
-import { useSession, can, isStaff, roleLabel, teamChipLabel } from './session';
+import { useSession, can, roleLabel, teamChipLabel } from './session';
 import { AuthScreen, AccessScreen, SecurityScreen } from './components/Auth';
-import { AssetList, AssetDetail, AssetEditor, AssignmentForm } from './components/Assets';
+import { AssetList, AssetEditor } from './components/Assets';
+import { AssetAssignTransfer } from './components/AssetAssignTransfer';
+import { AssetDetailZoho as AssetDetail } from './components/AssetDetailZoho';
 import { ScanPage } from './components/Scan';
 import { LabelPrintPage } from './components/Labels';
 import { rememberReturnTo, clearReturnTo } from './return-to';
@@ -14,14 +16,28 @@ import { ScanButton } from './components/Scanner';
 import { TicketForm, TicketList, TicketDetail } from './components/Tickets';
 import { UserDashboard } from './components/Dashboards';
 import { UserAdmin, AuditView, ImportsView } from './components/Admin';
+import { RoleFieldPermissions } from './components/RoleFieldPermissions';
+import { Locations } from './components/Locations';
+import { Categories } from './components/Categories';
+import { MyAssets } from './components/MyAssets';
+import { Requests } from './components/Requests';
+import { Approvals } from './components/Approvals';
+import { Inventory } from './components/Inventory';
 import { Empty, ErrorNotice, Field, Loading, Avatar } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { MasterControl } from './components/MasterControl';
 import { TeamMembers, TeamsAndProjects } from './components/TeamAdmin';
+import { Depreciation } from './components/Depreciation';
+import { Store } from './components/Store';
+import { Maintenance } from './components/Maintenance';
+import { Verification } from './components/Verification';
 import { Directory } from './components/Directory';
 import { FinanceReview } from './components/FinanceReview';
 import { PushAnnouncements } from './components/PushAnnouncements';
+import { Reports } from './components/Reports';
+import { Insurance } from './components/Insurance';
+import { Procurement } from './components/Procurement';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
 import { useAction } from './hooks';
 import type { Action } from './types';
@@ -195,8 +211,8 @@ function Shell() {
         <Link to="/dashboard" className="brand">
           <BrandMark />
           <span className="brand-text">
-            <span className="brand-org">IAC Patrons Foundation</span>
-            <strong>Asset workspace</strong>
+            <span className="brand-org">IAC</span>
+            <strong>Asset Management</strong>
           </span>
         </Link>
         <p className="nav-label">Workspace</p>
@@ -205,104 +221,158 @@ function Shell() {
             <span className="nav-icon">
               <NavIcon name="overview" />
             </span>
-            Overview
+            Dashboard
           </NavLink>
-          <NavLink to="/assets">
+          <NavLink to="/my-assets">
             <span className="nav-icon">
               <NavIcon name="assets" />
             </span>
-            {can(user, 'asset.view_all') ? 'Asset catalog' : 'Assets'}
+            My assets
+          </NavLink>
+          <NavLink to="/requests">
+            <span className="nav-icon">
+              <NavIcon name="assets" />
+            </span>
+            Requests
           </NavLink>
           <NavLink to="/tickets">
             <span className="nav-icon">
               <NavIcon name="tickets" />
             </span>
-            {isStaff(user) ? 'Support desk' : 'My tickets'}
+            Support
           </NavLink>
-          <NavLink
-            to="/notifications"
-            aria-label={
-              notificationCount.data?.unreadCount
-                ? `Notifications, ${notificationCount.data.unreadCount} unread`
-                : 'Notifications'
-            }
-          >
-            <span className="nav-icon">
-              <NavIcon name="notifications" />
-            </span>
-            Notifications
-            {notificationCount.data?.unreadCount ? (
-              <span className="notification-nav-count" aria-hidden="true">
-                {notificationCount.data.unreadCount > 99
-                  ? '99+'
-                  : notificationCount.data.unreadCount}
-              </span>
-            ) : null}
-          </NavLink>
-          {can(user, 'asset.finance_edit') ? (
-            <NavLink to="/finance">
-              <span className="nav-icon">
-                <NavIcon name="audit" />
-              </span>
-              Finance review
-            </NavLink>
-          ) : null}
           <NavLink to="/install" className="install-app-nav">
             <span className="nav-icon">
               <NavIcon name="install" />
             </span>
             Install app
           </NavLink>
-          {can(user, 'announcement.send') ? (
-            <>
-              <p className="nav-label">Administration</p>
-              <NavLink to="/admin/announcements">
-                <span className="nav-icon">
-                  <NavIcon name="push" />
-                </span>
-                Announcements
-              </NavLink>
-            </>
-          ) : null}
-          {can(user, 'asset.label') ? (
+        </nav>
+        <p className="nav-label">Assets</p>
+        <nav aria-label="Assets navigation" onClick={() => setMenuOpen(false)}>
+          {can(user, 'asset.view_all') && (
+            <NavLink to="/assets">
+              <span className="nav-icon">
+                <NavIcon name="assets" />
+              </span>
+              Asset catalog
+            </NavLink>
+          )}
+          {(can(user, 'approvals.act') || can(user, 'asset.finance_edit')) && (
+            <NavLink to="/approvals">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Approvals
+            </NavLink>
+          )}
+          {can(user, 'asset.label') && (
             <NavLink to="/assets/labels">
               <span className="nav-icon">
                 <NavIcon name="assets" />
               </span>
               Print labels
             </NavLink>
-          ) : null}
-          {can(user, 'system.admin') ? (
-            <NavLink to="/admin/imports">
+          )}
+        </nav>
+        <p className="nav-label">Inventory &amp; store</p>
+        <nav aria-label="Inventory navigation" onClick={() => setMenuOpen(false)}>
+          {can(user, 'system.admin') && (
+            <NavLink to="/inventory">
               <span className="nav-icon">
-                <NavIcon name="imports" />
+                <NavIcon name="assets" />
               </span>
-              Import review
+              Inventory
             </NavLink>
-          ) : null}
-          {(user?.teams ?? [])
-            .filter((t) => t.level === 'LEAD')
-            .map((t) => (
-              <NavLink key={t.teamId} to={`/team/${t.teamId}`}>
+          )}
+          {can(user, 'store.operations') && (
+            <NavLink to="/store">
+              <span className="nav-icon">
+                <NavIcon name="master" />
+              </span>
+              Store
+            </NavLink>
+          )}
+          {can(user, 'system.admin') && (
+            <NavLink to="/locations">
+              <span className="nav-icon">
+                <NavIcon name="master" />
+              </span>
+              Locations
+            </NavLink>
+          )}
+        </nav>
+        <p className="nav-label">Maintenance &amp; audit</p>
+        <nav aria-label="Maintenance navigation" onClick={() => setMenuOpen(false)}>
+          {can(user, 'ticket.work') && (
+            <NavLink to="/maintenance">
+              <span className="nav-icon">
+                <NavIcon name="tickets" />
+              </span>
+              Maintenance
+            </NavLink>
+          )}
+          {can(user, 'verification.perform') && (
+            <NavLink to="/verification">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Verification
+            </NavLink>
+          )}
+        </nav>
+        <p className="nav-label">Finance &amp; reports</p>
+        <nav aria-label="Finance navigation" onClick={() => setMenuOpen(false)}>
+          {can(user, 'asset.finance_edit') && (
+            <NavLink to="/finance">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Finance review
+            </NavLink>
+          )}
+          {can(user, 'asset.finance_edit') && (
+            <NavLink to="/depreciation">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Depreciation
+            </NavLink>
+          )}
+          {can(user, 'report.view') && (
+            <NavLink to="/reports">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Reports
+            </NavLink>
+          )}
+          {can(user, 'insurer.view') && (
+            <NavLink to="/insurance">
+              <span className="nav-icon">
+                <NavIcon name="audit" />
+              </span>
+              Insurance
+            </NavLink>
+          )}
+          {can(user, 'procurement.view') && (
+            <NavLink to="/procurement">
+              <span className="nav-icon">
+                <NavIcon name="master" />
+              </span>
+              Procurement
+            </NavLink>
+          )}
+        </nav>
+        {can(user, 'system.admin') ? (
+          <>
+            <p className="nav-label">Administration</p>
+            <nav aria-label="Administration navigation" onClick={() => setMenuOpen(false)}>
+              <NavLink to="/admin/users">
                 <span className="nav-icon">
                   <NavIcon name="people" />
                 </span>
-                My team ({t.teamCode})
-              </NavLink>
-            ))}
-          {can(user, 'system.admin') ? (
-            <>
-              <NavLink to="/master-control">
-                <span className="nav-icon">
-                  <NavIcon name="master" />
-                </span>
-                Master control
-              </NavLink>
-              <NavLink to="/admin/teams">
-                <span className="nav-icon">
-                  <NavIcon name="master" />
-                </span>
-                Teams & projects
+                People &amp; access
               </NavLink>
               <NavLink to="/admin/directory">
                 <span className="nav-icon">
@@ -310,21 +380,63 @@ function Shell() {
                 </span>
                 Directory &amp; Zoho
               </NavLink>
-              <NavLink to="/admin/users">
+              <NavLink to="/admin/teams">
                 <span className="nav-icon">
-                  <NavIcon name="people" />
+                  <NavIcon name="master" />
                 </span>
-                People &amp; access
+                Teams
               </NavLink>
+              <NavLink to="/categories">
+                <span className="nav-icon">
+                  <NavIcon name="master" />
+                </span>
+                Categories
+              </NavLink>
+              <NavLink to="/admin/roles">
+                <span className="nav-icon">
+                  <NavIcon name="audit" />
+                </span>
+                Field permissions &amp; roles
+              </NavLink>
+              <NavLink to="/master-control">
+                <span className="nav-icon">
+                  <NavIcon name="master" />
+                </span>
+                Master control
+              </NavLink>
+              <NavLink to="/admin/imports">
+                <span className="nav-icon">
+                  <NavIcon name="imports" />
+                </span>
+                Import review
+              </NavLink>
+              {can(user, 'announcement.send') && (
+                <NavLink to="/admin/announcements">
+                  <span className="nav-icon">
+                    <NavIcon name="push" />
+                  </span>
+                  Announcements
+                </NavLink>
+              )}
               <NavLink to="/admin/audit">
                 <span className="nav-icon">
                   <NavIcon name="audit" />
                 </span>
                 Audit trail
               </NavLink>
-            </>
-          ) : null}
-        </nav>
+            </nav>
+          </>
+        ) : null}
+        {(user?.teams ?? [])
+          .filter((t) => t.level === 'LEAD')
+          .map((t) => (
+            <NavLink key={t.teamId} to={`/team/${t.teamId}`}>
+              <span className="nav-icon">
+                <NavIcon name="people" />
+              </span>
+              My team ({t.teamCode})
+            </NavLink>
+          ))}
         <div className="sidebar-footer">
           <span className="status-dot" />
           Secure staff portal
@@ -346,6 +458,24 @@ function Shell() {
           <span className="topbar-caption">
             Asset operations <span>·</span> Staff portal
           </span>
+          <NavLink
+            to="/notifications"
+            className="topbar-bell"
+            aria-label={
+              notificationCount.data?.unreadCount
+                ? `Notifications, ${notificationCount.data.unreadCount} unread`
+                : 'Notifications'
+            }
+          >
+            <NavIcon name="notifications" />
+            {notificationCount.data?.unreadCount ? (
+              <span className="topbar-bell-count" aria-hidden="true">
+                {notificationCount.data.unreadCount > 99
+                  ? '99+'
+                  : notificationCount.data.unreadCount}
+              </span>
+            ) : null}
+          </NavLink>
           <Link to="/profile" className="profile-link">
             <Avatar userId={user.id} name={user.displayName} hasPhoto={user.hasPhoto} size={32} />
             <span>
@@ -502,7 +632,10 @@ function Profile() {
           </Field>
           <Field label="Access roles" htmlFor="profile-roles">
             <span className="profile-readonly">
-              {[...(user?.roles.map(roleLabel) ?? []), ...(user?.teams?.map(teamChipLabel) ?? [])].join(', ')}
+              {[
+                ...(user?.roles.map(roleLabel) ?? []),
+                ...(user?.teams?.map(teamChipLabel) ?? []),
+              ].join(', ')}
             </span>
           </Field>
         </div>
@@ -589,6 +722,8 @@ export function App() {
         <Route element={<Guard />}>
           <Route element={<Shell />}>
             <Route path="/dashboard" element={<UserDashboard />} />
+            <Route path="/my-assets" element={<MyAssets />} />
+            <Route path="/requests" element={<Requests />} />
             <Route path="/assets" element={<AssetList />} />
             <Route path="/a/:assetCode" element={<ScanPage />} />
             <Route path="/assets/:id" element={<AssetDetail />} />
@@ -606,7 +741,7 @@ export function App() {
                 path="/assignments/new"
                 element={<AssetList key="assignment" assignmentMode />}
               />
-              <Route path="/assets/:id/assign" element={<AssignmentForm />} />
+              <Route path="/assets/:id/assign" element={<AssetAssignTransfer />} />
             </Route>
             <Route element={<Guard action="asset.create" />}>
               <Route path="/assets/new" element={<AssetEditor />} />
@@ -614,23 +749,49 @@ export function App() {
             <Route element={<Guard action="asset.label" />}>
               <Route path="/assets/labels" element={<LabelPrintPage />} />
             </Route>
-            <Route element={<Guard anyOf={["asset.edit", "asset.finance_edit"]} />}>
+            <Route element={<Guard anyOf={['asset.edit', 'asset.finance_edit']} />}>
               <Route path="/assets/:id/edit" element={<AssetEditor />} />
             </Route>
             <Route element={<Guard action="asset.finance_edit" />}>
               <Route path="/finance" element={<FinanceReview />} />
+              <Route path="/depreciation" element={<Depreciation />} />
+            </Route>
+            <Route element={<Guard action="report.view" />}>
+              <Route path="/reports" element={<Reports />} />
+            </Route>
+            <Route element={<Guard action="insurer.view" />}>
+              <Route path="/insurance" element={<Insurance />} />
+            </Route>
+            <Route element={<Guard action="procurement.view" />}>
+              <Route path="/procurement" element={<Procurement />} />
             </Route>
             {/* TeamMembers checks team.manage_members for the team in the URL itself. */}
             <Route path="/team/:teamId" element={<TeamMembers />} />
             <Route element={<Guard action="system.admin" />}>
               <Route path="/admin/imports" element={<ImportsView />} />
             </Route>
+            <Route element={<Guard action="store.operations" />}>
+              <Route path="/store" element={<Store />} />
+            </Route>
+            <Route element={<Guard action="ticket.work" />}>
+              <Route path="/maintenance" element={<Maintenance />} />
+              <Route path="/verification" element={<Verification />} />
+            </Route>
             <Route element={<Guard action="system.admin" />}>
               <Route path="/master-control" element={<MasterControl />} />
+              <Route path="/admin/roles" element={<RoleFieldPermissions />} />
               <Route path="/admin/teams" element={<TeamsAndProjects />} />
               <Route path="/admin/directory" element={<Directory />} />
               <Route path="/admin/users" element={<UserAdmin />} />
               <Route path="/admin/audit" element={<AuditView />} />
+            </Route>
+            <Route element={<Guard anyOf={['approvals.act', 'system.admin']} />}>
+              <Route path="/approvals" element={<Approvals />} />
+            </Route>
+            <Route element={<Guard action="asset.view_all" />}>
+              <Route path="/locations" element={<Locations />} />
+              <Route path="/categories" element={<Categories />} />
+              <Route path="/inventory" element={<Inventory />} />
             </Route>
           </Route>
         </Route>

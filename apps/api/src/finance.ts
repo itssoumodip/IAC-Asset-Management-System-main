@@ -206,10 +206,7 @@ export class FinanceService {
       throw new UnprocessableEntityException('Invalid status');
     const values: any[] = [status];
     const where = ['a.finance_status=$1'];
-    for (const [key, column] of [
-      ['teamId', 'owning_team_id'],
-      ['projectId', 'project_id'],
-    ] as const)
+    for (const [key, column] of [['teamId', 'owning_team_id']] as const)
       if (p[key]) {
         values.push(p[key]);
         where.push(`a.${column}=$${values.length}`);
@@ -226,7 +223,7 @@ export class FinanceService {
     }
     values.push(p.limit + 1);
     const rows = await this.db.query(
-      `SELECT a.id,a.asset_code,a.description,a.category,a.owning_team_id,tm.code AS team_code,a.project_id,a.finance_status,a.finance_rejection_reason,
+      `SELECT a.id,a.asset_code,a.description,a.category,a.owning_team_id,tm.code AS team_code,a.finance_status,a.finance_rejection_reason,
               a.supplier,a.invoice_number,a.purchase_date,a.purchase_cost,a.created_at,
               inv.id AS invoice_id,inv.extraction_state AS invoice_state
        FROM assets a JOIN teams tm ON tm.id=a.owning_team_id

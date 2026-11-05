@@ -99,12 +99,38 @@ export function Badge({
   label?: string;
 }) {
   const label = customLabel ?? (value ? value.replaceAll('_', ' ').toLowerCase() : 'Unknown');
-  const tone =
-    value && ['COMPLETED', 'ACCEPTED', 'ACTIVE'].includes(value)
+  const tone = !value
+    ? ''
+    : [
+          'COMPLETED',
+          'ACCEPTED',
+          'ACTIVE',
+          'Active',
+          'Assigned',
+          'APPROVED',
+          'Good',
+          'New',
+          'In Stock',
+        ].includes(value)
       ? 'success'
-      : value && ['PENDING', 'DISPUTED', 'HIGH', 'Lost', 'Stolen'].includes(value)
-        ? 'warning'
-        : '';
+      : ['Lost', 'Stolen', 'Retired', 'Disposed', 'Sold', 'REJECTED', 'DEAD'].includes(value)
+        ? 'danger'
+        : [
+              'PENDING',
+              'DISPUTED',
+              'HIGH',
+              'Under Repair',
+              'Under Verification',
+              'Damaged',
+              'Poor',
+              'IN_PROGRESS',
+              'SUBMITTED',
+              'Out of stock',
+            ].includes(value)
+          ? 'warning'
+          : ['In Store', 'OPEN', 'Leased'].includes(value)
+            ? 'info'
+            : '';
   return <span className={`badge ${tone}`}>{label}</span>;
 }
 export function Metric({
@@ -337,7 +363,15 @@ export function Timeline({
       ASSIGNMENT_ENDED: 'Assignment ended',
     };
     const kind = item.kind ?? item.type ?? '';
-    return labels[kind] ?? (kind ? kind.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase()) : 'Update');
+    return (
+      labels[kind] ??
+      (kind
+        ? kind
+            .replaceAll('_', ' ')
+            .toLowerCase()
+            .replace(/^./, (letter) => letter.toUpperCase())
+        : 'Update')
+    );
   };
   const bodyFor = (item: (typeof items)[number]) => {
     const body = item.body?.trim() || item.summary?.trim();

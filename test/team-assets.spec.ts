@@ -5,8 +5,6 @@ const itId = '00000000-0000-4000-8000-000000000001';
 const admId = '00000000-0000-4000-8000-000000000002';
 const prjId = '00000000-0000-4000-8000-000000000003';
 const oldId = '00000000-0000-4000-8000-000000000004';
-const projectOne = '00000000-0000-4000-8000-0000000000a1';
-const projectOld = '00000000-0000-4000-8000-0000000000a2';
 const deptId = '00000000-0000-4000-8000-0000000000d1';
 const locId = '00000000-0000-4000-8000-0000000000e1';
 
@@ -101,14 +99,10 @@ const references = {
     { id: locId, code: 'R1', site: 'Kolkata', room: 'Room 1', active: true, version: 1 },
   ],
   teams: [
-    team(itId, 'IT', 'IT', 'IT', false, true),
-    team(admId, 'ADM', 'Admin', 'ADM', false, true),
-    team(prjId, 'PRJ', 'Projects', 'PRJ', true, true),
-    team(oldId, 'OLD', 'Retired team', 'OLD', false, false),
-  ],
-  projects: [
-    project(projectOne, 'GR1', 'Grant One', true),
-    project(projectOld, 'GR0', 'Closed Grant', false),
+    team(itId, 'IT', 'IT', 'IT', true),
+    team(admId, 'ADM', 'Admin', 'ADM', true),
+    team(prjId, 'PRJ', 'Projects', 'PRJ', true),
+    team(oldId, 'OLD', 'Retired team', 'OLD', false),
   ],
   assetTypePolicies: [{ assetTypeCode: 'Projector', requiresCustodian: false }],
 };
@@ -118,30 +112,16 @@ function team(
   code: string,
   name: string,
   assetCodePrefix: string,
-  requiresProject: boolean,
   active: boolean,
 ) {
-  return { id, code, name, assetCodePrefix, requiresProject, active, version: 1, prefixInUse: true };
-}
-function project(id: string, code: string, name: string, active: boolean) {
-  return {
-    id,
-    code,
-    name,
-    funder: null,
-    grantReference: null,
-    startDate: '2026-01-01',
-    endDate: null,
-    active,
-    version: 1,
-  };
+  return { id, code, name, assetCodePrefix, active, version: 1, prefixInUse: true };
 }
 
 const catalog = [
-  asset('00000000-0000-4000-8000-000000000101', 'IAC-IT-000001', itId, null),
-  asset('00000000-0000-4000-8000-000000000102', 'IAC-PRJ-000001', prjId, projectOne),
+  asset('00000000-0000-4000-8000-000000000101', 'IAC-IT-000001', itId),
+  asset('00000000-0000-4000-8000-000000000102', 'IAC-PRJ-000001', prjId),
 ];
-function asset(id: string, assetCode: string, owningTeamId: string, projectId: string | null) {
+function asset(id: string, assetCode: string, owningTeamId: string) {
   return {
     id,
     assetCode,
@@ -151,7 +131,6 @@ function asset(id: string, assetCode: string, owningTeamId: string, projectId: s
     status: 'In Store',
     condition: 'Good',
     owningTeamId,
-    projectId,
     version: 1,
     currentAssignment: null,
   };
@@ -179,12 +158,7 @@ async function mockApi(page: Page, who: keyof typeof users) {
     } else if (method === 'GET' && path === '/api/v1/assets') {
       listQueries.push(url.searchParams);
       const teamFilter = url.searchParams.get('owningTeamId');
-      const projectFilter = url.searchParams.get('projectId');
-      const items = catalog.filter(
-        (item) =>
-          (!teamFilter || item.owningTeamId === teamFilter) &&
-          (!projectFilter || item.projectId === projectFilter),
-      );
+      const items = catalog.filter((item) => !teamFilter || item.owningTeamId === teamFilter);
       await route.fulfill({ json: { items, nextCursor: null } });
     } else if (method === 'GET' && path.startsWith('/api/v1/assets/')) {
       const found = catalog.find((item) => path === `/api/v1/assets/${item.id}`);
@@ -211,27 +185,6 @@ test('Owning team picker lists only teams the user can create in', async ({ page
   await page.goto('/assets/new');
   await page.locator('#owningTeamId').click();
   await expect(page.getByRole('option')).toHaveText(['Select team', 'IT (IT)', 'Admin (ADM)']);
-});
-
-test('Project becomes required for the Projects team', async ({ page }) => {
-  await mockApi(page, 'projects');
-  await page.goto('/assets/new');
-  // A single permitted team is preselected.
-  await expect(page.getByText('Project / grant (required)', { exact: true })).toBeVisible();
-  const save = page.getByRole('button', { name: 'Create asset', exact: true });
-  await expect(save).toBeDisabled();
-  await page.locator('#projectId').click();
-  await expect(page.getByRole('option')).toHaveText(['Select project', 'Grant One (GR1)']);
-  await page.getByRole('option', { name: 'Grant One (GR1)', exact: true }).click();
-  await expect(save).toBeEnabled();
-});
-
-test('Project is optional for a team that does not require one', async ({ page }) => {
-  await mockApi(page, 'adminOnly');
-  await page.goto('/assets/new');
-  await expect(page.getByText('Project / grant', { exact: true })).toBeVisible();
-  await expect(page.getByText('Project / grant (required)', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Create asset', exact: true })).toBeEnabled();
 });
 
 test('code preview shows IAC-ADM-… for the Admin team', async ({ page }) => {
@@ -298,7 +251,7 @@ test('Finance can edit finance fields and sends them on create', async ({ page }
   expect(writes[0].body).toMatchObject({ owningTeamId: itId, purchaseCost: '45999.00' });
 });
 
-test('catalog filters by team and project', async ({ page }) => {
+test('catalog filters by team', async ({ page }) => {
   const { listQueries } = await mockApi(page, 'member');
   await page.goto('/assets');
   await expect(page.getByRole('link', { name: 'IAC-IT-000001', exact: true })).toBeVisible();
@@ -306,9 +259,6 @@ test('catalog filters by team and project', async ({ page }) => {
   await choose(page, 'filter-team', 'Projects (PRJ)');
   await expect(page.getByRole('link', { name: 'IAC-IT-000001', exact: true })).toHaveCount(0);
   await expect.poll(() => listQueries.at(-1)?.get('owningTeamId')).toBe(prjId);
-  await choose(page, 'filter-project', 'Grant One (GR1)');
-  await expect.poll(() => listQueries.at(-1)?.get('projectId')).toBe(projectOne);
-  expect(listQueries.at(-1)?.get('owningTeamId')).toBe(prjId);
   await expect(page.getByRole('link', { name: 'IAC-PRJ-000001', exact: true })).toBeVisible();
 });
 

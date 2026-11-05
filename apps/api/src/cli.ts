@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { Writable } from 'node:stream';
+import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { Db } from './db';
 import { configuration } from './config';
@@ -62,35 +63,19 @@ async function secret(prompt: string): Promise<string> {
     rl.close();
   }
 }
-async function bootstrap(db: Db) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  let email: string, name: string;
-  try {
-    email = z
-      .string()
-      .trim()
-      .toLowerCase()
-      .email()
-      .max(254)
-      .parse(await rl.question('Administrator email: '));
-    name = z
-      .string()
-      .trim()
-      .min(1)
-      .max(120)
-      .parse(await rl.question('Display name: '));
-  } finally {
-    rl.close();
-  }
-  const pass = z
-    .string()
-    .min(12)
-    .max(128)
-    .parse(await secret('Password (12+ characters; hidden): '));
-  if ((await secret('Confirm password (hidden): ')) !== pass)
-    throw new Error('Passwords do not match');
-  const hashed = await passwordHash(pass);
-  await db.tx(async (c) => {
+export type BootstrapInput = { email: string; displayName: string; hashedPassword: string };
+
+/**
+ * Creates the first Super Admin. A Zoho People sync creates everyone as a DIRECTORY
+ * stub with no password, so the operator's own email may already exist. Adopt that
+ * stub instead of failing on the unique email constraint.
+ */
+export async function bootstrapAdmin(
+  db: Db,
+  input: BootstrapInput,
+  client?: PoolClient,
+): Promise<{ id: string; email: string; adopted: boolean }> {
+  const run = async (c: PoolClient) => {
     await db.query('SELECT pg_advisory_xact_lock(715023)', [], c);
     if (
       (
@@ -102,25 +87,97 @@ async function bootstrap(db: Db) {
       )[0]
     )
       throw new Error('An active Admin already exists. Use administrator user controls.');
-    const [user] = await db.query(
-      "INSERT INTO users(email,display_name,password_hash,state,email_verified_at) VALUES($1,$2,$3,'ACTIVE',now()) RETURNING id",
-      [email, name, hashed],
+
+    const [existing] = await db.query(
+      'SELECT id,state,left_at FROM users WHERE email=$1 FOR UPDATE',
+      [input.email],
       c,
     );
+
+    let id: string;
+    if (!existing) {
+      const [created] = await db.query(
+        "INSERT INTO users(email,display_name,password_hash,state,email_verified_at) VALUES($1,$2,$3,'ACTIVE',now()) RETURNING id",
+        [input.email, input.displayName, input.hashedPassword],
+        c,
+      );
+      id = created.id;
+    } else if (existing.state === 'DIRECTORY' && !existing.left_at) {
+      const [adopted] = await db.query(
+        `UPDATE users SET password_hash=$2,display_name=$3,state='ACTIVE',email_verified_at=now(),version=version+1,updated_at=now() WHERE id=$1 RETURNING id`,
+        [existing.id, input.hashedPassword, input.displayName],
+        c,
+      );
+      id = adopted.id;
+    } else if (existing.left_at) {
+      throw new Error('This person has left. Ask an administrator to restore the account.');
+    } else if (existing.state === 'ACTIVE') {
+      throw new Error('This email is already in use by an active account.');
+    } else if (existing.state === 'DISABLED') {
+      throw new Error('This email belongs to a disabled account.');
+    } else {
+      throw new Error('This email already has a pending invitation.');
+    }
+
     await db.query(
-      "INSERT INTO user_roles(user_id,role_code) VALUES($1,'SUPER_ADMIN'),($1,'EMPLOYEE')",
-      [user.id],
+      "INSERT INTO user_roles(user_id,role_code) VALUES($1,'SUPER_ADMIN'),($1,'EMPLOYEE') ON CONFLICT DO NOTHING",
+      [id],
       c,
     );
     await db.query(
       'INSERT INTO approved_emails(email) VALUES($1) ON CONFLICT DO NOTHING',
-      [email],
+      [input.email],
       c,
     );
-    await db.audit(c, null, 'USER', user.id, 'OPERATOR_BOOTSTRAP');
-  });
+    await db.audit(c, null, 'USER', id, 'OPERATOR_BOOTSTRAP', {
+      adoptedDirectoryRecord: Boolean(existing),
+    });
+    return { id, email: input.email, adopted: Boolean(existing) };
+  };
+  return client ? run(client) : db.tx(run);
+}
+
+async function bootstrap(db: Db) {
+  if (!process.stdin.isTTY)
+    throw new Error(
+      'The prompts need an interactive terminal. Open a PowerShell window in the project folder and run this command there (not from a task runner or an editor "Run" button).',
+    );
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let email: string, name: string;
+  try {
+    const rawEmail = await rl.question('Administrator email: ');
+    if (!rawEmail.trim()) throw new Error('No email was entered.');
+    email = z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email()
+      .max(254)
+      .parse(rawEmail);
+    const rawName = await rl.question('Display name: ');
+    if (!rawName.trim()) throw new Error('No display name was entered.');
+    name = z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .parse(rawName);
+  } finally {
+    rl.close();
+  }
+  const pass = z
+    .string()
+    .min(12)
+    .max(128)
+    .parse(await secret('Password (12+ characters; hidden): '));
+  if ((await secret('Confirm password (hidden): ')) !== pass)
+    throw new Error('Passwords do not match');
+  const hashed = await passwordHash(pass);
+  const result = await bootstrapAdmin(db, { email, displayName: name, hashedPassword: hashed });
   process.stdout.write(
-    'Administrator created. Sign in, enroll MFA, and accept the portal notice.\n',
+    result.adopted
+      ? 'Administrator created from the existing Zoho directory record. Sign in, enroll MFA, and accept the portal notice.\n'
+      : 'Administrator created. Sign in, enroll MFA, and accept the portal notice.\n',
   );
 }
 async function seed(db: Db) {
@@ -190,9 +247,11 @@ async function main() {
 }
 if (require.main === module) {
   void main().catch((error) => {
-    process.stderr.write(
-      `${error instanceof z.ZodError ? 'Invalid input' : (error as Error).message}\n`,
-    );
+    const message =
+      error instanceof z.ZodError
+        ? `Invalid ${error.issues[0]?.path.join('.') || 'input'}: ${error.issues[0]?.message}`
+        : (error as Error).message;
+    process.stderr.write(`${message}\n`);
     process.exitCode = 1;
   });
 }

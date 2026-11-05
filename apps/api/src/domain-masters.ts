@@ -6,12 +6,12 @@ import { AuthRequest, assertVersion } from './security';
 import { assertCan } from './policy';
 import { camel, found, id, parse, text } from './domain-helpers';
 import {
-  createTeamOrProject,
+  createTeam,
   isTeamMasterKind,
   setRequiresCustodian,
   setTicketCategoryTeam,
-  teamAndProjectLists,
-  updateTeamOrProject,
+  teamLists,
+  updateTeam,
 } from './master-teams';
 
 const editable = [
@@ -114,7 +114,7 @@ export class MasterDomain {
         'SELECT id,code,site,building,floor,room,active,version FROM locations ORDER BY code',
       ),
     ]);
-    return { values, departments, locations, ...(await teamAndProjectLists(this.db)) };
+    return { values, departments, locations, ...(await teamLists(this.db)) };
   }
   async setTicketCategoryTeam(req: AuthRequest, category: string, body: unknown) {
     assertCan(req.user, 'system.admin');
@@ -173,7 +173,7 @@ export class MasterDomain {
     if (isTeamMasterKind(kind))
       return this.db.tx(async (c) => {
         await this.lock(c);
-        return createTeamOrProject(this.db, req, kind, body, c);
+        return createTeam(this.db, req, kind, body, c);
       });
     if (kind === 'departments' || kind === 'locations') {
       const data = (
@@ -234,7 +234,7 @@ export class MasterDomain {
     if (isTeamMasterKind(kind))
       return this.db.tx(async (c) => {
         await this.lock(c);
-        return updateTeamOrProject(this.db, req, kind, identifier, body, c);
+        return updateTeam(this.db, req, kind, identifier, body, c);
       });
     if (kind === 'ASSET_TYPE' && body && typeof body === 'object' && 'requiresCustodian' in body) {
       const { requiresCustodian, ...rest } = body as Record<string, unknown>;

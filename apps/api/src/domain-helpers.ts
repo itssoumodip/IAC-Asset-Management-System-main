@@ -59,7 +59,6 @@ export const assetInput = z
     graphics: optionalText(),
     ownershipType: text(100),
     owningTeamId: uuid.optional(),
-    projectId: uuid.nullable().optional(),
     departmentId: uuid.nullable().optional(),
     locationId: uuid.nullable().optional(),
     assetOwner: optionalText(),
@@ -169,9 +168,9 @@ export function requestPage(query: any, fields: string[]) {
         q: z.string().trim().max(100).optional(),
         status: z.string().max(100).optional(),
         category: z.string().max(100).optional(),
+        assetType: z.string().max(100).optional(),
         departmentId: uuid.optional(),
         owningTeamId: uuid.optional(),
-        projectId: uuid.optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
         teamId: uuid.optional(),
@@ -216,15 +215,44 @@ export function page(rows: any[], limit: number, fields: string[]) {
 }
 /**
  * Super Admin, Finance and Executive see every asset. Team users see their own teams'
- * assets; anyone with the Employee role also sees assets currently assigned to them.
+ * assets plus assets owned by teams they have view_grants on (ADM<->PRJ shared viewing).
+ * IT is not shared: IT sees only IT; ADM/PRJ never see IT items. Anyone with the Employee
+ * role also sees assets currently assigned to them.
  */
 export function assetScope(actor: Actor, values: any[]) {
   if (actor.roles.some((r) => ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r))) return 'TRUE';
   const clauses: string[] = [];
   const teamIds = (actor.teams ?? []).map((t) => t.teamId);
-  if (teamIds.length) {
+  if (!teamIds.length) {
+    if (actor.roles.includes('EMPLOYEE')) {
+      values.push(actor.id);
+      clauses.push(
+        `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`,
+      );
+    }
+    return clauses.length ? `(${clauses.join(' OR ')})` : 'FALSE';
+  }
+  // IT sees only IT.
+  if (teamIds.includes(IT_TEAM_ID)) {
     values.push(teamIds);
     clauses.push(`a.owning_team_id=ANY($${values.length}::uuid[])`);
+  } else {
+    // Non-IT: own teams.
+    values.push(teamIds);
+    clauses.push(`a.owning_team_id=ANY($${values.length}::uuid[])`);
+    // Shared viewing via team_view_grants: viewer's teams can see owner's teams' assets.
+    // IT is excluded from shared viewing.
+    const viewerParamIdx = values.length + 1;
+    values.push(teamIds);
+    const itParamIdx = values.length + 1;
+    values.push(IT_TEAM_ID);
+    clauses.push(`
+      a.owning_team_id IN (
+        SELECT owner_team_id FROM team_view_grants
+        WHERE viewer_team_id = ANY($${viewerParamIdx}::uuid[])
+        AND owner_team_id <> $${itParamIdx}::uuid
+      )
+    `);
   }
   if (actor.roles.includes('EMPLOYEE')) {
     values.push(actor.id);
@@ -238,7 +266,6 @@ export const employeeAssetColumns = [
   'id',
   'asset_code',
   'owning_team_id',
-  'project_id',
   'version',
   'category',
   'asset_type',
@@ -465,29 +492,12 @@ const fieldIssue = (field: string, message: string) =>
     message,
     fields: { formErrors: [], fieldErrors: { [field]: [message] } },
   });
-/** Owning team, project/grant tag and room-held asset type rules. */
+/** Owning team and room-held asset type rules. */
 async function validateOwnership(db: Db, data: any, c: PoolClient, previous?: any, actor?: Actor) {
   const teamId = data.owningTeamId ?? IT_TEAM_ID;
-  const [team] = await db.query(
-    'SELECT active,requires_project FROM teams WHERE id=$1 FOR SHARE',
-    [teamId],
-    c,
-  );
+  const [team] = await db.query('SELECT active FROM teams WHERE id=$1 FOR SHARE', [teamId], c);
   if (!team || (!team.active && previous?.owningTeamId !== teamId))
     throw fieldIssue('owningTeamId', 'Invalid or inactive owning team');
-  if (data.projectId && previous?.projectId !== data.projectId) {
-    const [project] = await db.query(
-      'SELECT active FROM projects WHERE id=$1 FOR SHARE',
-      [data.projectId],
-      c,
-    );
-    if (!project?.active) throw fieldIssue('projectId', 'Invalid or inactive project / grant');
-  }
-  // Legacy rows may predate these rules: on edits only enforce what this edit touches.
-  const teamOrProjectChanged =
-    !previous || previous.owningTeamId !== data.owningTeamId || previous.projectId !== data.projectId;
-  if (team.requires_project && !data.projectId && teamOrProjectChanged)
-    throw fieldIssue('projectId', 'This team requires a project / grant');
   const [policy] = await db.query(
     'SELECT requires_custodian, owning_team_id, handling_team_id FROM asset_type_policies WHERE asset_type_code=$1',
     [data.assetType],

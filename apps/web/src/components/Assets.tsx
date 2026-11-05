@@ -5,7 +5,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../api';
 import { useAction, usePages } from '../hooks';
 import { can, useSession } from '../session';
-import type { Asset, AssignablePerson } from '../types';
+import type { Asset, AssignablePerson, References } from '../types';
+import type { ReactNode } from 'react';
 import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
@@ -22,7 +23,6 @@ import {
   Badge,
   Empty,
   ErrorNotice,
-  Checkbox,
   Field,
   Loading,
   LoadMore,
@@ -76,12 +76,43 @@ function assetExportRow(asset: Record<string, unknown>, manage: boolean) {
   const columns = [...assetExportColumns, ...(manage ? assetAdminExportColumns : [])];
   return Object.fromEntries(columns.map((key) => [key, asset[key] ?? '']));
 }
+function categoryBadge(
+  refs: References | undefined,
+  category: string | null | undefined,
+): ReactNode {
+  if (!category) return null;
+  const label = referenceLabel(refs, 'CATEGORY', category);
+  return <Badge value={category} label={label} />;
+}
+
 const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold']);
 function canAssign(asset: Asset) {
   return asset.status === 'In Store' && !asset.currentAssignment;
 }
 function canTransfer(asset: Asset) {
   return !!asset.currentAssignment && !terminalAssetStatuses.has(asset.status);
+}
+// Row thumbnail: fetches the stored photo only for assets that have one; others show a box icon.
+function AssetThumb({ asset }: { asset: Asset }) {
+  const photo = useQuery({
+    queryKey: ['asset-photo', asset.id],
+    queryFn: ({ signal }) =>
+      api<{ dataUrl: string | null }>(`/assets/${asset.id}/photo`, { signal }),
+    enabled: !!asset.hasPhoto,
+    staleTime: 10 * 60 * 1000,
+  });
+  const src = photo.data?.dataUrl;
+  return (
+    <div className="asset-thumb">
+      {src ? (
+        <img src={src} alt="" loading="lazy" />
+      ) : (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z M3 7.5 12 12l9-4.5 M12 12v9" />
+        </svg>
+      )}
+    </div>
+  );
 }
 export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean }) {
   const { user } = useSession();
@@ -92,13 +123,10 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     q: params.get('q') || undefined,
     status: assignmentMode ? 'In Store' : params.get('status') || undefined,
     category: params.get('category') || undefined,
-    departmentId: params.get('departmentId') || undefined,
-    labelPrinted: params.get('labelPrinted') === 'no' ? 'no' : undefined,
+    assetType: params.get('assetType') || undefined,
+    locationId: params.get('locationId') || undefined,
     owningTeamId: params.get('owningTeamId') || undefined,
-    projectId: params.get('projectId') || undefined,
   };
-  const teamName = (teamId?: string | null) =>
-    refs.data?.teams?.find((item) => item.id === teamId)?.code ?? '';
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
   const query = usePages<Asset>('/assets', filters);
@@ -142,7 +170,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               ) : null}
               {showCreate ? (
                 <Link className="button secondary" to="/assets/new">
-                  Create asset
+                  + Add asset
                 </Link>
               ) : null}
             </div>
@@ -212,23 +240,39 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               includeInactive
             />
           </Field>
+          <Field label="Subcategory" htmlFor="filter-asset-type">
+            <ReferenceSelect
+              refs={refs.data}
+              kind="assetType"
+              id="filter-asset-type"
+              value={filters.assetType ?? ''}
+              onChange={(value) => update('assetType', value)}
+              required={false}
+              allowEmpty
+              includeInactive
+            />
+          </Field>
+          <Field label="Location" htmlFor="filter-location">
+            <Select
+              label=""
+              htmlFor="filter-location"
+              value={filters.locationId ?? ''}
+              onChange={(value) => update('locationId', value)}
+              options={[
+                { value: '', label: 'All locations' },
+                ...(refs.data?.locations
+                  .filter((item) => item.active)
+                  .map((item) => ({
+                    value: item.id,
+                    label: locationLabel(item),
+                  })) ?? []),
+              ]}
+            />
+          </Field>
           {manage ? (
             <>
               <Select
-                label="Department"
-                htmlFor="filter-department"
-                value={filters.departmentId ?? ''}
-                onChange={(value) => update('departmentId', value)}
-                options={[
-                  { value: '', label: 'All departments' },
-                  ...(refs.data?.departments.map((item) => ({
-                    value: item.id,
-                    label: `${item.name}${!item.active ? ' (inactive)' : ''}`,
-                  })) || []),
-                ]}
-              />
-              <Select
-                label="Owning team"
+                label="Team"
                 htmlFor="filter-team"
                 value={filters.owningTeamId ?? ''}
                 onChange={(value) => update('owningTeamId', value)}
@@ -239,25 +283,6 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                     label: `${item.name} (${item.code})${!item.active ? ' (inactive)' : ''}`,
                   })) || []),
                 ]}
-              />
-              <Select
-                label="Project / grant"
-                htmlFor="filter-project"
-                value={filters.projectId ?? ''}
-                onChange={(value) => update('projectId', value)}
-                options={[
-                  { value: '', label: 'All projects' },
-                  ...(refs.data?.projects?.map((item) => ({
-                    value: item.id,
-                    label: `${item.name} (${item.code})${!item.active ? ' (inactive)' : ''}`,
-                  })) || []),
-                ]}
-              />
-              <Checkbox
-                label="Not printed yet"
-                className="filter-checkbox"
-                checked={filters.labelPrinted === 'no'}
-                onChange={(checked) => update('labelPrinted', checked ? 'no' : '')}
               />
             </>
           ) : null}
@@ -275,13 +300,16 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             <table>
               <thead>
                 <tr>
-                  <th>Asset / description</th>
+                  <th>
+                    <span className="sr-only">Photo</span>
+                  </th>
+                  <th>Asset ID + name/model</th>
+                  <th>Brand</th>
                   <th>Category</th>
-                  {manage ? <th>Team</th> : null}
+                  <th>Subcategory</th>
+                  <th>Barcode/QR</th>
+                  <th>Owned by / Held by</th>
                   <th>Status</th>
-                  <th>Condition</th>
-                  <th>Verification</th>
-                  {manage ? <th>Last label printed</th> : null}
                   <th>
                     <span className="sr-only">View</span>
                   </th>
@@ -289,40 +317,36 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               </thead>
               <tbody>
                 {items.map((asset) => (
-                  <tr key={asset.id}>
-                    <td data-label="Asset / description">
-                      <Link className="asset-code" to={`/assets/${asset.id}`}>
-                        {asset.assetCode}
+                  <tr key={asset.id} className="asset-list-row">
+                    <td data-label="Photo" className="asset-list-photo">
+                      <AssetThumb asset={asset} />
+                    </td>
+                    <td data-label="Asset" className="asset-list-main">
+                      <Link to={`/assets/${asset.id}`} className="asset-list-link">
+                        <div className="asset-list-name">{asset.assetCode}</div>
+                        <div className="asset-list-sub">
+                          {asset.description}
+                          {asset.model ? ` · ${asset.model}` : ''}
+                        </div>
                       </Link>
-                      <span className="cell-description">{asset.description}</span>
                     </td>
-                    <td data-label="Category">
-                      {referenceLabel(refs.data, 'CATEGORY', asset.category)}
+                    <td data-label="Brand">{asset.manufacturer ?? '-'}</td>
+                    <td data-label="Category">{categoryBadge(refs.data, asset.category)}</td>
+                    <td data-label="Subcategory">
+                      {asset.assetType
+                        ? referenceLabel(refs.data, 'ASSET_TYPE', asset.assetType)
+                        : '-'}
                     </td>
-                    {manage ? <td data-label="Team">{teamName(asset.owningTeamId)}</td> : null}
-                    <td data-label="Status">
+                    <td data-label="Barcode/QR">{asset.barcode ?? '-'}</td>
+                    <td data-label="Owned by / Held by">
+                      {asset.currentAssignment?.employeeName
+                        ? asset.currentAssignment.employeeName
+                        : (refs.data?.teams?.find((t) => t.id === asset.owningTeamId)?.name ?? '-')}
+                    </td>
+                    <td data-label="Status" className="asset-list-status">
                       <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
                     </td>
-                    <td data-label="Condition">
-                      {referenceLabel(refs.data, 'CONDITION', asset.condition)}
-                    </td>
-                    <td data-label="Verification">
-                      {asset.currentAssignment ? (
-                        <Badge value={asset.currentAssignment.acknowledgement} />
-                      ) : (
-                        <span className="muted">No custody</span>
-                      )}
-                    </td>
-                    {manage ? (
-                      <td data-label="Last label printed">
-                        {asset.lastLabelPrintedAt ? (
-                          <span>{displayDate(asset.lastLabelPrintedAt, true)}</span>
-                        ) : (
-                          <span className="muted">Not printed</span>
-                        )}
-                      </td>
-                    ) : null}
-                    <td data-label="Actions">
+                    <td data-label="Actions" className="asset-list-actions">
                       <div className="actions">
                         {can(user, 'asset.custody', asset.owningTeamId ?? undefined) &&
                         canAssign(asset) ? (
@@ -331,7 +355,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                             className="table-link"
                             aria-label={`Assign ${asset.assetCode}`}
                           >
-                            Assign asset
+                            Assign
                           </Link>
                         ) : can(user, 'asset.custody', asset.owningTeamId ?? undefined) &&
                           !assignmentMode &&
@@ -341,7 +365,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                             className="table-link"
                             aria-label={`Transfer ${asset.assetCode}`}
                           >
-                            Transfer custody
+                            Transfer
                           </Link>
                         ) : null}
                         {can(user, 'asset.label', asset.owningTeamId ?? undefined) &&
@@ -354,13 +378,6 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                             Print label
                           </Link>
                         ) : null}
-                        <Link
-                          to={`/assets/${asset.id}`}
-                          className="table-link"
-                          aria-label={`View ${asset.assetCode}`}
-                        >
-                          View →
-                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -761,10 +778,6 @@ export function AssetDetail() {
                   {refs.data?.teams?.find((item) => item.id === asset.owningTeamId)?.name ??
                     'Unknown'}
                 </dd>
-                <dt>Project / grant</dt>
-                <dd>
-                  {refs.data?.projects?.find((item) => item.id === asset.projectId)?.name ?? 'None'}
-                </dd>
               </>
             ) : null}
             <dt>Department</dt>
@@ -1055,14 +1068,11 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   const set = (name: string, value: string) =>
     setValues((previous) => ({ ...previous, [name]: value }));
   const teams = refs.data?.teams ?? [];
-  const projects = refs.data?.projects ?? [];
   const createTeams = teams.filter((item) => item.active && can(user, 'asset.create', item.id));
   // A single permitted team is preselected for a new asset.
   const teamId =
     values.owningTeamId || (!baseline && createTeams.length === 1 ? createTeams[0].id : '');
   const selectedTeam = teams.find((item) => item.id === teamId);
-  const projectId = values.projectId ?? '';
-  const requiresProject = !!selectedTeam?.requiresProject;
   const canFinance = can(user, 'asset.finance_edit', teamId || undefined);
   const canChangeTeam = !!baseline && can(user, 'asset.change_team');
   // Finance without asset.edit for this team may change only the finance fields.
@@ -1072,9 +1082,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   const roomHeld =
     refs.data?.assetTypePolicies?.find((item) => item.assetTypeCode === values.assetType)
       ?.requiresCustodian === false;
-  const blocked =
-    !financeOnly &&
-    ((!baseline && !teamId) || (requiresProject && !projectId) || (roomHeld && !values.locationId));
+  const blocked = !financeOnly && ((!baseline && !teamId) || (roomHeld && !values.locationId));
   const editableFields = assetEditableFields.filter((key) => canFinance || !financeKeys.has(key));
   const lockFinance = (name: string) => !canFinance && financeKeys.has(name);
   function fillDemo() {
@@ -1165,11 +1173,9 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     ];
     if (blocked) {
       setValidation(
-        requiresProject && !projectId
-          ? 'Choose the project / grant this asset was bought under.'
-          : roomHeld && !values.locationId
-            ? 'This asset type is kept in a room. Choose a location.'
-            : 'Choose the owning team.',
+        roomHeld && !values.locationId
+          ? 'This asset type is kept in a room. Choose a location.'
+          : 'Choose the owning team.',
       );
       return;
     }
@@ -1201,8 +1207,6 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     }
     if (!baseline) body.owningTeamId = teamId;
     else if (canChangeTeam && teamId !== baseline.owningTeamId) body.owningTeamId = teamId;
-    if (projectId) body.projectId = projectId;
-    else if (baseline?.projectId) body.projectId = null;
     for (const name of allowed) {
       if (lockFinance(name)) continue;
       const value = values[name];
@@ -1349,19 +1353,6 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                     ? teams.filter((t) => t.active || t.id === teamId)
                     : createTeams
                   ).map((item) => ({ value: item.id, label: `${item.name} (${item.code})` })),
-                ]}
-              />
-              <Select
-                label={requiresProject ? 'Project / grant (required)' : 'Project / grant'}
-                htmlFor="projectId"
-                value={projectId}
-                onChange={(value) => set('projectId', value)}
-                required={requiresProject}
-                options={[
-                  { value: '', label: 'Select project' },
-                  ...projects
-                    .filter((item) => item.active || item.id === projectId)
-                    .map((item) => ({ value: item.id, label: `${item.name} (${item.code})` })),
                 ]}
               />
             </div>
@@ -1780,8 +1771,8 @@ export function AssignmentForm() {
               />
               {selectedEmployee?.state === 'DIRECTORY' ? (
                 <p className="muted">
-                  <Badge value="DIRECTORY" label="No login" /> This person has no portal login, so no
-                  assignment email is sent. Record the handover in person.
+                  <Badge value="DIRECTORY" label="No login" /> This person has no portal login, so
+                  no assignment email is sent. Record the handover in person.
                 </p>
               ) : null}
               <p id="assignment-eligibility" className="muted">

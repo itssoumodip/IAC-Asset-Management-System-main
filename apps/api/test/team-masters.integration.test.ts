@@ -5,6 +5,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import { TeamService } from '../src/teams';
+import { CategoriesService } from '../src/categories';
+import { ApprovalsService } from '../src/approvals';
 import type { AuthRequest } from '../src/security';
 import { ADM_TEAM_ID, IT_TEAM_ID, joinTeam } from './team-fixtures';
 
@@ -115,25 +117,24 @@ describe('team masters and memberships PostgreSQL integration', { skip: !connect
     const team: any = await newTeam();
     await assert.rejects(newTeam({ assetCodePrefix: team.assetCodePrefix }), status(409));
   });
-  it('non super admin cannot create teams or projects', async () => {
+  it('non super admin cannot create teams', async () => {
     await assert.rejects(
-      domain.createMaster(request(itLead), 'projects', {
-        code: `P-${letters(6)}`,
-        name: 'Lead project',
-        startDate: '2026-01-01',
+      domain.createMaster(request(itLead), 'teams', {
+        code: letters(3),
+        name: 'Lead team',
+        assetCodePrefix: letters(3),
         reason: 'Not allowed',
       }),
       status(403),
     );
   });
-  it('project end date must not precede start date', async () => {
+  it('unknown team master kind is rejected', async () => {
     await assert.rejects(
       domain.createMaster(request(superAdmin), 'projects', {
         code: `P-${letters(6)}`,
-        name: 'Backwards project',
-        startDate: '2026-05-01',
-        endDate: '2026-01-01',
-        reason: 'Synthetic',
+        name: 'Lead project',
+        startDate: '2026-01-01',
+        reason: 'Not allowed',
       }),
       status(422),
     );
@@ -220,5 +221,25 @@ describe('team masters and memberships PostgreSQL integration', { skip: !connect
       (p: any) => p.assetTypeCode === 'Team Master Type',
     );
     assert.equal(again.requiresCustodian, true);
+  });
+  it('categories list every asset type under its category', async () => {
+    const categories = new CategoriesService(db);
+    const rows = await categories.list();
+    const it = rows.find((row: any) => row.categoryCode === 'IT Hardware');
+    assert.ok(it, 'the IT Hardware category must be seeded');
+    assert.ok(it.subcategories.length > 0, 'IT Hardware must list its asset types');
+    assert.ok(
+      it.subcategories.every(
+        (type: any) => type.categoryCode === 'IT Hardware' && type.assetTypeCode,
+      ),
+    );
+  });
+  it('approvals list custody transfers for a team', async () => {
+    const approvals = new ApprovalsService(db);
+    const result = await approvals.list(
+      request({ ...superAdmin, teams: [{ teamId: IT_TEAM_ID, level: 'LEAD' }] }),
+      'transfers',
+    );
+    assert.ok(Array.isArray(result.items));
   });
 });

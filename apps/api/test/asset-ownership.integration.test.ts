@@ -5,7 +5,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
 import type { AuthRequest } from '../src/security';
-import { ADM_TEAM_ID, IT_TEAM_ID, PRJ_TEAM_ID, joinTeam } from './team-fixtures';
+import { ADM_TEAM_ID, IT_TEAM_ID, joinTeam } from './team-fixtures';
 
 const connection = process.env.TEST_DATABASE_URL;
 if (connection && !new URL(connection).pathname.endsWith('_test'))
@@ -39,8 +39,8 @@ describe(
   { skip: !connection, concurrency: false },
   () => {
     let db: Db, service: DomainService;
-    let superAdmin: any, admLead: any, prjLead: any, itMember: any, employee: any;
-    let locationId: string, activeProject: string, inactiveProject: string;
+    let superAdmin: any, admLead: any, itMember: any, employee: any;
+    let locationId: string;
     const input = {
       category: 'Ownership Category',
       assetType: 'Ownership Type',
@@ -104,17 +104,8 @@ describe(
         "INSERT INTO locations(code,site) VALUES($1,'Synthetic site') RETURNING id",
         [`${tag}-room`],
       );
-      [{ id: activeProject }] = await db.query(
-        "INSERT INTO projects(code,name,start_date) VALUES($1,'Synthetic grant','2026-01-01') RETURNING id",
-        [`P1-${randomUUID().slice(0, 8)}`],
-      );
-      [{ id: inactiveProject }] = await db.query(
-        "INSERT INTO projects(code,name,start_date,active) VALUES($1,'Closed grant','2025-01-01',false) RETURNING id",
-        [`P0-${randomUUID().slice(0, 8)}`],
-      );
       superAdmin = await make(['SUPER_ADMIN']);
       admLead = await joinTeam(db, await make(['EMPLOYEE']), 'LEAD', ADM_TEAM_ID);
-      prjLead = await joinTeam(db, await make(['EMPLOYEE']), 'LEAD', PRJ_TEAM_ID);
       itMember = await joinTeam(db, await make(['EMPLOYEE']), 'MEMBER', IT_TEAM_ID);
       employee = await make(['EMPLOYEE']);
     });
@@ -145,18 +136,6 @@ describe(
       );
       const after = await create(admLead, { owningTeamId: ADM_TEAM_ID });
       assert.equal(number(after.assetCode), number(before.assetCode) + 1);
-    });
-    it('PRJ asset without projectId is 422 with field projectId', async () => {
-      await assert.rejects(create(prjLead, { owningTeamId: PRJ_TEAM_ID }), fieldError('projectId'));
-      const tagged = await create(prjLead, { owningTeamId: PRJ_TEAM_ID, projectId: activeProject });
-      assert.match(tagged.assetCode, /^IAC-PRJ-\d{6}$/);
-      assert.equal(tagged.projectId, activeProject);
-    });
-    it('inactive project cannot be tagged', async () => {
-      await assert.rejects(
-        create(admLead, { owningTeamId: ADM_TEAM_ID, projectId: inactiveProject }),
-        fieldError('projectId'),
-      );
     });
     it('Printer without locationId is 422 on create and on edit-to-null', async () => {
       await assert.rejects(
@@ -203,22 +182,13 @@ describe(
         fieldError('locationId'),
       );
     });
-    it('untagged asset stays editable after its team starts requiring a project', async () => {
+    it('untagged asset stays editable', async () => {
       const asset = await create(admLead, { owningTeamId: ADM_TEAM_ID });
-      await db.query('UPDATE teams SET requires_project=true WHERE id=$1', [ADM_TEAM_ID]);
-      try {
-        const edited = await service.editAsset(request(admLead, asset.version), asset.id, {
-          description: `${tag} untagged edit`,
-          reason: 'Synthetic description fix',
-        });
-        assert.equal(edited.description, `${tag} untagged edit`);
-        await assert.rejects(
-          create(admLead, { owningTeamId: ADM_TEAM_ID }),
-          fieldError('projectId'),
-        );
-      } finally {
-        await db.query('UPDATE teams SET requires_project=false WHERE id=$1', [ADM_TEAM_ID]);
-      }
+      const edited = await service.editAsset(request(admLead, asset.version), asset.id, {
+        description: `${tag} untagged edit`,
+        reason: 'Synthetic description fix',
+      });
+      assert.equal(edited.description, `${tag} untagged edit`);
     });
     it('Printer at a location may also be assigned to a person', async () => {
       const printer = await create(admLead, {
@@ -267,11 +237,8 @@ describe(
       assert.equal(legacy.owningTeamId, IT_TEAM_ID);
       assert.match(legacy.assetCode, /^IAC-IT-\d{6}$/);
     });
-    it('catalog filters by owning team and project', async () => {
-      const tagged = await create(prjLead, { owningTeamId: PRJ_TEAM_ID, projectId: activeProject });
-      const byProject = await service.assets(request(superAdmin), { projectId: activeProject });
-      assert.ok(byProject.items.some((a: any) => a.id === tagged.id));
-      assert.ok(byProject.items.every((a: any) => a.projectId === activeProject));
+    it('catalog filters by owning team', async () => {
+      await create(admLead, { owningTeamId: ADM_TEAM_ID });
       const byTeam = await service.assets(request(superAdmin), {
         owningTeamId: ADM_TEAM_ID,
         limit: '100',

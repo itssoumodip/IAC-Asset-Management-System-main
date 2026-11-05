@@ -34,7 +34,7 @@ const status = (code: number) => (error: any) => {
 
 describe('team permissions PostgreSQL integration', { skip: !connection, concurrency: false }, () => {
   let db: Db, service: DomainService, execService: ExecutiveDashboardService;
-  let admMember: any, prjMember: any, projectId: string, locationId: string;
+  let admMember: any, prjMember: any, locationId: string;
   let superAdmin: any, itMember: any, itLead: any, finance: any, executive: any, employee: any;
   const input = {
     category: 'Team Perm Category',
@@ -126,11 +126,6 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
         'INSERT INTO reference_values(kind,code,label) VALUES($1,$2,$2) ON CONFLICT DO NOTHING',
         [kind, code],
       );
-    const [prjRow] = await db.query(
-      "INSERT INTO projects(code,name,start_date) VALUES($1,'Dept Rules Project','2026-01-01') ON CONFLICT(code) DO UPDATE SET name=excluded.name RETURNING id",
-      [tag.slice(0, 10)],
-    );
-    projectId = prjRow.id;
     const [locRow] = await db.query("INSERT INTO locations(code,site,floor,room) VALUES($1,'Site','1','Room') ON CONFLICT(code) DO UPDATE SET room=excluded.room RETURNING id", [tag.slice(0, 10)]);
     locationId = locRow.id;
   });
@@ -390,7 +385,6 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       ...input,
       assetType: 'Chair',
       owningTeamId: PRJ,
-      projectId,
       locationId,
       description: tag + ' prj chair',
     });
@@ -402,7 +396,6 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       ...input,
       assetType: 'Chair',
       owningTeamId: PRJ,
-      projectId,
       locationId,
       description: tag + ' shared prj asset',
     });
@@ -441,7 +434,6 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       ...input,
       assetType: 'Chair',
       owningTeamId: PRJ,
-      projectId,
       locationId,
       description: tag + ' prj chair for ticket',
     });
@@ -464,11 +456,11 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       ...input,
       assetType: 'Chair',
       owningTeamId: PRJ,
-      projectId,
       locationId,
       purchaseCost: '300.00',
       description: tag + ' prj asset for dashboard',
     });
+    assert.ok(itAsset.id && admAsset.id && prjAsset.id);
 
     const dash = await execService.team(request(admMember));
     assert.ok(dash);

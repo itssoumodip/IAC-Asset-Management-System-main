@@ -11,7 +11,8 @@ const ADM = '00000000-0000-4000-8000-000000000002';
 const ALL: Action[] = [
   'asset.view_all', 'asset.view_private', 'asset.create', 'asset.edit', 'asset.custody', 'asset.retire',
   'asset.import', 'asset.label', 'asset.photo', 'asset.finance_edit', 'asset.change_team',
-  'team.manage_members', 'ticket.work', 'announcement.send', 'report.view', 'system.admin'
+  'team.manage_members', 'ticket.work', 'announcement.send', 'report.view', 'system.admin',
+  'store.operations', 'verification.perform', 'insurer.view', 'procurement.view', 'approvals.act'
 ];
 const TEAM_ALL: Action[] = ['asset.create', 'asset.edit', 'asset.custody', 'asset.retire', 'asset.import', 'asset.label', 'asset.photo', 'team.manage_members'];
 const MEMBER_OWN: Action[] = ['asset.create', 'asset.edit', 'asset.custody', 'asset.label', 'asset.photo'];

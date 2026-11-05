@@ -14,7 +14,7 @@ export class ExecutiveDashboardService {
 
   async summary(req: AuthRequest) {
     assertCan(req.user, 'report.view');
-    const [assetsByTeam, [attention], spendByProject, spendByFy, weeks, teams] = await Promise.all([
+    const [assetsByTeam, [attention], spendByFy, weeks, teams] = await Promise.all([
       this.db.query(
         `SELECT a.owning_team_id AS "teamId",t.name AS "teamName",a.status,count(*)::int AS count,
            coalesce(sum(a.purchase_cost) FILTER(WHERE a.currency='INR'),0)::float8 AS value
@@ -29,13 +29,6 @@ export class ExecutiveDashboardService {
            (SELECT count(*)::int FROM assets WHERE warranty_expiry BETWEEN ${TODAY} AND ${TODAY}+30) AS "warrantyExpiring30",
            (SELECT count(*)::int FROM assets WHERE amc_applies AND amc_expiry BETWEEN ${TODAY} AND ${TODAY}+30) AS "amcExpiring30",
            (SELECT count(*)::int FROM tickets WHERE status<>'COMPLETED' AND priority='HIGH') AS "openHighTickets"`,
-      ),
-      this.db.query(
-        `SELECT a.project_id AS "projectId",coalesce(p.name,'No project') AS label,
-           sum(a.purchase_cost)::float8 AS spend,count(*)::int AS count
-         FROM assets a LEFT JOIN projects p ON p.id=a.project_id
-         WHERE a.purchase_cost IS NOT NULL AND a.currency='INR'
-         GROUP BY a.project_id,p.name ORDER BY spend DESC,label LIMIT 20`,
       ),
       this.db.query(
         `SELECT extract(year FROM a.purchase_date - interval '3 months')::int AS "fyStart",
@@ -74,7 +67,6 @@ export class ExecutiveDashboardService {
     return {
       assetsByTeam,
       needsAttention: attention,
-      spendByProject,
       spendByFy: spendByFy.map((row: any) => ({ ...row, label: fyLabel(row.fyStart) })),
       ticketTrends: { weeks, teams },
     };

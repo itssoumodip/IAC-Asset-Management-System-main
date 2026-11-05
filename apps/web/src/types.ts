@@ -1,4 +1,4 @@
-export type Role = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE';
+export type Role = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE' | 'TEAM_LEAD' | 'TEAM_MEMBER' | 'STORE' | 'TECHNICIAN' | 'AUDITOR' | 'INSURER' | 'PROCUREMENT';
 export type Action =
   | 'asset.view_all'
   | 'asset.view_private'
@@ -15,7 +15,12 @@ export type Action =
   | 'ticket.work'
   | 'announcement.send'
   | 'report.view'
-  | 'system.admin';
+  | 'system.admin'
+  | 'store.operations'
+  | 'verification.perform'
+  | 'insurer.view'
+  | 'procurement.view'
+  | 'approvals.act';
 export interface TeamMembership {
   teamId: string;
   teamCode: string;
@@ -76,11 +81,11 @@ export interface Assignment {
 export interface Asset {
   id: string;
   assetCode: string;
+  hasPhoto?: boolean;
   description: string;
   category: string;
   assetType?: string;
   owningTeamId?: string | null;
-  projectId?: string | null;
   status: string;
   version: number;
   manufacturer?: string;
@@ -178,21 +183,9 @@ export interface TeamReference {
   code: string;
   name: string;
   assetCodePrefix: string;
-  requiresProject: boolean;
   active: boolean;
   version: number;
   prefixInUse: boolean;
-}
-export interface ProjectReference {
-  id: string;
-  code: string;
-  name: string;
-  funder: string | null;
-  grantReference: string | null;
-  startDate: string;
-  endDate: string | null;
-  active: boolean;
-  version: number;
 }
 export interface AssetTypePolicy {
   assetTypeCode: string;
@@ -203,7 +196,6 @@ export interface References {
   departments: DepartmentReference[];
   locations: LocationReference[];
   teams?: TeamReference[];
-  projects?: ProjectReference[];
   assetTypePolicies?: AssetTypePolicy[];
   ticketCategoryTeams?: { categoryCode: string; teamId: string }[];
 }
@@ -261,7 +253,7 @@ export interface ScanView {
     acknowledgement: string;
     assignedAt: string;
   } | null;
-  location: { site: string; floor: string | null; room: string | null } | null;
+  location: { site: string; floor: string | null; room: string | null; path: string | null } | null;
   status: string;
   hasPhoto: boolean;
   reportable: boolean;
@@ -291,7 +283,6 @@ export interface FinanceQueueItem {
   category: string;
   owningTeamId: string;
   teamCode: string;
-  projectId: string | null;
   financeStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
   financeRejectionReason: string | null;
   supplier: string | null;
@@ -300,4 +291,82 @@ export interface FinanceQueueItem {
   purchaseCost: string | null;
   invoiceId: string | null;
   invoiceState: 'PENDING' | 'DONE' | 'FAILED' | null;
+}
+export interface LocationTreeNode {
+  id: string;
+  code: string;
+  level: string;
+  name: string;
+  parentId: string | null;
+  active: boolean;
+  version: number;
+  depth: number;
+  rootId: string;
+  assetCount: number;
+  purchaseValue: number;
+}
+export interface LocationAsset {
+  id: string;
+  assetCode: string;
+  assetType: string;
+  description: string;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  barcode: string | null;
+  status: string;
+  condition: string;
+  purchaseDate: string | null;
+  purchaseCost: string | null;
+  currency: string | null;
+  warrantyExpiry: string | null;
+  amcExpiry: string | null;
+  version: number;
+  owningTeamId: string;
+}
+export interface LocationAssetsResponse {
+  location: LocationTreeNode;
+  items: LocationAsset[];
+  nextCursor: string | null;
+}
+export interface RoleFieldPermission {
+  roleCode: string;
+  fieldName: string;
+  canView: boolean;
+  canEdit: boolean;
+  updatedAt: string;
+}
+export interface RoleFieldGroup {
+  roleCode: string;
+  fields: RoleFieldPermission[];
+}
+export interface RoleFieldResponse {
+  permissions: RoleFieldGroup[];
+}
+export interface CategorySubcategory {
+  assetTypeCode: string;
+  categoryCode: string;
+  requiresCustodian: boolean;
+  owningTeamId: string | null;
+  handlingTeamId: string | null;
+}
+export interface CategoryTeamInfo {
+  teamId: string;
+  teamCode: string;
+  teamName: string;
+}
+export interface Category {
+  categoryCode: string;
+  handlingTeamId: string;
+  version: number;
+  owningTeamIds: string[];
+  subcategories: CategorySubcategory[];
+}
+export interface CategoryResponse {
+  categories: Category[];
+}
+export interface CategoryPatch {
+  handlingTeamId: string;
+  teamIds: string[];
+  reason: string;
 }
