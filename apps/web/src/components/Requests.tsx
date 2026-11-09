@@ -1,8 +1,4 @@
-import {
-  Empty,
-  PageTitle,
-  Panel,
-} from './ui';
+import { Empty, PageTitle, Panel } from './ui';
 
 export function Requests() {
   return (
@@ -15,9 +11,9 @@ export function Requests() {
       <Panel>
         <Empty title="Coming soon">
           <p className="muted">
-            The product catalog and request system is under development.
-            This feature will allow you to browse available products, add items to a cart,
-            and submit requests for equipment and supplies.
+            The product catalog and request system is under development. This feature will allow you
+            to browse available products, add items to a cart, and submit requests for equipment and
+            supplies.
           </p>
         </Empty>
       </Panel>

@@ -83,7 +83,13 @@ export function ReferenceSelect({
   const options = [
     { value: '', label: allowEmpty ? 'All' : required ? 'Select...' : 'Not set' },
     ...(unavailable && preserveCurrent && current
-      ? [{ value: current.code, label: `${current.label}${current.active === false ? ' (inactive)' : ''}`, disabled: !preserveCurrent }]
+      ? [
+          {
+            value: current.code,
+            label: `${current.label}${current.active === false ? ' (inactive)' : ''}`,
+            disabled: !preserveCurrent,
+          },
+        ]
       : []),
     ...values.map((item) => ({
       value: item.code,

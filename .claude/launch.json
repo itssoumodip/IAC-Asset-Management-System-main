@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "iac-dev",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set PORT=3000&& set VITE_PORT=5173&& npm run dev"],
+      "port": 5173
+    }
+  ]
+}

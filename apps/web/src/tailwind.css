@@ -1,10 +1,121 @@
-@import 'tailwindcss';
+/*
+  IAC brand theme (India Autism Center presentation guideline).
+  Brand colours only: navy #333F90, red #CC2632, yellow #F0C63E, sky #6FC0DF, plus neutrals.
+  Navy leads; the other three are used for meaning (danger, warning, positive), never mixed decoratively.
 
-@theme {
-  --color-frame: #eef2f6;
-  --color-sheet-edge: #e3e8ed;
-  --color-ink: #17222d;
-  --color-muted: #5e6a75;
-  --color-muted-2: #6f7a85;
-  --color-accent: #1f4e78;
+  The legacy stylesheet sits in its own layer below Tailwind's utilities, so any Tailwind class
+  wins over old rules. New UI work goes in Tailwind classes, not in styles.css.
+*/
+@layer theme, base, legacy, components, utilities;
+@import 'tailwindcss';
+@import './styles.css' layer(legacy);
+
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/Poppins-Light.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/Poppins-Regular.ttf') format('truetype');
+}
+/* Poppins draws ₹ as a stylised R; take only that character from a system font with the standard
+   rupee sign (Segoe UI on Windows, Noto Sans/Roboto on Android). */
+@font-face {
+  font-family: 'Rupee';
+  src: local('Segoe UI'), local('Noto Sans'), local('Roboto'), local('Arial');
+  unicode-range: U+20B9;
+}
+/* No SemiBold file is bundled, so 600 uses Medium; only true bold (700+) uses the Bold file. */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500 600;
+  font-display: swap;
+  src: url('/fonts/Poppins-Medium.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+  src: url('/fonts/Poppins-Bold.ttf') format('truetype');
+}
+
+@theme static {
+  --font-sans: 'Rupee', 'Poppins', system-ui, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', Consolas, monospace;
+
+  /* Only brand colours and neutrals are available as Tailwind colours. */
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Navy #333F90: primary, links, active states. Approved shades + derived tints. */
+  --color-navy-50: #f2f3f9;
+  --color-navy-100: #e3e5f2;
+  --color-navy-200: #c4c8e3;
+  --color-navy-300: #9aa0cc;
+  --color-navy-500: #5c65a6;
+  --color-navy-700: #333f90;
+  --color-navy-800: #242c65;
+  --color-navy-900: #1a2048;
+  --color-navy-950: #0f132b;
+
+  /* Red #CC2632: danger, destructive actions, overdue. */
+  --color-red-50: #fcedee;
+  --color-red-100: #f8d9db;
+  --color-red-400: #db6770;
+  --color-red-600: #cc2632;
+  --color-red-700: #a31e28;
+  --color-red-800: #661319;
+  --color-red-900: #3d0b0f;
+
+  /* Yellow #F0C63E: warnings, pending, attention. */
+  --color-yellow-50: #fdf8e7;
+  --color-yellow-100: #fbefc6;
+  --color-yellow-200: #f5dd92;
+  --color-yellow-500: #f0c63e;
+  --color-yellow-600: #c09e32;
+  --color-yellow-800: #78631f;
+  --color-yellow-900: #483b13;
+
+  /* Sky #6FC0DF: positive / in-service states. Use 700+ for text. */
+  --color-sky-50: #edf7fb;
+  --color-sky-100: #d9eff7;
+  --color-sky-500: #6fc0df;
+  --color-sky-600: #599ab2;
+  --color-sky-700: #437386;
+  --color-sky-800: #2c4d59;
+  --color-sky-900: #16262d;
+
+  /* Neutrals (slightly cool, to sit with navy). */
+  --color-gray-50: #f6f7f9;
+  --color-gray-100: #eef0f4;
+  --color-gray-200: #e2e5eb;
+  --color-gray-300: #cdd2da;
+  --color-gray-400: #9aa1ad;
+  --color-gray-500: #6b7380;
+  --color-gray-600: #4f5663;
+  --color-gray-700: #363b45;
+  --color-gray-800: #23272e;
+  --color-gray-900: #15181d;
+
+  /* Two-series chart palette (validated: lightness, chroma, CVD and normal-vision separation).
+     Navy-500 and a deeper brand sky; both are derived from IAC brand colours. */
+  --color-chart-1: #5c65a6;
+  --color-chart-2: #3a9fca;
+
+  /* Older token names still used by a few components. */
+  --color-frame: #f3f4f8;
+  --color-sheet-edge: #e2e5eb;
+  --color-ink: #15181d;
+  --color-muted: #6b7380;
+  --color-muted-2: #9aa1ad;
+  --color-accent: #333f90;
 }

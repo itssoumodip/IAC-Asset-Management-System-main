@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { humaniseAction } from '../admin-insights';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
@@ -19,6 +20,16 @@ import {
   Panel,
   Select,
   displayDate,
+  noticeClass,
+  buttonClass,
+  actionsClass,
+  filterBarClass,
+  cx,
+  tableWrapClass,
+  searchFormClass,
+  tableClass,
+  fileInputClass,
+  formStackClass,
 } from './ui';
 export function UserAdmin() {
   const [staffSearch, setStaffSearch] = useState('');
@@ -29,6 +40,7 @@ export function UserAdmin() {
   });
   const action = useAction<{ message?: string }>();
   const [email, setEmail] = useState('');
+  const [showInvite, setShowInvite] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [designation, setDesignation] = useState('');
   const [departmentId, setDepartmentId] = useState('');
@@ -84,7 +96,12 @@ export function UserAdmin() {
     action.reset();
   }
   async function resendInvitation(user: User) {
-    if ((user.state !== 'INVITED' && user.state !== 'DIRECTORY') || resendInFlight.current || action.isPending) return;
+    if (
+      (user.state !== 'INVITED' && user.state !== 'DIRECTORY') ||
+      resendInFlight.current ||
+      action.isPending
+    )
+      return;
     resendInFlight.current = true;
     setResendingId(user.id);
     setMessage('');
@@ -115,7 +132,9 @@ export function UserAdmin() {
         path: `/users/${selected.id}`,
         method: 'PATCH',
         body: {
-          ...(state !== (selected.state === 'INVITED' ? 'ACTIVE' : selected.state) ? { state } : {}),
+          ...(state !== (selected.state === 'INVITED' ? 'ACTIVE' : selected.state)
+            ? { state }
+            : {}),
           ...(roles.slice().sort().join(',') !== selected.roles.slice().sort().join(',')
             ? { roles }
             : {}),
@@ -140,11 +159,14 @@ export function UserAdmin() {
   }
   async function sendPasswordReset() {
     if (!selected || !reason.trim() || action.isPending) return;
-    const result = await action.mutateAsync({
-      path: `/users/${selected.id}/password-reset`,
-      body: { reason: reason.trim() },
-      idempotent: true,
-    }).then((value) => value.message ?? 'Password reset instructions sent.').catch(() => '');
+    const result = await action
+      .mutateAsync({
+        path: `/users/${selected.id}/password-reset`,
+        body: { reason: reason.trim() },
+        idempotent: true,
+      })
+      .then((value) => value.message ?? 'Password reset instructions sent.')
+      .catch(() => '');
     if (result) {
       setSelected(undefined);
       setMessage(result);
@@ -155,7 +177,17 @@ export function UserAdmin() {
       <PageTitle
         eyebrow="ADMINISTRATION / PEOPLE"
         title="People & access"
-        description="Approve individual work emails, invite employees, and keep permissions current."
+        description="Invite staff, set their roles and manage sign-in access."
+        action={
+          <button
+            type="button"
+            className={buttonClass(showInvite ? 'secondary' : 'primary')}
+            onClick={() => setShowInvite(!showInvite)}
+            aria-expanded={showInvite}
+          >
+            {showInvite ? 'Close' : 'Invite person'}
+          </button>
+        }
       />
       <ExportRecords
         name="staff-accounts"
@@ -195,95 +227,99 @@ export function UserAdmin() {
         }}
       />
       {message ? (
-        <div className="notice success" role="status">
+        <div className={noticeClass('success')} role="status">
           {message}
         </div>
       ) : null}
-      <div className="dashboard-columns">
-        <Panel title="Bring someone on board">
-          <form className="form-stack" onSubmit={approve}>
-            <Field label="Work email" htmlFor="admin-email">
-              <input
-                id="admin-email"
-                type="email"
-                autoComplete="off"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                maxLength={254}
-              />
-            </Field>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={invite}
-                onChange={(event) => setInvite(event.target.checked)}
-              />
-              Send an invitation to this email
-            </label>
-            {invite ? (
-              <>
-                <Field label="Employee name" htmlFor="admin-displayName">
-                  <input
-                    id="admin-displayName"
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                    required
-                    maxLength={120}
-                  />
-                </Field>
-                <Field label="Designation" htmlFor="admin-designation">
-                  <input
-                    id="admin-designation"
-                    value={designation}
-                    onChange={(event) => setDesignation(event.target.value)}
-                    maxLength={120}
-                    placeholder="For example, Occupational Therapist"
-                  />
-                </Field>
-                <Select
-                  label="Employee department"
-                  htmlFor="admin-department"
-                  value={departmentId}
-                  onChange={setDepartmentId}
-                  options={[
-                    { value: '', label: 'Not set' },
-                    ...(refs.data?.departments
-                      .filter((department) => department.active)
-                      .map((department) => ({ value: department.id, label: department.name })) ?? []),
-                  ]}
+      {showInvite ? (
+        <div className="mb-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <Panel title="Invite a person">
+            <form className={formStackClass} onSubmit={approve}>
+              <Field label="Work email" htmlFor="admin-email">
+                <input
+                  id="admin-email"
+                  type="email"
+                  autoComplete="off"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  maxLength={254}
                 />
-              </>
-            ) : null}
-            <button className="button" disabled={action.isPending}>
-              {action.isPending
-                ? 'Saving...'
-                : invite
-                  ? 'Approve & send invitation'
-                  : 'Approve email'}
-            </button>
-            <p className="muted small-text">
-              Name, designation and department are shown to signed-in staff on the scanned asset
-              page. Registration grants Employee access only; staff roles are assigned separately.
-            </p>
-          </form>
-        </Panel>
-        <div className="help-card">
-          <h2>The right access, for the right people.</h2>
-          <p>
-            Use verified individual work addresses. Employee reference numbers do not authenticate
-            an account.
-          </p>
-          <p>
-            Admins manage inventory and user access. IT staff manage support. Roles can be combined
-            when approved.
-          </p>
-          <p className="small-text">
-            Privileged accounts require authenticator enrollment. The final active Admin cannot be
-            removed.
-          </p>
+              </Field>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={invite}
+                  onChange={(event) => setInvite(event.target.checked)}
+                />
+                Send an invitation to this email
+              </label>
+              {invite ? (
+                <>
+                  <Field label="Employee name" htmlFor="admin-displayName">
+                    <input
+                      id="admin-displayName"
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      required
+                      maxLength={120}
+                    />
+                  </Field>
+                  <Field label="Designation" htmlFor="admin-designation">
+                    <input
+                      id="admin-designation"
+                      value={designation}
+                      onChange={(event) => setDesignation(event.target.value)}
+                      maxLength={120}
+                      placeholder="For example, Occupational Therapist"
+                    />
+                  </Field>
+                  <Select
+                    label="Employee department"
+                    htmlFor="admin-department"
+                    value={departmentId}
+                    onChange={setDepartmentId}
+                    options={[
+                      { value: '', label: 'Not set' },
+                      ...(refs.data?.departments
+                        .filter((department) => department.active)
+                        .map((department) => ({ value: department.id, label: department.name })) ??
+                        []),
+                    ]}
+                  />
+                </>
+              ) : null}
+              <button className={buttonClass()} disabled={action.isPending}>
+                {action.isPending
+                  ? 'Saving...'
+                  : invite
+                    ? 'Approve & send invitation'
+                    : 'Approve email'}
+              </button>
+              <p className="muted small-text">
+                Name, designation and department are shown to signed-in staff on the scanned asset
+                page. Registration grants Employee access only; staff roles are assigned separately.
+              </p>
+            </form>
+          </Panel>
+          <aside className="self-start rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
+            <h2 className="mb-2 text-sm font-semibold text-navy-900">How access works</h2>
+            <ul className="list-disc space-y-1.5 pl-4">
+              <li>
+                Invite people with their own work email. Employee numbers can't be used to sign in.
+              </li>
+              <li>
+                Admins manage assets and user access; IT handles support. One person can hold more
+                than one role.
+              </li>
+              <li>
+                Admin and IT accounts must set up two-step sign-in. The last active admin can't be
+                removed.
+              </li>
+            </ul>
+          </aside>
         </div>
-      </div>
+      ) : null}
       {selected ? (
         <Panel title={`Update access · ${selected.displayName}`}>
           <FormTransfer
@@ -302,7 +338,15 @@ export function UserAdmin() {
               { key: 'departmentId' },
               { key: 'reason', required: true },
             ]}
-            values={{ displayName: selectedDisplayName, email: selectedEmail, roles, state, designation: selectedDesignation, departmentId: selectedDepartmentId, reason }}
+            values={{
+              displayName: selectedDisplayName,
+              email: selectedEmail,
+              roles,
+              state,
+              designation: selectedDesignation,
+              departmentId: selectedDepartmentId,
+              reason,
+            }}
             disabled={action.isPending}
             description="Loads access changes for this selected account only. Review the roles and reason before saving."
             onImport={(record) => {
@@ -311,16 +355,38 @@ export function UserAdmin() {
               if (Array.isArray(record.roles)) setRoles(record.roles as Role[]);
               if ('state' in record) setState(String(record.state));
               if ('designation' in record) setSelectedDesignation(String(record.designation ?? ''));
-              if ('departmentId' in record) setSelectedDepartmentId(String(record.departmentId ?? ''));
+              if ('departmentId' in record)
+                setSelectedDepartmentId(String(record.departmentId ?? ''));
               if ('reason' in record) setReason(String(record.reason ?? ''));
             }}
           />
-          <form className="form-stack" onSubmit={edit}>
+          <form className={formStackClass} onSubmit={edit}>
             <Field label="Employee name" htmlFor="staff-display-name">
-              <input id="staff-display-name" value={selectedDisplayName} onChange={(event) => setSelectedDisplayName(event.target.value)} required maxLength={120} />
+              <input
+                id="staff-display-name"
+                value={selectedDisplayName}
+                onChange={(event) => setSelectedDisplayName(event.target.value)}
+                required
+                maxLength={120}
+              />
             </Field>
-            <Field label="Work email" htmlFor="staff-email" hint={selected.pendingEmail ? `Pending confirmation: ${selected.pendingEmail}` : 'Changing an active user email sends a verification link to the new address.'}>
-              <input id="staff-email" type="email" value={selectedEmail} onChange={(event) => setSelectedEmail(event.target.value)} required maxLength={254} />
+            <Field
+              label="Work email"
+              htmlFor="staff-email"
+              hint={
+                selected.pendingEmail
+                  ? `Pending confirmation: ${selected.pendingEmail}`
+                  : 'Changing an active user email sends a verification link to the new address.'
+              }
+            >
+              <input
+                id="staff-email"
+                type="email"
+                value={selectedEmail}
+                onChange={(event) => setSelectedEmail(event.target.value)}
+                required
+                maxLength={254}
+              />
             </Field>
             <fieldset>
               <legend>Roles</legend>
@@ -341,18 +407,18 @@ export function UserAdmin() {
                 </label>
               ))}
             </fieldset>
-<Field label="Account status" htmlFor="account-state">
-  <Select
-    label=""
-    htmlFor="account-state"
-    value={state}
-    onChange={setState}
-    options={[
-      { value: 'ACTIVE', label: 'Active' },
-      { value: 'DISABLED', label: 'Disabled' },
-    ]}
-  />
-</Field>
+            <Field label="Account status" htmlFor="account-state">
+              <Select
+                label=""
+                htmlFor="account-state"
+                value={state}
+                onChange={setState}
+                options={[
+                  { value: 'ACTIVE', label: 'Active' },
+                  { value: 'DISABLED', label: 'Disabled' },
+                ]}
+              />
+            </Field>
             <Field label="Designation" htmlFor="staff-designation">
               <input
                 id="staff-designation"
@@ -384,15 +450,15 @@ export function UserAdmin() {
                 maxLength={5000}
               />
             </Field>
-            <div className="actions">
+            <div className={actionsClass}>
               <button
-                className="button"
+                className={buttonClass()}
                 disabled={action.isPending || !roles.length || !reason.trim()}
               >
                 Save account access
               </button>
               <button
-                className="button secondary"
+                className={buttonClass('secondary')}
                 type="button"
                 disabled={action.isPending || !reason.trim()}
                 onClick={() => void sendPasswordReset()}
@@ -400,7 +466,7 @@ export function UserAdmin() {
                 Send password reset link
               </button>
               <button
-                className="button secondary"
+                className={buttonClass('secondary')}
                 type="button"
                 onClick={() => setSelected(undefined)}
               >
@@ -410,7 +476,9 @@ export function UserAdmin() {
           </form>
         </Panel>
       ) : null}
-      <Panel title={`Staff accounts${query.data?.pages[0]?.totalCount !== undefined ? ` · ${query.data.pages[0].totalCount}` : ''}`}>
+      <Panel
+        title={`Staff accounts${query.data?.pages[0]?.totalCount !== undefined ? ` · ${query.data.pages[0].totalCount}` : ''}`}
+      >
         <ErrorNotice
           error={query.error}
           retry={() => {
@@ -418,7 +486,7 @@ export function UserAdmin() {
           }}
         />
         {!query.isPending ? (
-          <div className="filter-bar staff-search-bar">
+          <div className={cx(filterBarClass, 'staff-search-bar')}>
             <Field label="Search staff" htmlFor="staff-search">
               <input
                 id="staff-search"
@@ -434,25 +502,23 @@ export function UserAdmin() {
               {query.isPlaceholderData
                 ? 'Searching...'
                 : query.data?.pages[0]?.totalCount !== undefined
-                ? `${query.data.pages[0].totalCount} ${query.data.pages[0].totalCount === 1 ? 'staff account' : 'staff accounts'}${staffSearch.trim() ? ' match your search' : ''}`
-                : `${users.length} loaded`}
+                  ? `${query.data.pages[0].totalCount} ${query.data.pages[0].totalCount === 1 ? 'staff account' : 'staff accounts'}${staffSearch.trim() ? ' match your search' : ''}`
+                  : `${users.length} loaded`}
             </p>
           </div>
         ) : null}
         {query.isPending ? (
           <Loading />
         ) : users.length ? (
-          <div className="table-scroll">
-            <table>
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
               <thead>
                 <tr>
                   <th>Person</th>
                   <th>Roles</th>
                   <th>Designation / department</th>
                   <th>Reports to</th>
-                  <th>State</th>
-                  <th>Email verified</th>
-                  <th>Portal accepted</th>
+                  <th>Sign-in</th>
                   <th>
                     <span className="sr-only">Actions</span>
                   </th>
@@ -462,11 +528,13 @@ export function UserAdmin() {
                 {users.map((user) => (
                   <tr key={user.id}>
                     <td>
-                      <div className="person-row">
+                      <div className="flex items-center gap-3">
                         <Avatar userId={user.id} name={user.displayName} hasPhoto={user.hasPhoto} />
-                        <div>
-                          <strong>{user.displayName}</strong>
-                          <span className="cell-description">{user.email}</span>
+                        <div className="min-w-0">
+                          <span className="block font-medium text-gray-900">
+                            {user.displayName}
+                          </span>
+                          <span className="block text-xs text-gray-500">{user.email}</span>
                         </div>
                       </div>
                     </td>
@@ -477,19 +545,26 @@ export function UserAdmin() {
                     </td>
                     <td>
                       {user.designation || 'Not set'}
-                      <span className="cell-description">{user.department || 'Department not set'}</span>
+                      <span className="block text-xs text-gray-500">
+                        {user.department || 'Department not set'}
+                      </span>
                     </td>
                     <td>{user.managerName || '—'}</td>
                     <td>
-                      <Badge value={user.state} label={user.state === 'DIRECTORY' ? 'No login' : undefined} />
+                      <Badge
+                        value={user.state}
+                        label={user.state === 'DIRECTORY' ? 'No login' : undefined}
+                      />
+                      <span className="mt-1 block text-xs text-gray-500">
+                        {user.emailVerifiedAt ? 'Email verified' : 'Email not verified'}
+                        {user.portalAcceptedAt ? ' · Notice accepted' : ''}
+                      </span>
                     </td>
-                    <td>{user.emailVerifiedAt ? 'Verified' : 'Pending'}</td>
-                    <td>{user.portalAcceptedAt ? 'Accepted' : 'Pending'}</td>
                     <td>
-                      <div className="actions">
+                      <div className="flex flex-nowrap items-center justify-end gap-2">
                         {user.state === 'INVITED' || user.state === 'DIRECTORY' ? (
                           <button
-                            className="button secondary small"
+                            className={buttonClass('secondary', 'sm')}
                             type="button"
                             disabled={action.isPending || !!resendingId}
                             onClick={() => {
@@ -505,7 +580,7 @@ export function UserAdmin() {
                           </button>
                         ) : null}
                         <button
-                          className="button secondary small"
+                          className={buttonClass('secondary', 'sm')}
                           type="button"
                           disabled={action.isPending || !!resendingId}
                           onClick={() => select(user)}
@@ -588,23 +663,23 @@ export function AuditView() {
           }))
         }
       />
-<Panel>
-  <Field label="Record type" htmlFor="audit-entity">
-    <Select
-      label=""
-      htmlFor="audit-entity"
-      value={entityType}
-      onChange={setEntityType}
-      options={[
-        { value: '', label: 'All records' },
-        { value: 'asset', label: 'Asset' },
-        { value: 'assignment', label: 'Assignment' },
-        { value: 'ticket', label: 'Ticket' },
-        { value: 'USER', label: 'User' },
-      ]}
-    />
-  </Field>
-  <ErrorNotice
+      <Panel>
+        <div className="mb-4 max-w-xs">
+          <Select
+            label="Record type"
+            htmlFor="audit-entity"
+            value={entityType}
+            onChange={setEntityType}
+            options={[
+              { value: '', label: 'All records' },
+              { value: 'asset', label: 'Asset' },
+              { value: 'assignment', label: 'Assignment' },
+              { value: 'ticket', label: 'Ticket' },
+              { value: 'USER', label: 'User' },
+            ]}
+          />
+        </div>
+        <ErrorNotice
           error={query.error}
           retry={() => {
             void query.refetch();
@@ -613,28 +688,79 @@ export function AuditView() {
         {query.isPending ? (
           <Loading />
         ) : items.length ? (
-          <div className="audit-list">
-            {items.map((item) => (
-              <article key={item.id}>
-                <time dateTime={item.occurredAt}>{displayDate(item.occurredAt, true)}</time>
-                <div>
-                  <strong>{item.action ?? item.eventType ?? 'Recorded event'}</strong>
-                  <p className="muted small-text">
-                    {item.entityType} · {item.entityId}
-                  </p>
-                  {item.changes ? (
-                    <pre className="audit-summary">
-                      {typeof item.changes === 'string'
-                        ? item.changes
-                        : JSON.stringify(item.changes, null, 2)}
-                    </pre>
-                  ) : null}
-                  <small>
-                    Actor {item.actorId ?? 'system'} · Reference {item.requestId ?? item.id}
-                  </small>
-                </div>
-              </article>
-            ))}
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Activity</th>
+                  <th>Record</th>
+                  <th>By</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const changes =
+                    item.changes && typeof item.changes === 'object'
+                      ? Object.entries(item.changes as Record<string, unknown>)
+                      : [];
+                  return (
+                    <tr key={item.id}>
+                      <td className="text-gray-500">
+                        <time dateTime={item.occurredAt}>{displayDate(item.occurredAt, true)}</time>
+                      </td>
+                      <td className="font-medium text-gray-900">
+                        {humaniseAction(item.action ?? item.eventType ?? 'Recorded event')}
+                      </td>
+                      <td>
+                        <span className="capitalize">{item.entityType?.toLowerCase()}</span>
+                        <span
+                          className="ml-1.5 font-mono text-xs text-gray-400"
+                          title={item.entityId}
+                        >
+                          {item.entityId?.slice(0, 8)}
+                        </span>
+                      </td>
+                      <td>
+                        {item.actorId ? (
+                          <span className="font-mono text-xs" title={item.actorId}>
+                            {item.actorId.slice(0, 8)}
+                          </span>
+                        ) : (
+                          'System'
+                        )}
+                      </td>
+                      <td>
+                        {typeof item.changes === 'string' && item.changes ? (
+                          <span className="text-xs text-gray-600">{item.changes}</span>
+                        ) : changes.length ? (
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-navy-700">
+                              {changes.length} {changes.length === 1 ? 'change' : 'changes'}
+                            </summary>
+                            <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-gray-600">
+                              {changes.map(([key, value]) => (
+                                <Fragment key={key}>
+                                  <dt className="text-gray-400">{key}</dt>
+                                  <dd className="break-all">
+                                    {typeof value === 'object'
+                                      ? JSON.stringify(value)
+                                      : String(value)}
+                                  </dd>
+                                </Fragment>
+                              ))}
+                            </dl>
+                          </details>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : !query.error ? (
           <Empty title="No activity to display">Recorded changes will appear here.</Empty>
@@ -1115,28 +1241,28 @@ export function ImportsView() {
       />
       <ErrorNotice error={fileError} />
       <ErrorNotice error={action.error} />
-      <div className="dashboard-columns">
+      <div className="mb-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <Panel title="Stage a reviewed export">
-          <div className="form-stack">
-<Field label="Register template layout" htmlFor="register-template-layout">
-  <Select
-    label=""
-    htmlFor="register-template-layout"
-    value={templateLayout}
-    onChange={setTemplateLayout}
-    options={[
-      { value: 'REGISTER_44', label: '44-column register' },
-      { value: 'REGISTER_42', label: '42-column register' },
-    ]}
-  />
-</Field>
+          <div className={formStackClass}>
+            <Field label="Register template layout" htmlFor="register-template-layout">
+              <Select
+                label=""
+                htmlFor="register-template-layout"
+                value={templateLayout}
+                onChange={setTemplateLayout}
+                options={[
+                  { value: 'REGISTER_44', label: '44-column register' },
+                  { value: 'REGISTER_42', label: '42-column register' },
+                ]}
+              />
+            </Field>
             <ExportRecords
               name={`register-template-${templateLayout.toLowerCase()}`}
               columns={templateLayout === 'REGISTER_44' ? register44Headers : register42Headers}
               load={async () => []}
             />
           </div>
-          <form className="form-stack" onSubmit={stage}>
+          <form className={formStackClass} onSubmit={stage}>
             <Field
               label="Register file (.xlsx, .csv or prepared .json)"
               htmlFor="import-file"
@@ -1145,6 +1271,7 @@ export function ImportsView() {
               <input
                 id="import-file"
                 type="file"
+                className={fileInputClass}
                 accept=".xlsx,.csv,.json,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 disabled={action.isPending}
                 onChange={(event) => {
@@ -1172,12 +1299,12 @@ export function ImportsView() {
               />
             </Field>
             {bundle ? (
-              <div className="notice">
+              <div className={noticeClass()}>
                 {fileName} · {(bundle.rows as unknown[]).length} rows ready for staging.
               </div>
             ) : null}
             <button
-              className="button"
+              className={buttonClass()}
               disabled={
                 !bundle ||
                 action.isPending ||
@@ -1188,27 +1315,22 @@ export function ImportsView() {
             </button>
           </form>
         </Panel>
-        <div className="help-card">
-          <h2>Preserve the evidence.</h2>
-          <p>
-            Select a values-only Excel register or approved CSV export and preserve the original
-            workbook hash. Every source-header value remains in restricted staging.
-          </p>
-          <p className="small-text">
-            Manual email overrides take priority. Employee IDs never link accounts. Invalid
-            identities and operational exceptions remain quarantined.
-          </p>
-          <p className="small-text">
-            Excel selection fingerprints the original file and its canonical CSV values. CSV
-            selection preserves the selected CSV fingerprint and requires the original workbook
-            fingerprint. Staging requests over 60 KB must be split into separately fingerprinted
-            files. Selecting a file never promotes assets.
-          </p>
-        </div>
+        <aside className="self-start rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
+          <h2 className="mb-2 text-sm font-semibold text-navy-900">Before you import</h2>
+          <ul className="list-disc space-y-1.5 pl-4">
+            <li>Upload a values-only Excel register or an approved CSV export.</li>
+            <li>For a CSV, also enter the original workbook's SHA-256 fingerprint.</li>
+            <li>Split files over 60 KB. Staging a file never adds assets by itself.</li>
+            <li>
+              Rows with invalid people or data stay in quarantine until fixed. Employee IDs never
+              link accounts.
+            </li>
+          </ul>
+        </aside>
       </div>
       <Panel title="Open an import batch">
         <form
-          className="search-form"
+          className={searchFormClass}
           onSubmit={(event) => {
             event.preventDefault();
             if (lookup.trim()) {
@@ -1236,7 +1358,7 @@ export function ImportsView() {
             pattern="[0-9a-fA-F-]{36}"
             required
           />
-          <button className="button secondary">Open batch</button>
+          <button className={buttonClass('secondary')}>Open batch</button>
         </form>
         <ErrorNotice
           error={query.error}
@@ -1281,8 +1403,8 @@ export function ImportsView() {
             </div>
             {query.data.issues?.length ||
             query.data.rows?.some((row) => Array.isArray(row.issues) && row.issues.length) ? (
-              <div className="table-scroll">
-                <table>
+              <div className={tableWrapClass}>
+                <table className={tableClass}>
                   <thead>
                     <tr>
                       <th>Row</th>
@@ -1383,6 +1505,7 @@ export function ImportsView() {
                   <input
                     id="import-corrections-table"
                     type="file"
+                    className={fileInputClass}
                     accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     disabled={action.isPending}
                     onChange={(event) => {
@@ -1398,6 +1521,7 @@ export function ImportsView() {
                   <input
                     id="import-review-controls"
                     type="file"
+                    className={fileInputClass}
                     accept=".json,application/json"
                     disabled={action.isPending}
                     onChange={(event) => {
@@ -1492,7 +1616,7 @@ export function ImportsView() {
                   I approve operational import of rows with explicitly pending Finance metadata.
                 </label>
                 <button
-                  className="button secondary"
+                  className={buttonClass('secondary')}
                   disabled={
                     action.isPending || !reason.trim() || !expectedCodes.trim() || !expectedCost
                   }
@@ -1501,7 +1625,7 @@ export function ImportsView() {
                 </button>
               </form>
             ) : (
-              <div className="notice success">
+              <div className={noticeClass('success')}>
                 This batch has been committed. Live assets are never overwritten by a rerun.
               </div>
             )}
@@ -1520,7 +1644,7 @@ export function ImportsView() {
                   evidence.
                 </label>
                 <button
-                  className="button"
+                  className={buttonClass()}
                   type="button"
                   disabled={!confirmed || action.isPending}
                   onClick={() => {

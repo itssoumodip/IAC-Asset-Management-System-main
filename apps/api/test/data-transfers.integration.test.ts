@@ -86,15 +86,29 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
             ? randomUUID()
             : undefined,
     }) as AuthRequest;
-  const input = (module: string, rows: Record<string, string>[]) => ({
+  const input = (
+    module: string,
+    rows: Record<string, string>[],
+    extra: Record<string, unknown> = {},
+  ) => ({
     module,
     filename: 'synthetic.csv',
     sha256: 'a'.repeat(64),
     reason,
     rows,
+    ...extra,
   });
-  const preview = async (actor: any, module: string, rows: Record<string, string>[]) => {
-    const response = await actor.browser.request('/transfers/preview', 'POST', input(module, rows));
+  const preview = async (
+    actor: any,
+    module: string,
+    rows: Record<string, string>[],
+    extra: Record<string, unknown> = {},
+  ) => {
+    const response = await actor.browser.request(
+      '/transfers/preview',
+      'POST',
+      input(module, rows, extra),
+    );
     assert.equal(response.status, 201, JSON.stringify(response.data));
     return response.data;
   };
@@ -252,7 +266,7 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
           'POST',
           input(
             'tickets',
-            Array.from({ length: 51 }, () => ({ subject: 'Example' })),
+            Array.from({ length: 501 }, () => ({ subject: 'Example' })),
           ),
         )
       ).status,
@@ -275,11 +289,20 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
       ).status,
       403,
     );
+    // Over the 6 MiB transfer limit: refused by the body parser (413) or the size check (422).
     const large = input(
       'tickets',
-      Array.from({ length: 13 }, () => ({ description: 'x'.repeat(4600) })),
+      Array.from({ length: 500 }, () => ({
+        subject: 'x'.repeat(4700),
+        description: 'x'.repeat(4700),
+        category: 'x'.repeat(4700),
+      })),
     );
-    assert.equal((await admin.browser.request('/transfers/preview', 'POST', large)).status, 422);
+    assert.ok(
+      [413, 422].includes(
+        (await admin.browser.request('/transfers/preview', 'POST', large)).status,
+      ),
+    );
     const [{ previews }] = await db.query('SELECT count(*)::int AS previews FROM data_transfers');
     const forbidden = await admin.browser.request(
       '/transfers/preview',
@@ -301,7 +324,7 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
       {
         action: 'CREATE',
         code: `${tag}-preview`,
-        name: '  Synthetic department  ',
+        name: `  Synthetic department ${tag}  `,
         active: 'true',
       },
       { action: 'CREATE', code: `${tag}-invalid`, name: '', active: 'true' },
@@ -322,7 +345,10 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     assert.equal(stored.actor_id, admin.id);
     assert.equal(stored.source_filename, 'synthetic.csv');
     assert.equal(stored.source_sha256, 'a'.repeat(64));
-    assert.equal((await commit(admin, batch)).status, 409);
+    // Commit imports the valid rows and reports the invalid ones as skipped.
+    const committed = await commit(admin, batch);
+    assert.equal(committed.status, 201);
+    assert.equal(committed.data.skippedCount, 1);
   });
   it('commits atomically, returns one stored receipt on repeats, binds the actor and protects source payload', async () => {
     const rows = [1, 2].map((index) => ({
@@ -524,9 +550,12 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
     assert.equal(duplicate.valid, false);
     assert.match(duplicate.rows[1].errors[0], /more than once/);
     assert.deepEqual(await counts(), beforeCounts);
-    const batch = await preview(admin, 'people', [
-      { action: 'INVITE', email, displayName: 'Synthetic invited employee' },
-    ]);
+    const batch = await preview(
+      admin,
+      'people',
+      [{ action: 'INVITE', email, displayName: 'Synthetic invited employee' }],
+      { sendEmails: true },
+    );
     assert.equal(batch.valid, true);
     assert.deepEqual(await counts(), beforeCounts);
     assert.equal((await db.query('SELECT id FROM users WHERE email=$1', [email])).length, 0);
@@ -669,7 +698,9 @@ describe('Excel/CSV transfer PostgreSQL and HTTP integration', { concurrency: fa
       (await db.query('SELECT id FROM departments WHERE code=$1', [`${tag}-role-denied`])).length,
       0,
     );
-    await db.query("UPDATE user_roles SET role_code='SUPER_ADMIN' WHERE user_id=$1", [otherAdmin.id]);
+    await db.query("UPDATE user_roles SET role_code='SUPER_ADMIN' WHERE user_id=$1", [
+      otherAdmin.id,
+    ]);
     // The immutable expiry is exercised through PostgreSQL's transaction clock: use an
     // intentionally old test fixture, never edit the accepted preview payload.
     const expired = randomUUID();

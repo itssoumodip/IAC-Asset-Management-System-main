@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import type { Db } from './db';
+import { submitAssetToFinance } from './finance-submit';
 import { MasterDomain } from './domain-masters';
 import {
   assertKitEditAllowed,
@@ -41,6 +42,7 @@ import {
   terminal,
   validateAsset,
 } from './domain-helpers';
+import { assetFieldRestrictions, stripHiddenFields } from './role-field';
 
 /**
  * After imported codes land, move every counter past them: the legacy IT sequence from
@@ -136,9 +138,10 @@ export class AssetDomain extends MasterDomain {
     if (p.labelPrinted && canSomewhere(req.user, 'asset.label'))
       where.push('NOT EXISTS(SELECT 1 FROM asset_label_prints lp WHERE lp.asset_id=a.id)');
     if (p.q) {
-      values.push(p.q);
+      // ILIKE so the pg_trgm indexes from migration 043 apply; escape LIKE wildcards in user text.
+      values.push(`%${p.q.replace(/[\\%_]/g, '\\$&')}%`);
       where.push(
-        `(strpos(lower(a.asset_code),lower($${values.length}))>0 OR strpos(lower(a.description),lower($${values.length}))>0 OR strpos(lower(coalesce(a.serial_number,'')),lower($${values.length}))>0)`,
+        `(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length} OR a.serial_number ILIKE $${values.length})`,
       );
     }
     if (p.after) {
@@ -152,6 +155,8 @@ export class AssetDomain extends MasterDomain {
     );
     const result = page(rows, p.limit, ['asset_code', 'id']);
     await this.attachCurrentAssignments(req.user, result.items);
+    // Field permissions page: drop fields every one of this user's roles may not see.
+    stripHiddenFields(result.items, (await assetFieldRestrictions(this.db, req.user)).hidden);
     return result;
   }
   async attachCurrentAssignments(actor: Actor, items: any[], client?: PoolClient) {
@@ -162,7 +167,8 @@ export class AssetDomain extends MasterDomain {
     if (!all) values.push(actor.id);
     const assignments = await this.db.query(
       `SELECT s.id,s.asset_id,s.user_id,s.acknowledgement,s.acknowledged_at,s.dispute_reason,s.assigned_at,s.version,
-              u.display_name AS employee_name,u.designation AS employee_designation,ud.name AS employee_department
+              u.display_name AS employee_name,u.designation AS employee_designation,ud.name AS employee_department,
+              u.email AS employee_email,EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id=s.user_id) AS employee_has_photo
        FROM assignments s
        JOIN users u ON u.id=s.user_id
        LEFT JOIN departments ud ON ud.id=u.department_id
@@ -209,6 +215,7 @@ export class AssetDomain extends MasterDomain {
         )
       ).map(camel);
     else result.timeline = [];
+    stripHiddenFields([result], (await assetFieldRestrictions(this.db, req.user)).hidden);
     return result;
   }
   async createAsset(req: AuthRequest, body: unknown) {
@@ -237,6 +244,7 @@ export class AssetDomain extends MasterDomain {
         assetCode,
         fields: Object.keys(data),
       });
+      await submitAssetToFinance(this.db, c, req.user, asset);
       return this.asset(req, asset.id, c);
     });
   }
@@ -246,6 +254,11 @@ export class AssetDomain extends MasterDomain {
     id(assetId);
     const { reason, ...changes } = parse(assetPatch, body);
     if (!Object.keys(changes).length) throw new ConflictException('No catalog changes supplied');
+    // Field permissions page: refuse fields every one of this user's roles may not edit.
+    const { locked } = await assetFieldRestrictions(this.db, req.user);
+    const blocked = Object.keys(changes).filter((field) => locked.has(field));
+    if (blocked.length)
+      throw new ForbiddenException(`Your role cannot change: ${blocked.join(', ')}`);
     return this.db.tx(async (c) => {
       const before = found(
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],

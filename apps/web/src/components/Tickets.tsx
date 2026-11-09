@@ -27,6 +27,15 @@ import {
   Timeline,
   displayDate,
   Select,
+  buttonClass,
+  noticeClass,
+  filterBarClass,
+  tableWrapClass,
+  linkClass,
+  actionsClass,
+  backLinkClass,
+  tableClass,
+  formStackClass,
 } from './ui';
 const ticketExportColumns = [
   'ticketNumber',
@@ -80,7 +89,7 @@ export function TicketList() {
             : 'Track your requests and stay in touch with the support team.'
         }
         action={
-          <Link className="button" to="/tickets/new">
+          <Link className={buttonClass()} to="/tickets/new">
             Raise a ticket
           </Link>
         }
@@ -101,13 +110,13 @@ export function TicketList() {
         }
       />
       {notice ? (
-        <div className="notice success" role="status">
+        <div className={noticeClass('success')} role="status">
           {notice}
         </div>
       ) : null}
       <BulkTransfer module="tickets" />
       <Panel>
-        <div className="filter-bar">
+        <div className={filterBarClass}>
           <Field label="Status" htmlFor="ticket-status-filter">
             <ReferenceSelect
               refs={refs.data}
@@ -159,8 +168,8 @@ export function TicketList() {
         {query.isPending ? (
           <Loading label="Loading support requests..." />
         ) : items.length ? (
-          <div className="table-scroll">
-            <table>
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
               <thead>
                 <tr>
                   <th>Ticket / subject</th>
@@ -199,7 +208,7 @@ export function TicketList() {
                     <td>
                       <Link
                         to={`/tickets/${ticket.id}`}
-                        className="table-link"
+                        className={linkClass}
                         aria-label={`View ticket ${ticket.ticketNumber}`}
                       >
                         View →
@@ -214,7 +223,7 @@ export function TicketList() {
           <Empty
             title="No tickets here"
             action={
-              <Link className="button secondary" to="/tickets/new">
+              <Link className={buttonClass('secondary')} to="/tickets/new">
                 Raise a ticket
               </Link>
             }
@@ -283,10 +292,10 @@ function TicketPhotoPicker({
         Up to {MAX_PHOTOS} photos of the problem. Photos are resized on your device and location
         data is removed.
       </p>
-      <div className="actions">
+      <div className={actionsClass}>
         <button
           type="button"
-          className="button secondary"
+          className={buttonClass('secondary')}
           disabled={disabled || full || preparing}
           onClick={() => camera.current?.click()}
         >
@@ -294,7 +303,7 @@ function TicketPhotoPicker({
         </button>
         <button
           type="button"
-          className="button secondary"
+          className={buttonClass('secondary')}
           disabled={disabled || full || preparing}
           onClick={() => gallery.current?.click()}
         >
@@ -329,7 +338,7 @@ function TicketPhotoPicker({
       />
       {preparing ? <Loading label="Preparing photo..." /> : null}
       {errors.map((message) => (
-        <p key={message} className="notice danger" role="alert">
+        <p key={message} className={noticeClass('danger')} role="alert">
           {message}
         </p>
       ))}
@@ -340,7 +349,7 @@ function TicketPhotoPicker({
               <img src={photo} alt={`Attached photo ${index + 1}`} />
               <button
                 type="button"
-                className="button text small"
+                className={buttonClass('ghost', 'sm')}
                 disabled={disabled}
                 onClick={() => onChange(photos.filter((_, i) => i !== index))}
               >
@@ -400,7 +409,7 @@ export function TicketForm() {
   }
   return (
     <>
-      <Link className="back-link" to="/tickets">
+      <Link className={backLinkClass} to="/tickets">
         ← Support tickets
       </Link>
       <PageTitle
@@ -448,7 +457,7 @@ export function TicketForm() {
               action.reset();
             }}
           />
-          <form className="form-stack" onSubmit={submit}>
+          <form className={formStackClass} onSubmit={submit}>
             <ErrorNotice error={action.error} />
             <ErrorNotice
               error={refs.error}
@@ -457,7 +466,7 @@ export function TicketForm() {
               }}
             />
             {validation ? (
-              <div role="alert" className="notice danger">
+              <div role="alert" className={noticeClass('danger')}>
                 {validation}
               </div>
             ) : null}
@@ -547,11 +556,11 @@ export function TicketForm() {
             </Field>
             <TicketPhotoPicker photos={photos} onChange={setPhotos} disabled={action.isPending} />
             <div className="form-actions">
-              <Link className="button secondary" to="/tickets">
+              <Link className={buttonClass('secondary')} to="/tickets">
                 Cancel
               </Link>
               <button
-                className="button"
+                className={buttonClass()}
                 disabled={
                   action.isPending ||
                   refs.isPending ||
@@ -569,18 +578,17 @@ export function TicketForm() {
             </div>
           </form>
         </Panel>
-        <aside className="help-card">
-          <h2>Help us help you.</h2>
-          <p>Describe the issue clearly and add any useful error message.</p>
-          <ul>
+        <aside className="self-start rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600 [&_hr]:my-3 [&_hr]:border-gray-100">
+          <h2 className="mb-2 text-sm font-semibold text-navy-900">Tips for a quick fix</h2>
+          <p>Describe the problem and include any error message you saw.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
             <li>Choose the affected equipment.</li>
             <li>Tell us what you expected to happen.</li>
             <li>Share what you already tried.</li>
           </ul>
           <hr />
-          <p className="small-text">
-            Keep passwords, clinical records, and unnecessary personal information out of your
-            request.
+          <p className="text-xs text-gray-500">
+            Don't include passwords, clinical records or other personal information.
           </p>
           <p className="small-text">
             Your request is saved before email delivery. Notification delays do not erase your
@@ -642,7 +650,11 @@ function TicketPhotos({ ticketId, count }: { ticketId: string; count: number }) 
       </ul>
       <dialog ref={dialog} className="photo-dialog" onClose={() => setOpen(undefined)}>
         {open ? <img src={open} alt="Ticket photo, full size" /> : null}
-        <button type="button" className="button secondary" onClick={() => setOpen(undefined)}>
+        <button
+          type="button"
+          className={buttonClass('secondary')}
+          onClick={() => setOpen(undefined)}
+        >
           Close
         </button>
       </dialog>
@@ -767,7 +779,7 @@ export function TicketDetail() {
   }
   return (
     <>
-      <Link className="back-link" to="/tickets">
+      <Link className={backLinkClass} to="/tickets">
         ← Support desk
       </Link>
       <PageTitle
@@ -776,7 +788,10 @@ export function TicketDetail() {
         description={`Opened ${displayDate(ticket.createdAt, true)} · ${referenceLabel(refs.data, 'TICKET_CATEGORY', ticket.category)}`}
         action={
           ticket.status === 'COMPLETED' ? (
-            <Link to={`/tickets/new?relatedTicketId=${ticket.id}`} className="button secondary">
+            <Link
+              to={`/tickets/new?relatedTicketId=${ticket.id}`}
+              className={buttonClass('secondary')}
+            >
               Create follow-up ticket
             </Link>
           ) : undefined
@@ -848,7 +863,7 @@ export function TicketDetail() {
           </Panel>
           {ticket.status !== 'COMPLETED' ? (
             <Panel title="Add an update">
-              <form className="form-stack" onSubmit={reply}>
+              <form className={formStackClass} onSubmit={reply}>
                 <Field
                   label={visibility === 'INTERNAL' ? 'Internal note' : 'Reply'}
                   htmlFor="reply-body"
@@ -877,7 +892,7 @@ export function TicketDetail() {
                     ]}
                   />
                 ) : null}
-                <button className="button" disabled={action.isPending || !body.trim()}>
+                <button className={buttonClass()} disabled={action.isPending || !body.trim()}>
                   {action.isPending
                     ? 'Saving...'
                     : visibility === 'INTERNAL'
@@ -887,7 +902,7 @@ export function TicketDetail() {
               </form>
             </Panel>
           ) : (
-            <div className="notice success">
+            <div className={noticeClass('success')}>
               <strong>Completed</strong>
               <p className="preserve">
                 {ticket.resolution ||
@@ -940,7 +955,7 @@ export function TicketDetail() {
                 {ticket.ownerId !== user?.id ? (
                   <button
                     type="button"
-                    className="button secondary"
+                    className={buttonClass('secondary')}
                     disabled={action.isPending}
                     onClick={() => {
                       void owner(user!.id);
@@ -968,7 +983,7 @@ export function TicketDetail() {
                       ]}
                     />
                     <button
-                      className="button secondary"
+                      className={buttonClass('secondary')}
                       type="button"
                       disabled={!ownerId || action.isPending}
                       onClick={() => {
@@ -1002,7 +1017,7 @@ export function TicketDetail() {
                       />
                     </Field>
                     <button
-                      className="button secondary"
+                      className={buttonClass('secondary')}
                       type="button"
                       disabled={!moveTeam || !moveReason.trim() || action.isPending}
                       onClick={() => {
@@ -1015,7 +1030,7 @@ export function TicketDetail() {
                 ) : null}
                 {ticket.status === 'OPEN' ? (
                   <button
-                    className="button secondary"
+                    className={buttonClass('secondary')}
                     type="button"
                     disabled={action.isPending}
                     onClick={() => {
@@ -1027,7 +1042,7 @@ export function TicketDetail() {
                 ) : null}
                 <button
                   type="button"
-                  className="button"
+                  className={buttonClass()}
                   disabled={action.isPending}
                   onClick={() => {
                     setCompleting(!completing);
@@ -1038,7 +1053,7 @@ export function TicketDetail() {
                 </button>
                 {completing ? (
                   <form
-                    className="form-stack"
+                    className={formStackClass}
                     onSubmit={(event) => {
                       event.preventDefault();
                       void status('COMPLETED');
@@ -1057,7 +1072,10 @@ export function TicketDetail() {
                         required
                       />
                     </Field>
-                    <button className="button" disabled={action.isPending || !resolution.trim()}>
+                    <button
+                      className={buttonClass()}
+                      disabled={action.isPending || !resolution.trim()}
+                    >
                       Confirm completion
                     </button>
                   </form>
@@ -1065,14 +1083,14 @@ export function TicketDetail() {
               </div>
             ) : null}
           </Panel>
-          <div className="help-card">
-            <h3>Keep the loop closed</h3>
+          <div className="self-start rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
+            <h3 className="mb-2 text-sm font-semibold text-navy-900">Who sees replies</h3>
             <p>
               Public replies and completion updates notify the employee. Internal notes stay visible
               to authorized staff.
             </p>
-            <p className="small-text">
-              Ticket completion does not change asset custody or inventory status.
+            <p className="mt-2 text-xs text-gray-500">
+              Closing a ticket doesn't change who holds the asset or its stock status.
             </p>
           </div>
         </aside>

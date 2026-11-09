@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
 import { assetPathFromScan } from '../scan-url';
+import { buttonClass, cx } from './ui';
 
 declare global {
   interface Window {
@@ -87,7 +88,7 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
     >
       <div className="flex items-center justify-between p-3">
         <strong>Scan asset label</strong>
-        <button type="button" className="button secondary small" onClick={onClose}>
+        <button type="button" className={buttonClass('secondary', 'sm')} onClick={onClose}>
           Close
         </button>
       </div>
@@ -120,7 +121,7 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
           autoComplete="off"
           autoCapitalize="characters"
         />
-        <button type="submit" className="button small" disabled={!typed.trim()}>
+        <button type="submit" className={buttonClass('primary', 'sm')} disabled={!typed.trim()}>
           Go
         </button>
       </form>
@@ -135,7 +136,7 @@ export function ScanButton() {
     <>
       <button
         type="button"
-        className="button small scan-button"
+        className={cx(buttonClass('primary', 'sm'), 'scan-button')}
         aria-label="Open camera scanner"
         title="Scan asset label"
         onClick={() => setOpen(true)}

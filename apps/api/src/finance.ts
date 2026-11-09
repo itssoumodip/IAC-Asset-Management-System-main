@@ -225,6 +225,7 @@ export class FinanceService {
     const rows = await this.db.query(
       `SELECT a.id,a.asset_code,a.description,a.category,a.owning_team_id,tm.code AS team_code,a.finance_status,a.finance_rejection_reason,
               a.supplier,a.invoice_number,a.purchase_date,a.purchase_cost,a.created_at,
+              (a.purchase_cost IS NULL) AS missing_cost,(inv.id IS NULL) AS missing_invoice,
               inv.id AS invoice_id,inv.extraction_state AS invoice_state
        FROM assets a JOIN teams tm ON tm.id=a.owning_team_id
        LEFT JOIN LATERAL (SELECT i.id,i.extraction_state FROM invoice_assets ia JOIN invoices i ON i.id=ia.invoice_id

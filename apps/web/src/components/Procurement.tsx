@@ -1,3 +1,5 @@
+import { formatInr } from '../admin-insights';
+import { StatTile } from './charts';
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
@@ -11,6 +13,10 @@ import {
   Loading,
   PageTitle,
   Panel,
+  buttonClass,
+  tableWrapClass,
+  tableClass,
+  cx,
 } from './ui';
 
 interface PurchaseRow {
@@ -102,9 +108,7 @@ export function Procurement() {
       <ErrorNotice error={action.error ?? query.error} />
 
       <Panel title="Record a purchase">
-        <p className="muted">
-          Record a basic purchase: supplier, date, quantity, and amount. [OPEN full PO]
-        </p>
+        <p className="muted">Record a purchase with its supplier, date, quantity and amount.</p>
         <div className="form-grid">
           <Field label="Purchase code" htmlFor="procurement-code">
             <input
@@ -164,7 +168,7 @@ export function Procurement() {
           </Field>
           <div className="form-actions">
             <button
-              className="button"
+              className={buttonClass()}
               type="button"
               disabled={
                 !purchaseCode.trim() ||
@@ -183,25 +187,16 @@ export function Procurement() {
       </Panel>
 
       <Panel title="Purchase history">
-        <div className="mini-stats">
-          <div className="stat">
-            <strong>{data.length}</strong>
-            <span className="muted small-text">purchases</span>
-          </div>
-          <div className="stat">
-            <strong>₹{totalAmount.toLocaleString('en-IN')}</strong>
-            <span className="muted small-text">total amount</span>
-          </div>
-          <div className="stat">
-            <strong>{totalQty}</strong>
-            <span className="muted small-text">total quantity</span>
-          </div>
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Purchases" value={<>{data.length}</>} />
+          <StatTile label="Total amount" value={<>{formatInr(totalAmount)}</>} />
+          <StatTile label="Total quantity" value={<>{totalQty}</>} />
         </div>
         {query.isPending ? (
           <Loading />
         ) : data.length ? (
-          <div className="table-scroll">
-            <table className="category-table">
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'category-table')}>
               <thead>
                 <tr>
                   <th>Purchase code</th>
@@ -220,7 +215,7 @@ export function Procurement() {
                     <td>{p.supplier}</td>
                     <td>{new Date(p.purchaseDate).toLocaleDateString('en-IN')}</td>
                     <td className="mono">{p.quantity}</td>
-                    <td className="mono">₹{p.amount.toLocaleString('en-IN')}</td>
+                    <td className="mono">{formatInr(p.amount)}</td>
                     <td>{p.createdByName}</td>
                     <td>{p.notes ?? '—'}</td>
                   </tr>

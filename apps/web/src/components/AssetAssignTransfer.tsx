@@ -15,6 +15,10 @@ import {
   PageTitle,
   Panel,
   Select,
+  backLinkClass,
+  noticeClass,
+  actionsClass,
+  buttonClass,
 } from './ui';
 import { useReferences, ReferenceBadge } from './References';
 import { FormTransfer } from './DataTransfer';
@@ -56,8 +60,7 @@ export function AssetAssignTransfer() {
   const [baseline, setBaseline] = useState<{ id: string; transfer: boolean; version: number }>();
   const selectedEmployee = items.find((employee) => employee.id === userId);
   const data = asset.data;
-  const custodyAvailable =
-    !!data && (transfer ? canTransfer(data) : canAssign(data));
+  const custodyAvailable = !!data && (transfer ? canTransfer(data) : canAssign(data));
   const isLead = Boolean(user?.teams?.some((t) => t.level === 'LEAD'));
   const ready =
     custodyAvailable &&
@@ -69,9 +72,7 @@ export function AssetAssignTransfer() {
     const employee = items.find((item) => item.id === value);
     setUserId(employee?.id ?? '');
     setPicked(employee);
-    setBaseline(
-      employee && data ? { id: data.id, transfer, version: data.version } : undefined,
-    );
+    setBaseline(employee && data ? { id: data.id, transfer, version: data.version } : undefined);
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -106,7 +107,7 @@ export function AssetAssignTransfer() {
 
   return (
     <>
-      <Link className="back-link" to={`/assets/${id}`}>
+      <Link className={backLinkClass} to={`/assets/${id}`}>
         ← Asset details
       </Link>
       <PageTitle
@@ -126,13 +127,13 @@ export function AssetAssignTransfer() {
           <Panel title={`${data.assetCode} · ${data.description}`}>
             <ReferenceBadge refs={refs.data} kind="STATUS" value={data.status} />
             {!custodyAvailable ? (
-              <div className="notice warning">
+              <div className={noticeClass('warning')}>
                 {transfer
                   ? 'This asset has no transferable current custody. Review its details before continuing.'
                   : 'This asset must be In Store without current custody before it can be assigned.'}{' '}
-                  <Link to="/assignments/new">Choose another asset</Link>.
-                </div>
-              ) : null}
+                <Link to="/assignments/new">Choose another asset</Link>.
+              </div>
+            ) : null}
             <FormTransfer
               formId={transfer ? 'asset-transfer' : 'asset-assignment'}
               fields={[
@@ -149,9 +150,7 @@ export function AssetAssignTransfer() {
                 },
               ]}
               values={{ userId, note }}
-              disabled={
-                action.isPending || !custodyAvailable
-              }
+              disabled={action.isPending || !custodyAvailable}
               description="Choose from loaded eligible employees. Review before confirming custody."
               onImport={(record) => {
                 if (
@@ -193,8 +192,8 @@ export function AssetAssignTransfer() {
               />
               {selectedEmployee?.state === 'DIRECTORY' ? (
                 <p className="muted">
-                  <Badge value="DIRECTORY" label="No login" /> This person has no portal login, so no
-                  assignment email is sent. Record the handover in person.
+                  <Badge value="DIRECTORY" label="No login" /> This person has no portal login, so
+                  no assignment email is sent. Record the handover in person.
                 </p>
               ) : null}
               <p id="assignment-eligibility" className="muted">
@@ -203,9 +202,9 @@ export function AssetAssignTransfer() {
               </p>
               {!items.length ? (
                 <p className="muted">
-                  No eligible employees are loaded. Complete invitation acceptance, email verification
-                  and portal access, then refresh this page. Current custodians cannot be selected
-                  for a transfer to themselves.
+                  No eligible employees are loaded. Complete invitation acceptance, email
+                  verification and portal access, then refresh this page. Current custodians cannot
+                  be selected for a transfer to themselves.
                 </p>
               ) : null}
               <Field
@@ -221,12 +220,13 @@ export function AssetAssignTransfer() {
                 />
               </Field>
               {transfer && !isLead ? (
-                <div className="notice warning">
+                <div className={noticeClass('warning')}>
                   <strong>Team Lead approval required.</strong> Your transfer request will appear in
-                  <strong>Approvals</strong> for a Team Lead to approve before the receiver confirms.
+                  <strong>Approvals</strong> for a Team Lead to approve before the receiver
+                  confirms.
                 </div>
               ) : null}
-              <div className="notice">
+              <div className={noticeClass()}>
                 Effective immediately.{' '}
                 {transfer
                   ? isLead
@@ -234,10 +234,10 @@ export function AssetAssignTransfer() {
                     : 'Pending Team Lead approval. Previous custody is closed once approved and the new employee must confirm receipt.'
                   : 'A new pending verification is created.'}
               </div>
-              <div className="actions">
+              <div className={actionsClass}>
                 <button
                   type="button"
-                  className="button secondary"
+                  className={buttonClass('secondary')}
                   disabled={action.isPending || !ready || (transfer && !note.trim())}
                   onClick={() => navigate(`/assets/${id}`)}
                 >
@@ -245,20 +245,16 @@ export function AssetAssignTransfer() {
                 </button>
                 <button
                   type="submit"
-                  className="button"
-                  disabled={
-                    action.isPending ||
-                    !ready ||
-                    (transfer && !note.trim())
-                  }
+                  className={buttonClass()}
+                  disabled={action.isPending || !ready || (transfer && !note.trim())}
                 >
                   {action.isPending
                     ? 'Saving…'
                     : transfer && !isLead
-                    ? 'Request transfer approval'
-                    : transfer
-                    ? 'Approve & transfer'
-                    : 'Confirm assignment'}
+                      ? 'Request transfer approval'
+                      : transfer
+                        ? 'Approve & transfer'
+                        : 'Confirm assignment'}
                 </button>
               </div>
             </form>

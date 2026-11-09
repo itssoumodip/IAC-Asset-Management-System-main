@@ -19,12 +19,15 @@ import { VerificationController, VerificationService } from './verification';
 import { DepreciationController, DepreciationService } from './depreciation';
 import { ReportsController, ReportsService } from './reports';
 import { InsuranceController, InsuranceService } from './insurance';
-import { ProcurementController, ProcurementService } from './procurement';import { ApprovalsController, ApprovalsService } from './approvals';
+import { ProcurementController, ProcurementService } from './procurement';
+import { ApprovalsController, ApprovalsService } from './approvals';
 import { PushController, PushService } from './push';
 import { NotificationsController, NotificationsService } from './notifications';
 import { TeamController, TeamService } from './teams';
+import { TransferController, TransferService } from './transfers';
 import { FinanceController, FinanceService } from './finance';
-import { PeopleController, PeopleService } from './people';
+import { AssignablePeopleController, PeopleController, PeopleService } from './people';
+import { ExportJobsController, ExportJobsService } from './export-jobs';
 import {
   DirectoryController,
   UserPhotoController,
@@ -56,10 +59,13 @@ import {
     PushController,
     NotificationsController,
     TeamController,
+    TransferController,
     DirectoryController,
     UserPhotoController,
     PeopleController,
+    AssignablePeopleController,
     ApprovalsController,
+    ExportJobsController,
   ],
   providers: [
     Db,
@@ -80,6 +86,7 @@ import {
     PushService,
     NotificationsService,
     TeamService,
+    TransferService,
     PeopleService,
     StoreService,
     VerificationService,
@@ -88,9 +95,9 @@ import {
     InsuranceService,
     ProcurementService,
     ApprovalsService,
+    ExportJobsService,
     ZohoSyncService,
     { provide: ZOHO_CLIENT, useFactory: zohoClientFromEnv },
   ],
 })
 export class AppModule {}
-

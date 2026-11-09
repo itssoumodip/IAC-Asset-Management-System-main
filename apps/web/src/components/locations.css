@@ -1,0 +1,54 @@
+.location-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.location-toolbar .field {
+  flex: 1 1 220px;
+}
+.location-toolbar .toolbar-spacer {
+  flex: 1 1 auto;
+}
+.location-row-inactive .location-node {
+  color: #788c9c;
+  font-weight: 500;
+}
+.location-toggle {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: none;
+  color: #5b7184;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  flex: none;
+}
+.location-toggle:hover {
+  background: #eef3f7;
+}
+.location-toggle-spacer {
+  display: inline-block;
+  width: 22px;
+  flex: none;
+}
+.location-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.location-code {
+  color: #788c9c;
+  font-size: 11px;
+  margin-left: 6px;
+}
+.location-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.location-editor {
+  margin-bottom: 20px;
+}

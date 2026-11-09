@@ -4,7 +4,7 @@ import { api, ApiError } from '../api';
 import { useSession } from '../session';
 import type { ScanView } from '../types';
 import { GenericLaptop } from './AssetPhoto';
-import { Badge, Empty, ErrorNotice, Loading, Panel } from './ui';
+import { Badge, Empty, ErrorNotice, Loading, Panel, buttonClass, noticeClass, cx } from './ui';
 
 const NOT_FOUND = 'Asset not found. Check the sticker or contact IT.';
 const RETIRED = 'This asset is no longer in service.';
@@ -100,7 +100,7 @@ export function ScanPage() {
       <Empty
         title="Asset not found"
         action={
-          <Link className="button secondary" to="/dashboard">
+          <Link className={buttonClass('secondary')} to="/dashboard">
             Back to workspace
           </Link>
         }
@@ -176,7 +176,7 @@ export function ScanPage() {
             ))}
         </dl>
         {!scan.reportable ? (
-          <p className="notice" role="status">
+          <p className={noticeClass()} role="status">
             {lostOrStolen ? LOST : RETIRED}
           </p>
         ) : null}
@@ -184,7 +184,7 @@ export function ScanPage() {
           {actions.map((action, index) => (
             <Link
               key={index}
-              className={`button ${action.secondary ? 'secondary' : ''} full`}
+              className={cx(buttonClass(action.secondary ? 'secondary' : 'primary'), 'full')}
               to={action.href}
             >
               {action.label}

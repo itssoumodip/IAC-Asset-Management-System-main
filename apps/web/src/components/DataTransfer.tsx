@@ -3,7 +3,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { cellText, downloadTable, readTable } from '../transfer-files';
 import type { TransferColumn, TransferFormat } from '../transfer-files';
-import { ErrorNotice, Field, Loading } from './ui';
+import {
+  ErrorNotice,
+  Field,
+  Loading,
+  actionsClass,
+  buttonClass,
+  tableWrapClass,
+  noticeClass,
+  tableClass,
+  fileInputClass,
+} from './ui';
 
 const MAX_BULK_IMPORT_ROWS = 500;
 
@@ -24,10 +34,10 @@ function ActionButtons({
   template?: boolean;
 }) {
   return (
-    <div className="actions transfer-actions">
+    <div className={actionsClass}>
       <button
         type="button"
-        className="button secondary small"
+        className={buttonClass('secondary', 'sm')}
         disabled={busy}
         onClick={() => run('xlsx')}
       >
@@ -35,7 +45,7 @@ function ActionButtons({
       </button>
       <button
         type="button"
-        className="button secondary small"
+        className={buttonClass('secondary', 'sm')}
         disabled={busy}
         onClick={() => run('csv')}
       >
@@ -166,9 +176,24 @@ export function FormTransfer({
     }
   }
   return (
-    <details className="transfer-tools">
-      <summary>Import / export form</summary>
-      <p className="muted small-text">
+    <details className="group m-0 space-y-4 rounded-xl border border-gray-200 bg-white px-4 py-3 open:pb-4">
+      <summary className="m-0 flex min-h-0 cursor-pointer list-none items-center justify-between gap-3 p-0 text-sm font-medium text-navy-900 select-none [&::-webkit-details-marker]:hidden">
+        <span>Import / export form</span>
+        <svg
+          viewBox="0 0 16 16"
+          className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        >
+          <path
+            d="m4 6 4 4 4-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      </summary>
+      <p className="text-xs text-gray-500">
         {description ??
           'Load one Excel or CSV row for review. Loading does not save or submit the form.'}
       </p>
@@ -193,6 +218,7 @@ export function FormTransfer({
         <input
           id={controlId}
           type="file"
+          className={fileInputClass}
           accept=".csv,.xlsx"
           disabled={disabled || busy}
           onChange={(event) => {
@@ -206,8 +232,8 @@ export function FormTransfer({
       {preview ? (
         <div className="transfer-preview">
           <h3>Review imported fields</h3>
-          <div className="table-scroll">
-            <table>
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
               <thead>
                 <tr>
                   <th>Field</th>
@@ -226,7 +252,7 @@ export function FormTransfer({
           </div>
           <button
             type="button"
-            className="button secondary"
+            className={buttonClass('secondary')}
             disabled={disabled || busy}
             onClick={() => {
               try {
@@ -243,11 +269,79 @@ export function FormTransfer({
         </div>
       ) : null}
       {message ? (
-        <p role="status" className="notice success">
+        <p role="status" className={noticeClass('success')}>
           {message}
         </p>
       ) : null}
     </details>
+  );
+}
+
+interface ExportJob {
+  id: string;
+  state: 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED';
+  rowCount: number | null;
+}
+/** Large lists are built by the worker; the browser only starts the job and downloads the file. */
+function BackgroundExport({ filters }: { filters: Record<string, unknown> }) {
+  const [jobId, setJobId] = useState<string>(),
+    [error, setError] = useState<unknown>(),
+    [starting, setStarting] = useState(false);
+  const job = useQuery({
+    queryKey: ['export-job', jobId],
+    enabled: !!jobId,
+    queryFn: ({ signal }) => api<ExportJob>(`/exports/${jobId}`, { signal }),
+    refetchInterval: (query) =>
+      query.state.data && ['READY', 'FAILED'].includes(query.state.data.state) ? false : 2000,
+  });
+  async function start() {
+    setStarting(true);
+    setError(undefined);
+    try {
+      const created = await api<{ id: string }>('/exports', {
+        method: 'POST',
+        body: { kind: 'assets', filters, format: 'csv' },
+      });
+      setJobId(created.id);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setStarting(false);
+    }
+  }
+  const state = job.data?.state;
+  const working = starting || (!!jobId && state !== 'READY' && state !== 'FAILED');
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={buttonClass('secondary', 'sm')}
+        disabled={working}
+        onClick={() => void start()}
+      >
+        Export all (background)
+      </button>
+      {working ? (
+        <span role="status" className="text-xs text-gray-500">
+          {state === 'RUNNING' ? 'Building the file...' : 'Export queued...'}
+        </span>
+      ) : null}
+      {state === 'READY' ? (
+        <span role="status" className="text-xs text-gray-500">
+          Ready ({job.data?.rowCount ?? 0} rows).{' '}
+          <a href={`/api/v1/exports/${jobId}/file`} download>
+            Download CSV
+          </a>{' '}
+          (kept for 7 days)
+        </span>
+      ) : null}
+      {state === 'FAILED' ? (
+        <span role="alert" className="text-xs text-gray-500">
+          The export failed. Try again.
+        </span>
+      ) : null}
+      <ErrorNotice error={error ?? job.error} />
+    </div>
   );
 }
 
@@ -256,12 +350,16 @@ export function ExportRecords({
   columns,
   load,
   disabled = false,
+  backgroundFilters,
 }: {
   name: string;
   columns: TransferColumn[];
   load: () => Promise<Record<string, unknown>[]>;
   disabled?: boolean;
+  /** Filters applied to the list, sent with the background export request. */
+  backgroundFilters?: Record<string, unknown>;
 }) {
+  const background = name === 'assets'; // the only kind the server can export in the background
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<unknown>();
   const lock = useRef(false);
@@ -280,7 +378,7 @@ export function ExportRecords({
     }
   }
   return (
-    <div className="record-export" aria-label={`Export ${name}`}>
+    <div className="flex flex-wrap items-center gap-2" aria-label={`Export ${name}`}>
       <ActionButtons
         busy={disabled || busy}
         run={(format) => {
@@ -288,10 +386,11 @@ export function ExportRecords({
         }}
       />
       {busy ? (
-        <span role="status" className="muted small-text">
+        <span role="status" className="text-xs text-gray-500">
           Preparing all matching records...
         </span>
       ) : null}
+      {background ? <BackgroundExport filters={backgroundFilters ?? {}} /> : null}
       <ErrorNotice error={error} />
     </div>
   );
@@ -397,7 +496,9 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
         rows: file.rows,
       };
       if (new TextEncoder().encode(JSON.stringify(body)).length > 6 * 1024 * 1024)
-        throw new Error('This batch exceeds 6 MiB. Reduce the file size or split it into smaller batches.');
+        throw new Error(
+          'This batch exceeds 6 MiB. Reduce the file size or split it into smaller batches.',
+        );
       const result = await api<Preview>('/transfers/preview', { method: 'POST', body });
       if (active.current && selected === generation.current) setPreview(result);
     } catch (caught) {
@@ -408,7 +509,15 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
     }
   }
   async function commit() {
-    if (!preview || !preview.rows.some((row) => row.valid) || !confirmed || busy || lock.current || disabled) return;
+    if (
+      !preview ||
+      !preview.rows.some((row) => row.valid) ||
+      !confirmed ||
+      busy ||
+      lock.current ||
+      disabled
+    )
+      return;
     const selected = ++generation.current;
     lock.current = true;
     setBusy(true);
@@ -467,11 +576,27 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
   const validRowCount = preview?.rows.filter((row) => row.valid).length ?? 0;
   const skippedRowCount = (preview?.rowCount ?? 0) - validRowCount;
   return (
-    <details className="transfer-tools bulk-transfer">
-      <summary>Bulk import {definition.label}</summary>
-      <p className="muted small-text">
-        {definition.description} Use at most {MAX_BULK_IMPORT_ROWS} records per batch. Nothing is applied until you
-        confirm the valid rows. Rows needing correction can be fixed and imported later.
+    <details className="group m-0 space-y-4 rounded-xl border border-gray-200 bg-white px-4 py-3 open:pb-4">
+      <summary className="m-0 flex min-h-0 cursor-pointer list-none items-center justify-between gap-3 p-0 text-sm font-medium text-navy-900 select-none [&::-webkit-details-marker]:hidden">
+        <span>Bulk import {definition.label}</span>
+        <svg
+          viewBox="0 0 16 16"
+          className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        >
+          <path
+            d="m4 6 4 4 4-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      </summary>
+      <p className="text-xs text-gray-500">
+        {definition.description} Use at most {MAX_BULK_IMPORT_ROWS} records per batch. Nothing is
+        applied until you confirm the valid rows. Rows needing correction can be fixed and imported
+        later.
       </p>
       <ActionButtons
         busy={disabled || busy}
@@ -484,6 +609,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
         <input
           id={id}
           type="file"
+          className={fileInputClass}
           accept=".xlsx,.csv"
           disabled={disabled || busy}
           onChange={(event) => {
@@ -493,7 +619,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
         />
       </Field>
       {file ? (
-        <p className="small-text">
+        <p className="text-xs text-gray-600">
           {file.filename} · {file.rows.length} rows ready for validation
         </p>
       ) : null}
@@ -531,7 +657,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
       ) : null}
       <button
         type="button"
-        className="button secondary"
+        className={buttonClass('secondary')}
         disabled={disabled || busy || !file || !reason.trim()}
         onClick={() => {
           void validate();
@@ -545,12 +671,12 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
         <div className="transfer-preview">
           <h3>Import preview · {preview.rowCount} rows</h3>
           {preview.warnings?.map((warning, index) => (
-            <p key={index} className="notice warning">
+            <p key={index} className={noticeClass('warning')}>
               {warning}
             </p>
           ))}
-          <div className="table-scroll">
-            <table>
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
               <thead>
                 <tr>
                   <th>Row</th>
@@ -572,7 +698,7 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
           {validRowCount > 0 ? (
             <>
               {skippedRowCount > 0 ? (
-                <p className="notice warning">
+                <p className={noticeClass('warning')}>
                   {validRowCount} valid rows can be imported now. {skippedRowCount} rows needing
                   correction will be skipped and can be uploaded later in a separate batch.
                 </p>
@@ -585,14 +711,16 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
                   onChange={(event) => setConfirmed(event.target.checked)}
                 />
                 I reviewed these changes and authorize importing {validRowCount} valid rows.
-                {skippedRowCount > 0 ? ` ${skippedRowCount} invalid rows will be skipped.` : ''}{' '}
+                {skippedRowCount > 0
+                  ? ` ${skippedRowCount} invalid rows will be skipped.`
+                  : ''}{' '}
                 {sendEmails
                   ? 'Invitation and assignment emails may be sent.'
                   : 'Email is off for this batch.'}
               </label>
               <button
                 type="button"
-                className="button"
+                className={buttonClass()}
                 disabled={disabled || busy || !confirmed}
                 onClick={() => {
                   void commit();
@@ -602,14 +730,14 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
               </button>
             </>
           ) : (
-            <p className="notice warning">
+            <p className={noticeClass('warning')}>
               There are no valid rows to import. Correct the file and validate it again.
             </p>
           )}
         </div>
       ) : null}
       {message ? (
-        <p role="status" className="notice success">
+        <p role="status" className={noticeClass('success')}>
           {message}
         </p>
       ) : null}

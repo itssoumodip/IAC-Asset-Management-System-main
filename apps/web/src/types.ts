@@ -1,4 +1,15 @@
-export type Role = 'SUPER_ADMIN' | 'FINANCE' | 'EXECUTIVE' | 'EMPLOYEE' | 'TEAM_LEAD' | 'TEAM_MEMBER' | 'STORE' | 'TECHNICIAN' | 'AUDITOR' | 'INSURER' | 'PROCUREMENT';
+export type Role =
+  | 'SUPER_ADMIN'
+  | 'FINANCE'
+  | 'EXECUTIVE'
+  | 'EMPLOYEE'
+  | 'TEAM_LEAD'
+  | 'TEAM_MEMBER'
+  | 'STORE'
+  | 'TECHNICIAN'
+  | 'AUDITOR'
+  | 'INSURER'
+  | 'PROCUREMENT';
 export type Action =
   | 'asset.view_all'
   | 'asset.view_private'
@@ -72,6 +83,8 @@ export interface Assignment {
   employeeName?: string;
   employeeDesignation?: string | null;
   employeeDepartment?: string | null;
+  employeeEmail?: string | null;
+  employeeHasPhoto?: boolean;
   version: number;
   acknowledgement: 'PENDING' | 'ACCEPTED' | 'DISPUTED';
   assignedAt?: string;

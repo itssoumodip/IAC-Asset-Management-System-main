@@ -3,14 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAction } from '../hooks';
-import { Empty, ErrorNotice, Loading, PageTitle, Panel } from './ui';
+import { Empty, ErrorNotice, Loading, PageTitle, Panel, buttonClass } from './ui';
 
 interface Announcement {
   id: string;
   title: string;
   message: string;
   path: '/dashboard' | '/assets' | '/tickets' | '/notifications';
-  audience: 'ALL' | 'ADMIN' | 'DEPARTMENT';
+  audience: 'ALL' | 'ADMIN' | 'DEPARTMENT' | 'FINANCE';
   departmentName: string | null;
   createdAt: string;
   read: boolean;
@@ -58,7 +58,7 @@ export function NotificationsPage() {
           inbox.data?.unreadCount ? (
             <button
               type="button"
-              className="button secondary"
+              className={buttonClass('secondary')}
               disabled={action.isPending}
               onClick={() =>
                 action.mutate({ path: '/notifications/read-all', method: 'POST', body: {} })
@@ -128,9 +128,11 @@ export function NotificationsPage() {
                 <span className="notification-audience">
                   {item.audience === 'ADMIN'
                     ? 'Admins'
-                    : item.audience === 'DEPARTMENT'
-                      ? item.departmentName
-                      : 'All staff'}
+                    : item.audience === 'FINANCE'
+                      ? 'Finance'
+                      : item.audience === 'DEPARTMENT'
+                        ? item.departmentName
+                        : 'All staff'}
                 </span>
               </div>
               <p className="notification-message">{item.message}</p>
@@ -167,7 +169,7 @@ export function NotificationsPage() {
                   {!item.read ? (
                     <button
                       type="button"
-                      className="button text small"
+                      className={buttonClass('ghost', 'sm')}
                       disabled={action.isPending}
                       onClick={() =>
                         action.mutate({
@@ -182,7 +184,7 @@ export function NotificationsPage() {
                   ) : null}
                   {item.path !== '/notifications' ? (
                     <Link
-                      className="button secondary small"
+                      className={buttonClass('secondary', 'sm')}
                       to={item.path}
                       aria-label={`Open ${item.title}`}
                     >

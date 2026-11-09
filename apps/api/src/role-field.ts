@@ -10,6 +10,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import type { PoolClient } from 'pg';
 import { Db } from './db';
 import { camel, parse, text } from './domain-helpers';
 import { assertCan } from './policy';
@@ -32,6 +33,53 @@ const roleFieldBatch = z
     reason: text(1000),
   })
   .strict();
+
+/** Fields the asset screens cannot work without; never hidden or locked by role settings. */
+const ESSENTIAL_FIELDS = new Set(['id', 'version', 'assetCode']);
+
+/**
+ * Field restrictions for an actor from the Field permissions page.
+ * A field is restricted only when EVERY one of the actor's roles has a saved row denying it,
+ * so a role without settings keeps today's access. Super Admin is never restricted.
+ */
+export async function assetFieldRestrictions(
+  db: Db,
+  actor: { roles: string[]; teams?: { level: string }[] },
+  client?: PoolClient,
+): Promise<{ hidden: Set<string>; locked: Set<string> }> {
+  const hidden = new Set<string>();
+  const locked = new Set<string>();
+  // Team Lead / Team Member are team levels, not login roles; they count as roles here so a
+  // team member keeps the access the Field permissions page gives Team Member.
+  const levels = (actor.teams ?? []).map((t) => (t.level === 'LEAD' ? 'TEAM_LEAD' : 'TEAM_MEMBER'));
+  const roles = [...new Set([...(actor.roles ?? []), ...levels])];
+  if (!roles.length || roles.includes('SUPER_ADMIN')) return { hidden, locked };
+  const rows: { field_name: string; denied_view: number; denied_edit: number }[] = await db.query(
+    `SELECT field_name,
+            count(*) FILTER (WHERE NOT can_view)::int AS denied_view,
+            count(*) FILTER (WHERE NOT can_edit)::int AS denied_edit
+       FROM role_field_permissions
+      WHERE role_code = ANY($1::text[])
+      GROUP BY field_name`,
+    [roles],
+    client,
+  );
+  for (const row of rows) {
+    if (ESSENTIAL_FIELDS.has(row.field_name)) continue;
+    if (row.denied_view === roles.length) hidden.add(row.field_name);
+    if (row.denied_edit === roles.length) locked.add(row.field_name);
+  }
+  return { hidden, locked };
+}
+
+/** Removes hidden fields from asset objects in place (camelCase keys). */
+export function stripHiddenFields<T extends Record<string, unknown>>(
+  items: T[],
+  hidden: Set<string>,
+) {
+  if (!hidden.size) return;
+  for (const item of items) for (const field of hidden) delete item[field];
+}
 
 export class RoleFieldService {
   constructor(@Inject(Db) private readonly db: Db) {}
@@ -60,10 +108,9 @@ export class RoleFieldService {
 
     // Validate role codes exist
     const roleCodes = [...new Set(permissions.map((p) => p.roleCode))];
-    const existingRoles = await this.db.query(
-      `SELECT code FROM roles WHERE code=ANY($1::text[])`,
-      [roleCodes],
-    );
+    const existingRoles = await this.db.query(`SELECT code FROM roles WHERE code=ANY($1::text[])`, [
+      roleCodes,
+    ]);
     if (existingRoles.length !== roleCodes.length) {
       const found = new Set(existingRoles.map((r) => r.code));
       const missing = roleCodes.filter((c) => !found.has(c));
@@ -93,14 +140,10 @@ export class RoleFieldService {
           c,
         );
       }
-      await this.db.audit(
-        c,
-        req.user,
-        'role_field_permissions',
-        null,
-        'ROLE_FIELDS_UPDATED',
-        { reason, count: permissions.length },
-      );
+      await this.db.audit(c, req.user, 'role_field_permissions', null, 'ROLE_FIELDS_UPDATED', {
+        reason,
+        count: permissions.length,
+      });
       return { updated: permissions.length };
     });
   }

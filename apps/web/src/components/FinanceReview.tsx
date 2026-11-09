@@ -16,6 +16,12 @@ import {
   PageTitle,
   Panel,
   displayDate,
+  buttonClass,
+  noticeClass,
+  actionsClass,
+  cx,
+  inputClass,
+  formStackClass,
 } from './ui';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -57,7 +63,7 @@ export function InvoicePreview({ invoice }: { invoice: InvoiceMeta }) {
       ) : (
         <img src={src} alt={`Invoice ${invoice.originalName}`} />
       )}
-      <a className="button secondary small" href={src} target="_blank" rel="noreferrer">
+      <a className={buttonClass('secondary', 'sm')} href={src} target="_blank" rel="noreferrer">
         Open / download
       </a>
     </div>
@@ -67,13 +73,13 @@ export function InvoicePreview({ invoice }: { invoice: InvoiceMeta }) {
 function ExtractionNote({ invoice }: { invoice: InvoiceMeta }) {
   if (invoice.extractionState === 'PENDING')
     return (
-      <div className="notice" role="status">
+      <div className={noticeClass()} role="status">
         Reading invoice…
       </div>
     );
   if (invoice.extractionState === 'FAILED')
     return (
-      <div className="notice warning" role="status">
+      <div className={noticeClass('warning')} role="status">
         {invoice.extractionError ?? 'The invoice could not be read'} Enter the values by hand.
       </div>
     );
@@ -115,13 +121,13 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
     <Panel title="Finance & invoices" className="finance-status-panel">
       <p>{financeBadge(asset)}</p>
       {asset.financeStatus === 'REJECTED' ? (
-        <div className="notice danger" role="status">
+        <div className={noticeClass('danger')} role="status">
           <strong>Finance sent this back</strong>
           <p>{asset.financeRejectionReason}</p>
           {mayUpload ? (
             <button
               type="button"
-              className="button small"
+              className={buttonClass('primary', 'sm')}
               disabled={action.isPending}
               onClick={() =>
                 void action
@@ -157,7 +163,7 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
         <p className="muted">No invoice uploaded yet.</p>
       )}
       {mayUpload ? (
-        <div className="actions">
+        <div className={actionsClass}>
           <input
             ref={input}
             id={`invoice-file-${asset.id}`}
@@ -168,7 +174,7 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
           />
           <button
             type="button"
-            className="button secondary"
+            className={buttonClass('secondary')}
             disabled={busy}
             onClick={() => input.current?.click()}
           >
@@ -181,13 +187,15 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
 }
 
 type FormValues = Record<'supplier' | 'invoiceNumber' | 'purchaseDate' | 'purchaseCost', string>;
-const FIELD_SOURCE: Record<keyof FormValues, 'supplier' | 'invoiceNumber' | 'invoiceDate' | 'totalAmount'> =
-  {
-    supplier: 'supplier',
-    invoiceNumber: 'invoiceNumber',
-    purchaseDate: 'invoiceDate',
-    purchaseCost: 'totalAmount',
-  };
+const FIELD_SOURCE: Record<
+  keyof FormValues,
+  'supplier' | 'invoiceNumber' | 'invoiceDate' | 'totalAmount'
+> = {
+  supplier: 'supplier',
+  invoiceNumber: 'invoiceNumber',
+  purchaseDate: 'invoiceDate',
+  purchaseCost: 'totalAmount',
+};
 const LABELS: Record<keyof FormValues, string> = {
   supplier: 'Supplier',
   invoiceNumber: 'Invoice number',
@@ -226,7 +234,9 @@ function ReviewForm({
   async function approve(event: FormEvent) {
     event.preventDefault();
     const fields = Object.fromEntries(
-      Object.entries(values).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()]),
+      Object.entries(values)
+        .filter(([, v]) => v.trim())
+        .map(([k, v]) => [k, v.trim()]),
     );
     await action
       .mutateAsync({
@@ -247,7 +257,7 @@ function ReviewForm({
   }
   const gstin = proposals.gstin;
   return (
-    <form onSubmit={rejecting ? reject : approve} className="form-stack">
+    <form onSubmit={rejecting ? reject : approve} className={formStackClass}>
       {invoice ? <ExtractionNote invoice={invoice} /> : null}
       <ErrorNotice error={action.error} />
       <div className="form-grid">
@@ -292,11 +302,18 @@ function ReviewForm({
               onChange={(event) => setRejectReason(event.target.value)}
             />
           </Field>
-          <div className="actions">
-            <button className="button danger" disabled={action.isPending || !rejectReason.trim()}>
+          <div className={actionsClass}>
+            <button
+              className={buttonClass('danger')}
+              disabled={action.isPending || !rejectReason.trim()}
+            >
               Send back to team
             </button>
-            <button type="button" className="button secondary" onClick={() => setRejecting(false)}>
+            <button
+              type="button"
+              className={buttonClass('secondary')}
+              onClick={() => setRejecting(false)}
+            >
               Cancel
             </button>
           </div>
@@ -311,11 +328,15 @@ function ReviewForm({
               onChange={(event) => setReason(event.target.value)}
             />
           </Field>
-          <div className="actions">
-            <button className="button" disabled={action.isPending || !reason.trim()}>
+          <div className={actionsClass}>
+            <button className={buttonClass()} disabled={action.isPending || !reason.trim()}>
               Approve
             </button>
-            <button type="button" className="button secondary" onClick={() => setRejecting(true)}>
+            <button
+              type="button"
+              className={buttonClass('secondary')}
+              onClick={() => setRejecting(true)}
+            >
               Reject…
             </button>
           </div>
@@ -332,8 +353,7 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
   });
   const invoices = useInvoices(item.id);
   if (asset.isPending || invoices.isPending) return <Loading />;
-  if (asset.error || invoices.error)
-    return <ErrorNotice error={asset.error ?? invoices.error} />;
+  if (asset.error || invoices.error) return <ErrorNotice error={asset.error ?? invoices.error} />;
   const invoice = invoices.data.items[0];
   return (
     <div className="finance-review-grid">
@@ -348,7 +368,9 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
       </Panel>
       <Panel title={`${asset.data.assetCode} · ${asset.data.description}`}>
         {asset.data.financeStatus === 'REJECTED' ? (
-          <div className="notice warning">Rejected: {asset.data.financeRejectionReason}</div>
+          <div className={noticeClass('warning')}>
+            Rejected: {asset.data.financeRejectionReason}
+          </div>
         ) : null}
         <ReviewForm
           key={`${item.id}:${invoice?.id}:${invoice?.extractionState}`}
@@ -381,9 +403,10 @@ export function FinanceReview() {
         title="Finance review"
         description="Check each asset against its invoice, correct the proposed values, then approve or send it back."
       />
-      <div className="filters">
+      <div className="mb-5 grid gap-3 sm:grid-cols-[12rem_14rem_1fr]">
         <select
           aria-label="Status"
+          className={inputClass}
           value={status}
           onChange={(event) => {
             setStatus(event.target.value);
@@ -394,7 +417,12 @@ export function FinanceReview() {
           <option value="REJECTED">Rejected</option>
           <option value="APPROVED">Approved</option>
         </select>
-        <select aria-label="Team" value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+        <select
+          aria-label="Team"
+          className={inputClass}
+          value={teamId}
+          onChange={(event) => setTeamId(event.target.value)}
+        >
           <option value="">All teams</option>
           {(refs.data?.teams ?? []).map((t) => (
             <option key={t.id} value={t.id}>
@@ -404,27 +432,36 @@ export function FinanceReview() {
         </select>
         <input
           aria-label="Search assets"
+          className={inputClass}
           placeholder="Search asset code or description"
           value={q}
           onChange={(event) => setQ(event.target.value)}
         />
       </div>
       <ErrorNotice error={queue.error} retry={() => void queue.refetch()} />
-      <div className="finance-layout">
-        <Panel title={`Queue${items.length ? ` (${items.length}${queue.hasNextPage ? '+' : ''})` : ''}`}>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,340px)_1fr]">
+        <Panel
+          title={`Queue${items.length ? ` (${items.length}${queue.hasNextPage ? '+' : ''})` : ''}`}
+        >
           {queue.isPending ? (
             <Loading />
           ) : items.length ? (
-            <ul className="finance-queue">
+            <ul className="flex flex-col gap-2">
               {items.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
-                    className={selected?.id === item.id ? 'is-selected' : undefined}
+                    className={cx(
+                      'flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors',
+                      selected?.id === item.id
+                        ? 'border-navy-300 bg-navy-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50',
+                    )}
                     onClick={() => setSelected(item)}
                   >
-                    <strong>{item.assetCode}</strong> <span>{item.description}</span>
-                    <small>
+                    <strong className="font-medium text-navy-700">{item.assetCode}</strong>
+                    <span className="line-clamp-2 text-gray-700">{item.description}</span>
+                    <small className="text-xs text-gray-500">
                       {item.teamCode} ·{' '}
                       {item.invoiceState === null
                         ? 'No invoice'

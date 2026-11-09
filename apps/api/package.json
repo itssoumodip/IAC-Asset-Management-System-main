@@ -14,7 +14,8 @@
     "db:migrate": "tsx src/cli.ts migrate",
     "admin:bootstrap": "tsx src/cli.ts bootstrap",
     "seed:synthetic": "tsx src/cli.ts seed",
-    "seed:scale": "tsx src/cli.ts seed-scale --test"
+    "seed:scale": "tsx src/cli.ts seed-scale --test",
+    "scale:probe": "tsx src/scale-probe.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",

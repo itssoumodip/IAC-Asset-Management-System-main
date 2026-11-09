@@ -1,11 +1,27 @@
-import { useState, type FormEvent } from 'react';
+import { formatInr } from '../admin-insights';
+import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
 import { useSession } from '../session';
 import { can } from '../session';
 import type { AssignablePerson } from '../types';
-import { Badge, Empty, ErrorNotice, Field, Loading, PageTitle, Panel, Select } from './ui';
+import {
+  Badge,
+  Empty,
+  ErrorNotice,
+  Field,
+  Loading,
+  PageTitle,
+  Panel,
+  Select,
+  tableWrapClass,
+  buttonClass,
+  tableClass,
+  cx,
+  inputClass,
+} from './ui';
+import './store.css';
 
 interface StoreLocation {
   id: string;
@@ -28,6 +44,23 @@ interface AssetBrief {
   locationId: string | null;
   locationName: string | null;
 }
+
+interface ActivityRow {
+  id: string;
+  occurredAt: string;
+  action: string;
+  assetCode: string;
+  actorName: string | null;
+  locationName: string | null;
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  ASSET_RECEIVED: 'Received',
+  ASSET_ISSUED: 'Issued',
+  STORE_RETURN_RECEIVED: 'Return received',
+};
+
+const RETURN_CONDITIONS = ['Good', 'Needs repair', 'Damaged'] as const;
 
 interface AssignmentRow {
   id: string;
@@ -63,7 +96,16 @@ function StoreWorkspace() {
     queryKey: ['store-returns'],
     queryFn: ({ signal }) => api<{ items: AssignmentRow[] }>('/store/returns', { signal }),
   });
+  const activity = useQuery({
+    queryKey: ['store-activity'],
+    queryFn: ({ signal }) => api<{ items: ActivityRow[] }>('/store/activity', { signal }),
+  });
   const action = useAction();
+
+  const [returnOpenId, setReturnOpenId] = useState<string | null>(null);
+  const [returnCondition, setReturnCondition] = useState<string>('Good');
+  const [returnLocationId, setReturnLocationId] = useState('');
+  const [returnNote, setReturnNote] = useState('');
 
   const [receiveAssetCode, setReceiveAssetCode] = useState('');
   const [receiveLocationId, setReceiveLocationId] = useState('');
@@ -127,6 +169,7 @@ function StoreWorkspace() {
         void locations.refetch();
         void returns.refetch();
         void storeStock.refetch();
+        void activity.refetch();
       })
       .catch(() => undefined);
   }
@@ -151,15 +194,55 @@ function StoreWorkspace() {
         void locations.refetch();
         void returns.refetch();
         void storeStock.refetch();
+        void activity.refetch();
       })
       .catch(() => undefined);
   }
 
+  function openReturnForm(id: string) {
+    setReturnOpenId(id);
+    setReturnCondition('Good');
+    setReturnLocationId('');
+    setReturnNote('');
+  }
+
+  async function submitReturn(event: FormEvent) {
+    event.preventDefault();
+    if (!returnOpenId || !returnLocationId || action.isPending) return;
+    await action
+      .mutateAsync({
+        path: `/store/returns/${returnOpenId}/receive`,
+        method: 'POST',
+        body: {
+          condition: returnCondition,
+          locationId: returnLocationId,
+          note: returnNote.trim() || undefined,
+        },
+      })
+      .then(() => {
+        setReturnOpenId(null);
+        void locations.refetch();
+        void returns.refetch();
+        void storeStock.refetch();
+        void activity.refetch();
+      })
+      .catch(() => undefined);
+  }
+
+  const [peopleSearch, setPeopleSearch] = useState('');
+  const [peopleQ, setPeopleQ] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setPeopleQ(peopleSearch.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [peopleSearch]);
   const people = useQuery({
-    queryKey: ['assignable-people-store'],
+    queryKey: ['assignable-people-store', peopleQ],
     queryFn: ({ signal }) =>
-      api<{ items: AssignablePerson[] }>('/assignable-people?limit=50', { signal }),
-    enabled: true,
+      api<{ items: AssignablePerson[] }>(
+        `/assignable-people?limit=50${peopleQ ? `&q=${encodeURIComponent(peopleQ)}` : ''}`,
+        { signal },
+      ),
+    placeholderData: (previous) => previous,
   });
 
   // Receive search matches (any status the receive rule allows).
@@ -190,7 +273,7 @@ function StoreWorkspace() {
         description="Receive assets into store or rack locations, issue them to users, and track returns waiting."
       />
       <ErrorNotice error={action.error} />
-      <ErrorNotice error={locations.error ?? returns.error} />
+      <ErrorNotice error={locations.error ?? returns.error ?? activity.error} />
 
       <Panel title="Store locations">
         <p className="muted">
@@ -199,8 +282,8 @@ function StoreWorkspace() {
         {locations.isPending ? (
           <Loading />
         ) : storeLocations.length ? (
-          <div className="table-scroll">
-            <table className="category-table">
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'category-table')}>
               <thead>
                 <tr>
                   <th>Location</th>
@@ -226,7 +309,7 @@ function StoreWorkspace() {
                     <td>{loc.assignedCount}</td>
                     <td>
                       {loc.purchaseValue > 0 ? (
-                        <span className="mono">₹{loc.purchaseValue.toLocaleString('en-IN')}</span>
+                        <span className="mono">{formatInr(loc.purchaseValue)}</span>
                       ) : (
                         '—'
                       )}
@@ -314,7 +397,7 @@ function StoreWorkspace() {
           </Field>
           <div className="form-actions">
             <button
-              className="button"
+              className={buttonClass()}
               type="button"
               disabled={
                 !receiveAsset || !receiveLocationId || !receiveReason.trim() || action.isPending
@@ -349,6 +432,17 @@ function StoreWorkspace() {
               required
             />
           </Field>
+          <Field label="Find employee" htmlFor="issue-user-search">
+            <input
+              id="issue-user-search"
+              className={inputClass}
+              type="search"
+              value={peopleSearch}
+              onChange={(event) => setPeopleSearch(event.target.value)}
+              placeholder="Name, email or employee code"
+              autoComplete="off"
+            />
+          </Field>
           <Field label="Employee" htmlFor="issue-user">
             <Select
               label=""
@@ -356,10 +450,17 @@ function StoreWorkspace() {
               value={issueUserId}
               onChange={setIssueUserId}
               options={[
-                { value: '', label: 'Select employee' },
+                {
+                  value: '',
+                  label: people.data?.items.length
+                    ? 'Select employee'
+                    : peopleQ
+                      ? 'No one matches that search'
+                      : 'Select employee',
+                },
                 ...(people.data?.items ?? []).map((p) => ({
                   value: p.id,
-                  label: `${p.displayName} · ${p.email}`,
+                  label: `${p.displayName} · ${p.email}${p.state === 'DIRECTORY' ? ' (no portal account)' : ''}`,
                 })),
               ]}
               required
@@ -376,7 +477,7 @@ function StoreWorkspace() {
           </Field>
           <div className="form-actions">
             <button
-              className="button"
+              className={buttonClass()}
               type="button"
               disabled={!issueAssetId || !issueUserId || !issueReason.trim() || action.isPending}
               onClick={submitIssue}
@@ -395,38 +496,147 @@ function StoreWorkspace() {
         {returns.isPending ? (
           <Loading />
         ) : returns.data?.items.length ? (
-          <div className="table-scroll">
-            <table className="category-table">
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'category-table')}>
               <thead>
                 <tr>
                   <th>Asset</th>
                   <th>Assigned to</th>
                   <th>Status</th>
                   <th>Assigned at</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {returns.data.items.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <strong>{a.assetCode}</strong>
-                      <span className="muted small-text block">{a.description}</span>
-                    </td>
-                    <td>
-                      <strong>{a.userName}</strong>
-                      <span className="muted small-text block">{a.userEmail}</span>
-                    </td>
-                    <td>
-                      <Badge value={a.status} />
-                    </td>
-                    <td>{new Date(a.assignedAt).toLocaleDateString('en-IN')}</td>
-                  </tr>
+                  <Fragment key={a.id}>
+                    <tr>
+                      <td>
+                        <strong>{a.assetCode}</strong>
+                        <span className="muted small-text block">{a.description}</span>
+                      </td>
+                      <td>
+                        <strong>{a.userName}</strong>
+                        <span className="muted small-text block">{a.userEmail}</span>
+                      </td>
+                      <td>
+                        <Badge value={a.status} />
+                      </td>
+                      <td>{new Date(a.assignedAt).toLocaleDateString('en-IN')}</td>
+                      <td>
+                        <button
+                          className={buttonClass('secondary')}
+                          type="button"
+                          aria-expanded={returnOpenId === a.id}
+                          onClick={() =>
+                            returnOpenId === a.id ? setReturnOpenId(null) : openReturnForm(a.id)
+                          }
+                        >
+                          Receive return
+                        </button>
+                      </td>
+                    </tr>
+                    {returnOpenId === a.id ? (
+                      <tr className="return-form-row">
+                        <td colSpan={5}>
+                          <form className="return-form" onSubmit={submitReturn}>
+                            <Field label="Condition" htmlFor={`return-condition-${a.id}`}>
+                              <Select
+                                label=""
+                                htmlFor={`return-condition-${a.id}`}
+                                value={returnCondition}
+                                onChange={setReturnCondition}
+                                options={RETURN_CONDITIONS.map((c) => ({ value: c, label: c }))}
+                                required
+                              />
+                            </Field>
+                            <Field label="Store location" htmlFor={`return-location-${a.id}`}>
+                              <Select
+                                label=""
+                                htmlFor={`return-location-${a.id}`}
+                                value={returnLocationId}
+                                onChange={setReturnLocationId}
+                                options={[
+                                  { value: '', label: 'Select location' },
+                                  ...storeLocations.map((l) => ({
+                                    value: l.id,
+                                    label: `${l.name || l.code} (${l.level})`,
+                                  })),
+                                ]}
+                                required
+                              />
+                            </Field>
+                            <Field label="Note" htmlFor={`return-note-${a.id}`}>
+                              <input
+                                id={`return-note-${a.id}`}
+                                value={returnNote}
+                                onChange={(e) => setReturnNote(e.target.value)}
+                                maxLength={1000}
+                              />
+                            </Field>
+                            <div className="form-actions">
+                              <button
+                                className={buttonClass()}
+                                type="submit"
+                                disabled={!returnLocationId || action.isPending}
+                              >
+                                {action.isPending ? 'Saving…' : 'Confirm return'}
+                              </button>
+                              <button
+                                className={buttonClass('secondary')}
+                                type="button"
+                                onClick={() => setReturnOpenId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
           <Empty title="No returns waiting" />
+        )}
+      </Panel>
+
+      <Panel title="Recent store activity">
+        <p className="muted">The last 20 receive, issue and return events.</p>
+        {activity.isPending ? (
+          <Loading />
+        ) : activity.data?.items.length ? (
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'category-table')}>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Asset</th>
+                  <th>Action</th>
+                  <th>By</th>
+                  <th>Location</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activity.data.items.map((e) => (
+                  <tr key={e.id}>
+                    <td>{new Date(e.occurredAt).toLocaleString('en-IN')}</td>
+                    <td>
+                      <strong>{e.assetCode}</strong>
+                    </td>
+                    <td className="activity-action">{ACTIVITY_LABELS[e.action] ?? e.action}</td>
+                    <td>{e.actorName ?? '—'}</td>
+                    <td>{e.locationName ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty title="No store activity yet" />
         )}
       </Panel>
     </>

@@ -2,6 +2,7 @@ import { Controller, ForbiddenException, Get, Inject, Injectable, Req, UseGuards
 import { Db } from './db';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
+import { readDashboardSummary, type SummaryPayload } from './dashboard-summary';
 
 const TZ = "'Asia/Kolkata'";
 const TODAY = `(now() AT TIME ZONE ${TZ})::date`;
@@ -14,6 +15,25 @@ export class ExecutiveDashboardService {
 
   async summary(req: AuthRequest) {
     assertCan(req.user, 'report.view');
+    const cached = await readDashboardSummary(this.db, 'ORG', null);
+    if (cached) {
+      const [{ n: openHighTickets }, weeks, teams] = await Promise.all([
+        this.db
+          .query("SELECT count(*)::int AS n FROM tickets WHERE status<>'COMPLETED' AND priority='HIGH'")
+          .then((r) => r[0]),
+        this.trendWeeks(),
+        this.trendTeams(),
+      ]);
+      return {
+        assetsByTeam: cached.payload.assetsByTeam,
+        needsAttention: { ...cached.payload.attention, openHighTickets },
+        spendByFy: cached.payload.spendByFy
+          .slice(0, 15)
+          .map((row) => ({ ...row, label: fyLabel(row.fyStart) })),
+        ticketTrends: { weeks, teams },
+        asOf: cached.asOf,
+      };
+    }
     const [assetsByTeam, [attention], spendByFy, weeks, teams] = await Promise.all([
       this.db.query(
         `SELECT a.owning_team_id AS "teamId",t.name AS "teamName",a.status,count(*)::int AS count,
@@ -37,32 +57,8 @@ export class ExecutiveDashboardService {
          WHERE a.purchase_cost IS NOT NULL AND a.currency='INR' AND a.purchase_date IS NOT NULL
          GROUP BY 1 ORDER BY 1 DESC LIMIT 15`,
       ),
-      this.db.query(
-        `WITH bounds AS (
-           SELECT (date_trunc('week',${TODAY})::date-77)::timestamp AT TIME ZONE ${TZ} AS since),
-         o AS (
-           SELECT t.team_id,date_trunc('week',t.created_at AT TIME ZONE ${TZ})::date AS ws,count(*)::int AS n
-           FROM tickets t,bounds WHERE t.created_at>=bounds.since GROUP BY 1,2),
-         c AS (
-           SELECT t.team_id,date_trunc('week',t.completed_at AT TIME ZONE ${TZ})::date AS ws,count(*)::int AS n,
-             percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.completed_at-t.created_at)/3600)::float8 AS median
-           FROM tickets t,bounds WHERE t.completed_at>=bounds.since GROUP BY 1,2)
-         SELECT coalesce(o.team_id,c.team_id) AS "teamId",to_char(coalesce(o.ws,c.ws),'YYYY-MM-DD') AS "weekStart",
-           coalesce(o.n,0) AS opened,coalesce(c.n,0) AS completed,c.median AS "medianHours"
-         FROM o FULL JOIN c ON c.team_id=o.team_id AND c.ws=o.ws ORDER BY 2,1`,
-      ),
-      this.db.query(
-        `WITH bounds AS (
-           SELECT (date_trunc('week',${TODAY})::date-77)::timestamp AT TIME ZONE ${TZ} AS since)
-         SELECT t.id AS "teamId",t.name AS "teamName",
-           count(k.id) FILTER(WHERE k.created_at>=bounds.since)::int AS opened,
-           count(k.id) FILTER(WHERE k.completed_at>=bounds.since)::int AS completed,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM k.completed_at-k.created_at)/3600)
-             FILTER(WHERE k.completed_at>=bounds.since)::float8 AS "medianResolutionHours"
-         FROM teams t CROSS JOIN bounds LEFT JOIN tickets k ON k.team_id=t.id
-           AND (k.created_at>=bounds.since OR k.completed_at>=bounds.since)
-         GROUP BY t.id,t.name ORDER BY t.name`,
-      ),
+      this.trendWeeks(),
+      this.trendTeams(),
     ]);
     return {
       assetsByTeam,
@@ -70,6 +66,69 @@ export class ExecutiveDashboardService {
       spendByFy: spendByFy.map((row: any) => ({ ...row, label: fyLabel(row.fyStart) })),
       ticketTrends: { weeks, teams },
     };
+  }
+
+  /** Merges the per-team summaries for a viewer's scope (null = whole organisation). */
+  private async teamSummary(teamIds: string[] | null) {
+    if (!teamIds) {
+      const org = await readDashboardSummary(this.db, 'ORG', null);
+      return org && { ...org.payload, asOf: org.asOf };
+    }
+    const teams: { id: string; code: string }[] = await this.db.query(
+      'SELECT id,code FROM teams WHERE id = ANY($1::uuid[])',
+      [teamIds],
+    );
+    const parts = await Promise.all(
+      teams.map((t) => readDashboardSummary(this.db, `TEAM:${t.code}`, t.id)),
+    );
+    if (parts.some((p) => p === null)) return null;
+    const all = parts as { payload: SummaryPayload; asOf: string }[];
+    const sum = (key: keyof SummaryPayload['attention']) =>
+      all.reduce((n, p) => n + p.payload.attention[key], 0);
+    return {
+      assetsByTeam: all
+        .flatMap((p) => p.payload.assetsByTeam)
+        .sort((a, b) => a.teamName.localeCompare(b.teamName) || a.status.localeCompare(b.status)),
+      attention: {
+        pendingFinance: sum('pendingFinance'),
+        leftHoldersWithAssets: sum('leftHoldersWithAssets'),
+        warrantyExpiring30: sum('warrantyExpiring30'),
+        amcExpiring30: sum('amcExpiring30'),
+      },
+      asOf: all.map((p) => p.asOf).sort()[0] ?? new Date().toISOString(),
+    };
+  }
+
+  private trendWeeks() {
+    return this.db.query(
+      `WITH bounds AS (
+         SELECT (date_trunc('week',${TODAY})::date-77)::timestamp AT TIME ZONE ${TZ} AS since),
+       o AS (
+         SELECT t.team_id,date_trunc('week',t.created_at AT TIME ZONE ${TZ})::date AS ws,count(*)::int AS n
+         FROM tickets t,bounds WHERE t.created_at>=bounds.since GROUP BY 1,2),
+       c AS (
+         SELECT t.team_id,date_trunc('week',t.completed_at AT TIME ZONE ${TZ})::date AS ws,count(*)::int AS n,
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.completed_at-t.created_at)/3600)::float8 AS median
+         FROM tickets t,bounds WHERE t.completed_at>=bounds.since GROUP BY 1,2)
+       SELECT coalesce(o.team_id,c.team_id) AS "teamId",to_char(coalesce(o.ws,c.ws),'YYYY-MM-DD') AS "weekStart",
+         coalesce(o.n,0) AS opened,coalesce(c.n,0) AS completed,c.median AS "medianHours"
+       FROM o FULL JOIN c ON c.team_id=o.team_id AND c.ws=o.ws ORDER BY 2,1`,
+    );
+  }
+
+  private trendTeams() {
+    return this.db.query(
+      `WITH bounds AS (
+         SELECT (date_trunc('week',${TODAY})::date-77)::timestamp AT TIME ZONE ${TZ} AS since)
+       SELECT t.id AS "teamId",t.name AS "teamName",
+         count(k.id) FILTER(WHERE k.created_at>=bounds.since)::int AS opened,
+         count(k.id) FILTER(WHERE k.completed_at>=bounds.since)::int AS completed,
+         percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM k.completed_at-k.created_at)/3600)
+           FILTER(WHERE k.completed_at>=bounds.since)::float8 AS "medianResolutionHours"
+       FROM teams t CROSS JOIN bounds LEFT JOIN tickets k ON k.team_id=t.id
+         AND (k.created_at>=bounds.since OR k.completed_at>=bounds.since)
+       GROUP BY t.id,t.name ORDER BY t.name`,
+    );
   }
 
   async team(req: AuthRequest) {
@@ -86,6 +145,22 @@ export class ExecutiveDashboardService {
         [userTeams],
       );
       scopedTeamIds = Array.from(new Set([...userTeams, ...grantRows.map((r: any) => r.owner_team_id)]));
+    }
+
+    const cached = await this.teamSummary(scopedTeamIds);
+    if (cached) {
+      const [{ n }] = await this.db.query(
+        `SELECT count(*)::int AS n FROM tickets t
+         WHERE t.status<>'COMPLETED' ${userTeams.length && !isGlobal ? 'AND t.team_id = ANY($1::uuid[])' : ''}`,
+        userTeams.length && !isGlobal ? [userTeams] : [],
+      );
+      return {
+        assetsByTeam: cached.assetsByTeam,
+        needsAttention: cached.attention,
+        openTickets: n,
+        scopedTeamIds: scopedTeamIds ?? 'ALL',
+        asOf: cached.asOf,
+      };
     }
 
     const assetFilter = scopedTeamIds

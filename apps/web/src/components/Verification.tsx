@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import { useSession } from '../session';
 import { can } from '../session';
+import { locationLabel, useReferences } from './References';
 import {
   Badge,
   Empty,
@@ -12,6 +13,11 @@ import {
   Loading,
   PageTitle,
   Panel,
+  Select,
+  tableWrapClass,
+  buttonClass,
+  tableClass,
+  cx,
 } from './ui';
 
 interface VerificationCycle {
@@ -54,11 +60,13 @@ export function Verification() {
 
   const cycles = useQuery({
     queryKey: ['verification-cycles'],
-    queryFn: ({ signal }) => api<{ items: VerificationCycle[] }>('/verification/cycles', { signal }),
+    queryFn: ({ signal }) =>
+      api<{ items: VerificationCycle[] }>('/verification/cycles', { signal }),
   });
   const action = useAction();
 
   const [newCycleLocationId, setNewCycleLocationId] = useState('');
+  const refs = useReferences();
   const [newCycleReason, setNewCycleReason] = useState('');
   const [activeCycleId, setActiveCycleId] = useState<string | null>(null);
   const [items, setItems] = useState<VerificationItem[]>([]);
@@ -144,8 +152,8 @@ export function Verification() {
         {cycles.isPending ? (
           <Loading />
         ) : cycles.data?.items.length ? (
-          <div className="table-scroll">
-            <table className="category-table">
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'category-table')}>
               <thead>
                 <tr>
                   <th>Cycle</th>
@@ -167,7 +175,11 @@ export function Verification() {
                     <td>
                       <Badge
                         value={
-                          c.status === 'ACTIVE' ? 'ACTIVE' : c.status === 'COMPLETED' ? 'COMPLETED' : 'CANCELLED'
+                          c.status === 'ACTIVE'
+                            ? 'ACTIVE'
+                            : c.status === 'COMPLETED'
+                              ? 'COMPLETED'
+                              : 'CANCELLED'
                         }
                       />
                     </td>
@@ -180,7 +192,7 @@ export function Verification() {
                       <div className="form-actions">
                         {c.status === 'ACTIVE' ? (
                           <button
-                            className="button secondary small"
+                            className={buttonClass('secondary', 'sm')}
                             type="button"
                             onClick={() => loadItems(c.id)}
                             disabled={itemsLoading}
@@ -189,7 +201,7 @@ export function Verification() {
                           </button>
                         ) : (
                           <button
-                            className="button secondary small"
+                            className={buttonClass('secondary', 'sm')}
                             type="button"
                             disabled={action.isPending}
                             onClick={() => completeCycle(c.id)}
@@ -208,15 +220,19 @@ export function Verification() {
           <Empty title="No verification cycles yet" />
         )}
         <div className="form-grid" style={{ marginTop: 20 }}>
-          <Field label="Location" htmlFor="cycle-location">
-            <input
-              id="cycle-location"
-              value={newCycleLocationId}
-              onChange={(e) => setNewCycleLocationId(e.target.value)}
-              placeholder="Location ID"
-              required
-            />
-          </Field>
+          <Select
+            label="Location"
+            htmlFor="cycle-location"
+            value={newCycleLocationId}
+            onChange={setNewCycleLocationId}
+            required
+            options={[
+              { value: '', label: 'Choose a location' },
+              ...(refs.data?.locations ?? [])
+                .filter((item) => item.active)
+                .map((item) => ({ value: item.id, label: locationLabel(item) })),
+            ]}
+          />
           <Field label="Reason" htmlFor="cycle-reason">
             <input
               id="cycle-reason"
@@ -228,7 +244,7 @@ export function Verification() {
           </Field>
           <div className="form-actions">
             <button
-              className="button"
+              className={buttonClass()}
               type="button"
               disabled={!newCycleLocationId || !newCycleReason.trim() || action.isPending}
               onClick={startCycle}
@@ -248,8 +264,8 @@ export function Verification() {
           {itemsLoading ? (
             <Loading />
           ) : items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Asset</th>
@@ -273,7 +289,7 @@ export function Verification() {
                           {item.verificationStatus === 'PENDING' ? (
                             <>
                               <button
-                                className="button secondary small"
+                                className={buttonClass('secondary', 'sm')}
                                 type="button"
                                 onClick={() => recordItem(item.id, 'FOUND')}
                                 disabled={action.isPending}
@@ -281,7 +297,7 @@ export function Verification() {
                                 Found
                               </button>
                               <button
-                                className="button secondary small"
+                                className={buttonClass('secondary', 'sm')}
                                 type="button"
                                 onClick={() => recordItem(item.id, 'NOT_FOUND')}
                                 disabled={action.isPending}
@@ -289,7 +305,7 @@ export function Verification() {
                                 Not found
                               </button>
                               <button
-                                className="button secondary small"
+                                className={buttonClass('secondary', 'sm')}
                                 type="button"
                                 onClick={() => recordItem(item.id, 'WRONG_PLACE')}
                                 disabled={action.isPending}
@@ -312,7 +328,7 @@ export function Verification() {
           )}
           <div className="form-actions" style={{ marginTop: 12 }}>
             <button
-              className="button secondary"
+              className={buttonClass('secondary')}
               type="button"
               onClick={() => completeCycle(activeCycleId!)}
               disabled={action.isPending}

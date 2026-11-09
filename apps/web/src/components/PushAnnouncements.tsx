@@ -3,7 +3,17 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
 import { useReferences } from './References';
-import { Checkbox, ErrorNotice, Field, PageTitle, Panel, Select } from './ui';
+import {
+  Checkbox,
+  ErrorNotice,
+  Field,
+  PageTitle,
+  Panel,
+  Select,
+  noticeClass,
+  buttonClass,
+  cx,
+} from './ui';
 
 type Audience = 'ALL' | 'ADMIN' | 'DEPARTMENT';
 type Attachment = { name: string; type: 'image/jpeg' | 'application/pdf'; dataUrl: string };
@@ -139,7 +149,7 @@ export function PushAnnouncements() {
         description="Publish a staff notice with a clear audience. It appears in each recipient’s notification inbox; browser push is optional."
       />
       {config.isError ? (
-        <div className="notice warning">
+        <div className={noticeClass('warning')}>
           Push status could not be checked. Announcements will still appear in users’ inboxes.
         </div>
       ) : null}
@@ -243,7 +253,7 @@ export function PushAnnouncements() {
                 </span>
                 <button
                   type="button"
-                  className="button text small"
+                  className={buttonClass('ghost', 'sm')}
                   onClick={() => setAttachment(undefined)}
                 >
                   Remove
@@ -267,7 +277,7 @@ export function PushAnnouncements() {
               label={`I reviewed this notice. It will be visible to ${audienceLabel(audience, departments.find((item) => item.id === departmentId)?.name)}.`}
             />
             <button
-              className="button announcement-publish"
+              className={cx(buttonClass(), 'announcement-publish')}
               type="submit"
               disabled={
                 !confirmed ||

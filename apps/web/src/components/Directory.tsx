@@ -2,7 +2,23 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
-import { Avatar, Badge, Empty, ErrorNotice, Field, Loading, PageTitle, Panel, displayDate } from './ui';
+import {
+  Avatar,
+  Badge,
+  Empty,
+  ErrorNotice,
+  Field,
+  Loading,
+  PageTitle,
+  Panel,
+  displayDate,
+  tableWrapClass,
+  noticeClass,
+  buttonClass,
+  filterBarClass,
+  cx,
+  tableClass,
+} from './ui';
 
 interface Run {
   id: string;
@@ -58,15 +74,15 @@ function PersonList({
 }) {
   if (!people.length) return <Empty title="Nothing to match" />;
   return (
-    <div className="table-scroll">
-      <table>
+    <div className={tableWrapClass}>
+      <table className={tableClass}>
         <thead>
           <tr>
             <th>Person</th>
             <th>Department</th>
-              <th>Designation</th>
-              <th>Code</th>
-              <th>Reports to</th>
+            <th>Designation</th>
+            <th>Code</th>
+            <th>Reports to</th>
             <th>
               <span className="sr-only">Select</span>
             </th>
@@ -85,13 +101,13 @@ function PersonList({
                 </div>
               </td>
               <td>{p.department ?? '—'}</td>
-                <td>{p.designation ?? '—'}</td>
-                <td>{p.employeeCode ?? ''}</td>
+              <td>{p.designation ?? '—'}</td>
+              <td>{p.employeeCode ?? ''}</td>
               <td>{p.managerName ?? '—'}</td>
               <td>
                 <button
                   type="button"
-                  className={`button small ${p.id === selectedId ? '' : 'secondary'}`}
+                  className={buttonClass(p.id === selectedId ? 'primary' : 'secondary', 'sm')}
                   onClick={() => onSelect(p)}
                   aria-label={`Select ${p.displayName} to link`}
                 >
@@ -109,7 +125,8 @@ function PersonList({
 export function Directory() {
   const status = useQuery({
     queryKey: ['directory-status'],
-    queryFn: ({ signal }) => api<{ configured: boolean; runs: Run[] }>('/directory/sync', { signal }),
+    queryFn: ({ signal }) =>
+      api<{ configured: boolean; runs: Run[] }>('/directory/sync', { signal }),
   });
   const recover = useQuery({
     queryKey: ['directory-recover'],
@@ -146,7 +163,11 @@ export function Directory() {
     try {
       await action.mutateAsync({
         path: '/directory/link',
-        body: { userId: accountPick.id, zohoRecordId: zohoPick.zohoRecordId, reason: reason.trim() },
+        body: {
+          userId: accountPick.id,
+          zohoRecordId: zohoPick.zohoRecordId,
+          reason: reason.trim(),
+        },
       });
       setMessage(`Linked ${accountPick.displayName} to their Zoho record.`);
       setZohoPick(undefined);
@@ -170,7 +191,7 @@ export function Directory() {
       />
       <ErrorNotice error={action.error} />
       {message ? (
-        <p className="notice" role="status">
+        <p className={noticeClass()} role="status">
           {message}
         </p>
       ) : null}
@@ -185,7 +206,7 @@ export function Directory() {
         )}
         <button
           type="button"
-          className="button"
+          className={buttonClass()}
           disabled={!configured || action.isPending}
           onClick={() => void syncNow()}
         >
@@ -194,8 +215,8 @@ export function Directory() {
       </Panel>
       <Panel title="Recent runs">
         {status.data.runs.length ? (
-          <div className="table-scroll">
-            <table>
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
               <thead>
                 <tr>
                   <th>Started</th>
@@ -237,8 +258,8 @@ export function Directory() {
         {recover.isPending ? (
           <Loading />
         ) : recover.data?.items.length ? (
-          <div className="table-scroll">
-            <table>
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
               <thead>
                 <tr>
                   <th>Person</th>
@@ -252,7 +273,11 @@ export function Directory() {
                   <tr key={`${item.userId}-${item.assetId}`}>
                     <td>
                       <div className="person-row">
-                        <Avatar userId={item.userId} name={item.displayName} hasPhoto={item.hasPhoto} />
+                        <Avatar
+                          userId={item.userId}
+                          name={item.displayName}
+                          hasPhoto={item.hasPhoto}
+                        />
                         <div>
                           <strong>{item.displayName}</strong>
                           <span className="cell-description">{item.email}</span>
@@ -277,7 +302,8 @@ export function Directory() {
       <Panel title="Match Zoho people to accounts">
         <p className="muted">
           Pick a Zoho person and the portal account that is the same human, then link them. The
-          Zoho-only entry is removed; it must not hold open assets or team memberships. Past asset history moves to the account.
+          Zoho-only entry is removed; it must not hold open assets or team memberships. Past asset
+          history moves to the account.
         </p>
         {unmatched.isPending ? (
           <Loading />
@@ -285,7 +311,7 @@ export function Directory() {
           <ErrorNotice error={unmatched.error} retry={() => void unmatched.refetch()} />
         ) : (
           <>
-            <div className="filter-bar staff-search-bar">
+            <div className={cx(filterBarClass, 'staff-search-bar')}>
               <Field label="Search people" htmlFor="directory-search">
                 <input
                   id="directory-search"
@@ -330,7 +356,8 @@ export function Directory() {
                 <ul>
                   {unmatched.data.blockedByUnlink.map((person) => (
                     <li key={person.id}>
-                      {person.displayName} ({person.email}) - Zoho record {person.zohoUnlinkedRecordId}
+                      {person.displayName} ({person.email}) - Zoho record{' '}
+                      {person.zohoUnlinkedRecordId}
                     </li>
                   ))}
                 </ul>
@@ -346,11 +373,12 @@ export function Directory() {
               />
               <button
                 type="button"
-                className="button"
+                className={buttonClass()}
                 disabled={!zohoPick || !accountPick || !reason.trim() || action.isPending}
                 onClick={() => void link()}
               >
-                Link {zohoPick?.displayName ?? 'Zoho person'} to {accountPick?.displayName ?? 'account'}
+                Link {zohoPick?.displayName ?? 'Zoho person'} to{' '}
+                {accountPick?.displayName ?? 'account'}
               </button>
             </div>
           </>

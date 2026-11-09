@@ -4,14 +4,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAction } from '../hooks';
 import type { Asset } from '../types';
-import {
-  Empty,
-  ErrorNotice,
-  Loading,
-  PageTitle,
-  Panel,
-  displayDate,
-} from './ui';
+import { Empty, ErrorNotice, Loading, PageTitle, Panel, displayDate, buttonClass, cx } from './ui';
 import { useSession } from '../session';
 
 function assetStatusTone(status: string): string {
@@ -37,8 +30,7 @@ export function MyAssets() {
   const allItems = query.data?.items ?? [];
   const items = allItems.filter((asset) => asset.currentAssignment?.userId === user?.id);
 
-  const isNotFoundError = (error: unknown) =>
-    error instanceof ApiError && error.status === 404;
+  const isNotFoundError = (error: unknown) => error instanceof ApiError && error.status === 404;
 
   if (query.isPending) return <Loading label="Loading your assets…" />;
   if (isNotFoundError(query.error)) {
@@ -46,7 +38,7 @@ export function MyAssets() {
       <Empty
         title="Your assets"
         action={
-          <Link className="button" to="/dashboard">
+          <Link className={buttonClass()} to="/dashboard">
             Back to workspace
           </Link>
         }
@@ -116,7 +108,7 @@ export function MyAssets() {
         description="Equipment currently assigned to you. Confirm receipt, report problems, and verify during audit cycles."
       />
       <ErrorNotice error={query.error} />
-      <div className="dashboard-columns">
+      <div className="flex flex-col gap-6">
         <Panel title="Your assigned equipment">
           {items.length ? (
             <div className="asset-cards">
@@ -127,7 +119,9 @@ export function MyAssets() {
                   verifying={verifying.has(asset.id)}
                   confirming={confirming.has(asset.id)}
                   onVerify={() => verifyAsset(asset.assetCode)}
-                  onConfirm={() => asset.currentAssignment?.id && confirmReceived(asset.currentAssignment.id)}
+                  onConfirm={() =>
+                    asset.currentAssignment?.id && confirmReceived(asset.currentAssignment.id)
+                  }
                   onReport={() => reportProblem(asset.id)}
                 />
               ))}
@@ -179,7 +173,7 @@ function AssetCard({
         <div className="card-actions">
           <button
             type="button"
-            className="button secondary small"
+            className={buttonClass('secondary', 'sm')}
             disabled={verifying}
             onClick={onVerify}
           >
@@ -192,23 +186,25 @@ function AssetCard({
         <p className="card-description">{asset.description}</p>
         <div className="card-meta">
           <span className="card-meta-item">
-            <span className="muted small-text">Since</span><br />
+            <span className="muted small-text">Since</span>
+            <br />
             {since}
           </span>
           <span className="card-meta-item">
-            <span className="muted small-text">Warranty ends</span><br />
+            <span className="muted small-text">Warranty ends</span>
+            <br />
             {displayDate(asset.warrantyExpiry)}
           </span>
         </div>
         <span className={`badge ${tone}`}>{asset.status}</span>
       </div>
       <div className="card-footer">
-        <button className="button full" onClick={onReport}>
+        <button className={cx(buttonClass(), 'full')} onClick={onReport}>
           Report a problem
         </button>
         {canConfirm && (
           <button
-            className="button text full"
+            className={cx(buttonClass('ghost'), 'full')}
             disabled={confirming}
             onClick={onConfirm}
           >

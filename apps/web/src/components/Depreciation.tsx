@@ -1,3 +1,5 @@
+import { formatInr } from '../admin-insights';
+import { StatTile } from './charts';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
@@ -11,6 +13,10 @@ import {
   PageTitle,
   Panel,
   Select,
+  buttonClass,
+  tableWrapClass,
+  tableClass,
+  cx,
 } from './ui';
 
 interface DepreciationRow {
@@ -83,24 +89,12 @@ export function Depreciation() {
       />
       <ErrorNotice error={action.error ?? query.error} />
 
-      <div className="dashboard-columns">
-        <div className="mini-stats">
-          <div className="stat">
-            <strong>{data.length}</strong>
-            <span className="muted small-text">assets with cost</span>
-          </div>
-          <div className="stat">
-            <strong>₹{totalPurchaseCost.toLocaleString('en-IN')}</strong>
-            <span className="muted small-text">purchase cost</span>
-          </div>
-          <div className="stat">
-            <strong>₹{totalCurrentValue.toLocaleString('en-IN')}</strong>
-            <span className="muted small-text">current value</span>
-          </div>
-          <div className="stat warn">
-            <strong>{uncappeditalised}</strong>
-            <span className="muted small-text">not capitalised</span>
-          </div>
+      <div className="flex flex-col gap-6">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Assets with cost" value={<>{data.length}</>} />
+          <StatTile label="Purchase cost" value={<>{formatInr(totalPurchaseCost)}</>} />
+          <StatTile label="Current value" value={<>{formatInr(totalCurrentValue)}</>} />
+          <StatTile label="Not capitalised" value={<>{uncappeditalised}</>} />
         </div>
       </div>
 
@@ -131,7 +125,7 @@ export function Depreciation() {
             />
           </div>
           <button
-            className="button"
+            className={buttonClass()}
             type="button"
             disabled={action.isPending}
             onClick={runDepreciation}
@@ -140,14 +134,14 @@ export function Depreciation() {
           </button>
         </div>
         <p className="muted small-text">
-          Companies Act view: SLM depreciation over useful life. Income Tax view: WDV at
-          prescribed rate. Capitalisation date is set automatically at first assignment.
+          Companies Act view: SLM depreciation over useful life. Income Tax view: WDV at prescribed
+          rate. Capitalisation date is set automatically at first assignment.
         </p>
         {query.isPending ? (
           <Loading />
         ) : data.length ? (
-          <div className="table-scroll">
-            <table className="category-table">
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'category-table')}>
               <thead>
                 <tr>
                   <th>Asset</th>
@@ -175,8 +169,8 @@ export function Depreciation() {
                     </td>
                     <td>{a.capitalisationDate ?? '—'}</td>
                     <td>{a.depreciationMethod ?? '—'}</td>
-                    <td className="mono">₹{a.currentValue.toLocaleString('en-IN')}</td>
-                    <td className="mono">₹{a.depreciatedValue.toLocaleString('en-IN')}</td>
+                    <td className="mono">{formatInr(a.currentValue)}</td>
+                    <td className="mono">{formatInr(a.depreciatedValue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -193,9 +187,9 @@ export function Depreciation() {
           above to run for the selected year and method.
         </p>
         <div className="muted small-text">
-          Companies Act (SLM): Depreciation = (Purchase cost − Residual value) ÷ Useful life
-          years, charged each year until residual value is reached. Income Tax (WDV): Depreciation
-          = Rate% × Opening written-down value, reducing balance each year.
+          Companies Act (SLM): Depreciation = (Purchase cost − Residual value) ÷ Useful life years,
+          charged each year until residual value is reached. Income Tax (WDV): Depreciation = Rate%
+          × Opening written-down value, reducing balance each year.
         </div>
       </Panel>
     </>

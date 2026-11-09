@@ -11,6 +11,11 @@ import {
   Loading,
   PageTitle,
   Panel,
+  tableWrapClass,
+  actionsClass,
+  buttonClass,
+  tableClass,
+  cx,
 } from './ui';
 
 type ApprovalTab = 'requests' | 'transfers' | 'change-requests' | 'verification';
@@ -38,15 +43,15 @@ const TAB_LABELS: Record<ApprovalTab, string> = {
 };
 
 export function Approvals() {
-  useSession();  const [tab, setTab] = useState<ApprovalTab>('requests');
+  useSession();
+  const [tab, setTab] = useState<ApprovalTab>('requests');
   const [reason, setReason] = useState('');
   const [pendingId, setPendingId] = useState<string | null>(null);
   const action = useAction<{ approved: number }>();
 
   const query = useQuery({
     queryKey: ['approvals', tab],
-    queryFn: ({ signal }) =>
-      api<{ items: ApprovalItem[] }>(`/approvals?tab=${tab}`, { signal }),
+    queryFn: ({ signal }) => api<{ items: ApprovalItem[] }>(`/approvals?tab=${tab}`, { signal }),
   });
 
   const items = query.data?.items ?? [];
@@ -117,8 +122,8 @@ export function Approvals() {
       </nav>
       <Panel title={`${TAB_LABELS[tab]} (${pending.length} pending)`}>
         {pending.length ? (
-          <div className="table-scroll">
-            <table className="approval-table">
+          <div className={tableWrapClass}>
+            <table className={cx(tableClass, 'approval-table')}>
               <thead>
                 <tr>
                   <th>Request</th>
@@ -148,10 +153,10 @@ export function Approvals() {
                     </td>
                     <td>{item.when}</td>
                     <td>
-                      <div className="actions">
+                      <div className={actionsClass}>
                         <button
                           type="button"
-                          className="button secondary small"
+                          className={buttonClass('secondary', 'sm')}
                           disabled={action.isPending || pendingId === item.id}
                           onClick={() => approve(item)}
                         >
@@ -159,12 +164,8 @@ export function Approvals() {
                         </button>
                         <button
                           type="button"
-                          className="button secondary small"
-                          disabled={
-                            action.isPending ||
-                            pendingId === item.id ||
-                            !reason.trim()
-                          }
+                          className={buttonClass('secondary', 'sm')}
+                          disabled={action.isPending || pendingId === item.id || !reason.trim()}
                           onClick={() => reject(item)}
                         >
                           Reject
@@ -195,10 +196,10 @@ export function Approvals() {
                 rows={3}
               />
             </Field>
-            <div className="actions">
+            <div className={actionsClass}>
               <button
                 type="button"
-                className="button secondary"
+                className={buttonClass('secondary')}
                 disabled={action.isPending || !reason.trim()}
                 onClick={() => setReason('')}
               >

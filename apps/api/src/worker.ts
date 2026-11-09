@@ -4,6 +4,8 @@ import nodemailer from 'nodemailer';
 import { randomUUID } from 'node:crypto';
 import { ZohoSyncService, zohoClientFromEnv } from './zoho';
 import { processPendingInvoices } from './invoice-ocr';
+import { refreshDashboardSummary } from './dashboard-summary';
+import { processNextExport, purgeExpiredExports } from './export-jobs';
 const retryMinutes = [1, 5, 15, 60, 360];
 export async function dispatchOnce(db: Db): Promise<boolean> {
   const lease = randomUUID();
@@ -151,6 +153,10 @@ async function run() {
         )
       )[0]?.day ?? null)
     : null;
+  const SUMMARY_INTERVAL_MS = 5 * 60_000;
+  const PURGE_INTERVAL_MS = 10 * 60_000;
+  let lastSummaryAt = 0; // refresh once at start-up, then every 5 minutes
+  let lastPurgeAt = 0;
   try {
     while (!stopping) {
       try {
@@ -167,7 +173,19 @@ async function run() {
         }
         const mailed = await dispatchOnce(db);
         const read = await processPendingInvoices(db, undefined, 1);
-        if (!mailed && !read) await new Promise((r) => setTimeout(r, 1000));
+        const exported = await processNextExport(db).catch(() => false);
+        if (Date.now() - lastSummaryAt >= SUMMARY_INTERVAL_MS) {
+          lastSummaryAt = Date.now();
+          // A failed refresh leaves the previous summary in place for readers.
+          await refreshDashboardSummary(db).catch(() =>
+            process.stderr.write('Dashboard summary refresh failed; serving the last one.\n'),
+          );
+        }
+        if (Date.now() - lastPurgeAt >= PURGE_INTERVAL_MS) {
+          lastPurgeAt = Date.now();
+          await purgeExpiredExports(db).catch(() => 0);
+        }
+        if (!mailed && !read && !exported) await new Promise((r) => setTimeout(r, 1000));
       } catch {
         process.stderr.write('Email worker cycle failed; retrying.\n');
         await new Promise((r) => setTimeout(r, 5000));

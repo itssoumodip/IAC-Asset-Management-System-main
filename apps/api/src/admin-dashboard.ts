@@ -4,6 +4,7 @@ import { Db } from './db';
 import { parse, text, uuid } from './domain-helpers';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
+import { readDashboardSummary } from './dashboard-summary';
 
 const filterInput = z
   .object({
@@ -64,7 +65,12 @@ export class AdminDashboardService {
       ? `EXISTS(SELECT 1 FROM assets a WHERE a.id=t.asset_id AND ${assetWhere})`
       : 'TRUE';
 
-    const [kpis] = await this.db.query(
+    // Unfiltered requests read the precomputed aggregates; filtered ones stay live.
+    const cached =
+      !scoped && filters.fy === undefined ? await readDashboardSummary(this.db, 'ORG', null) : null;
+    const [liveKpis] = cached
+      ? [null]
+      : await this.db.query(
       `SELECT count(*)::int AS total_assets,
         coalesce(sum(a.purchase_cost) FILTER(WHERE ${priced}),0)::float8 AS total_spend,
         coalesce(sum(a.purchase_cost) FILTER(WHERE ${priced} AND ${inFy}),0)::float8 AS fy_spend,
@@ -76,7 +82,26 @@ export class AdminDashboardService {
        FROM assets a WHERE ${assetWhere}`,
       fyValues,
     );
-    const spendByYear = (
+    const kpis: any = cached
+      ? {
+          total_assets: cached.payload.kpis.totalAssets,
+          total_spend: cached.payload.kpis.totalSpend,
+          fy_spend: cached.payload.kpis.fySpend,
+          fy_start: cached.payload.kpis.fyStart,
+          missing_cost: cached.payload.kpis.missingCost,
+          assigned: cached.payload.kpis.assigned,
+          warranty_expiring: cached.payload.kpis.warrantyExpiring,
+          open_tickets: (
+            await this.db.query("SELECT count(*)::int AS n FROM tickets WHERE status<>'COMPLETED'")
+          )[0].n,
+        }
+      : liveKpis;
+    const spendByYear = cached
+      ? cached.payload.spendByFy
+          .slice(0, 6)
+          .reverse()
+          .map((r) => ({ label: fyLabel(r.fyStart), spend: r.spend, count: r.count }))
+      : (
       await this.db.query(
         `SELECT extract(year FROM a.purchase_date - interval '3 months')::int AS fy_start,
           sum(a.purchase_cost)::float8 AS spend,count(*)::int AS count
@@ -97,24 +122,32 @@ export class AdminDashboardService {
         ),
         8,
       );
-    const spendByCategory = await breakdown('a.category');
-    const spendByDepartment = await breakdown(
-      "coalesce(d.name,'No department')",
-      'LEFT JOIN departments d ON d.id=a.department_id',
-    );
-    const statusCounts = await this.db.query(
+    const spendByCategory = cached
+      ? top(cached.payload.spendByCategory, 8)
+      : await breakdown('a.category');
+    const spendByDepartment = cached
+      ? top(cached.payload.spendByDepartment, 8)
+      : await breakdown(
+          "coalesce(d.name,'No department')",
+          'LEFT JOIN departments d ON d.id=a.department_id',
+        );
+    const statusCounts = cached
+      ? cached.payload.statusCounts
+      : await this.db.query(
       `SELECT a.status AS label,count(*)::int AS count FROM assets a WHERE ${assetWhere}
        GROUP BY 1 ORDER BY 2 DESC,1`,
       values,
     );
+    // One grouped pass per column (index-bounded) instead of two table scans per week.
+    const since = `(date_trunc('week',${TODAY})::date-77)::timestamp AT TIME ZONE 'Asia/Kolkata'`;
+    const weekly = (col: string) =>
+      `SELECT date_trunc('week',t.${col} AT TIME ZONE 'Asia/Kolkata')::date AS ws,count(*)::int AS n
+       FROM tickets t WHERE ${ticketAsset} AND t.${col}>=${since} GROUP BY 1`;
     const ticketWeeks = await this.db.query(
-      `SELECT to_char(w,'YYYY-MM-DD') AS "weekStart",
-        (SELECT count(*)::int FROM tickets t WHERE ${ticketAsset}
-          AND (t.created_at AT TIME ZONE 'Asia/Kolkata')::date>=w AND (t.created_at AT TIME ZONE 'Asia/Kolkata')::date<w+7) AS opened,
-        (SELECT count(*)::int FROM tickets t WHERE ${ticketAsset}
-          AND (t.completed_at AT TIME ZONE 'Asia/Kolkata')::date>=w AND (t.completed_at AT TIME ZONE 'Asia/Kolkata')::date<w+7) AS completed
+      `WITH o AS (${weekly('created_at')}),c AS (${weekly('completed_at')})
+       SELECT to_char(x.w,'YYYY-MM-DD') AS "weekStart",coalesce(o.n,0) AS opened,coalesce(c.n,0) AS completed
        FROM generate_series(date_trunc('week',${TODAY})::date-77,date_trunc('week',${TODAY})::date,interval '7 days') AS g(ws),
-        LATERAL (SELECT ws::date AS w) x ORDER BY w`,
+        LATERAL (SELECT ws::date AS w) x LEFT JOIN o ON o.ws=x.w LEFT JOIN c ON c.ws=x.w ORDER BY x.w`,
       values,
     );
     const expiring = await this.db.query(
@@ -165,6 +198,7 @@ export class AdminDashboardService {
       topReported,
       financeGaps,
       recentActivity,
+      asOf: cached?.asOf ?? new Date().toISOString(),
     };
   }
 }

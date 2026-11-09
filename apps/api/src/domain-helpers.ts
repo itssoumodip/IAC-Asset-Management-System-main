@@ -43,6 +43,10 @@ export const statuses = [
   'Leased',
   'Under Verification',
   'Sold',
+  'In Use',
+  'Ready to Assign',
+  'Broken',
+  'Scrapped',
 ] as const;
 export const NON_REPORTABLE_STATUSES = ['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen'] as const;
 export const terminal = new Set(['Retired', 'Disposed', 'Sold']);

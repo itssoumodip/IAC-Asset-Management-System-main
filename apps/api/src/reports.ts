@@ -89,9 +89,10 @@ export class ReportsService {
     const rows = await this.db.query(`
       SELECT a.id, a.asset_code, a.description, t.name AS owning_team,
              a.warranty_expiry,
-             (a.warranty_expiry - now())::int AS days_remaining
+             -- date minus date is a whole number of days (date minus now() is an interval).
+             (a.warranty_expiry - (now() AT TIME ZONE 'Asia/Kolkata')::date) AS days_remaining
       FROM assets a
-      JOIN teams t ON t.id = a.owning_team_id
+      LEFT JOIN teams t ON t.id = a.owning_team_id
       WHERE a.warranty_expiry IS NOT NULL
       ORDER BY a.warranty_expiry
     `);

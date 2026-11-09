@@ -1,3 +1,4 @@
+import { formatInr } from '../admin-insights';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
@@ -10,6 +11,10 @@ import {
   Loading,
   PageTitle,
   Panel,
+  tableWrapClass,
+  buttonClass,
+  tableClass,
+  cx,
 } from './ui';
 
 interface AssetRegisterRow {
@@ -85,27 +90,34 @@ export function Reports() {
       </Panel>
     );
 
-  const [tab, setTab] = useState<'register' | 'location' | 'warranty' | 'tickets' | 'verification'>('register');
+  const [tab, setTab] = useState<'register' | 'location' | 'warranty' | 'tickets' | 'verification'>(
+    'register',
+  );
 
   const register = useQuery({
     queryKey: ['report-register'],
-    queryFn: ({ signal }) => api<{ items: AssetRegisterRow[] }>('/reports/fixed-asset-register', { signal }),
+    queryFn: ({ signal }) =>
+      api<{ items: AssetRegisterRow[] }>('/reports/fixed-asset-register', { signal }),
   });
   const locations = useQuery({
     queryKey: ['report-locations'],
-    queryFn: ({ signal }) => api<{ items: LocationSummary[] }>('/reports/assets-by-location', { signal }),
+    queryFn: ({ signal }) =>
+      api<{ items: LocationSummary[] }>('/reports/assets-by-location', { signal }),
   });
   const warranty = useQuery({
     queryKey: ['report-warranty'],
-    queryFn: ({ signal }) => api<{ items: WarrantyExpiryRow[] }>('/reports/warranty-expiry', { signal }),
+    queryFn: ({ signal }) =>
+      api<{ items: WarrantyExpiryRow[] }>('/reports/warranty-expiry', { signal }),
   });
   const tickets = useQuery({
     queryKey: ['report-tickets'],
-    queryFn: ({ signal }) => api<{ items: TicketResponseRow[] }>('/reports/ticket-response-times', { signal }),
+    queryFn: ({ signal }) =>
+      api<{ items: TicketResponseRow[] }>('/reports/ticket-response-times', { signal }),
   });
   const verification = useQuery({
     queryKey: ['report-verification'],
-    queryFn: ({ signal }) => api<{ items: VerificationCycleRow[] }>('/reports/verification', { signal}),
+    queryFn: ({ signal }) =>
+      api<{ items: VerificationCycleRow[] }>('/reports/verification', { signal }),
   });
 
   return (
@@ -115,40 +127,44 @@ export function Reports() {
         title="Reports"
         description="Fixed asset register, depreciation, verification, assets by location, warranty expiry, tickets and response times. Each with filters and Excel export."
       />
-      <ErrorNotice error={register.error ?? locations.error ?? warranty.error ?? tickets.error ?? verification.error} />
+      <ErrorNotice
+        error={
+          register.error ?? locations.error ?? warranty.error ?? tickets.error ?? verification.error
+        }
+      />
 
       <div className="form-actions" style={{ marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
         <button
           type="button"
-          className={`button ${tab === 'register' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'register' ? 'primary' : 'secondary')}
           onClick={() => setTab('register')}
         >
           Asset register
         </button>
         <button
           type="button"
-          className={`button ${tab === 'location' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'location' ? 'primary' : 'secondary')}
           onClick={() => setTab('location')}
         >
           Assets by location
         </button>
         <button
           type="button"
-          className={`button ${tab === 'warranty' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'warranty' ? 'primary' : 'secondary')}
           onClick={() => setTab('warranty')}
         >
           Warranty & AMC expiry
         </button>
         <button
           type="button"
-          className={`button ${tab === 'tickets' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'tickets' ? 'primary' : 'secondary')}
           onClick={() => setTab('tickets')}
         >
           Ticket response times
         </button>
         <button
           type="button"
-          className={`button ${tab === 'verification' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'verification' ? 'primary' : 'secondary')}
           onClick={() => setTab('verification')}
         >
           Verification cycles
@@ -160,8 +176,8 @@ export function Reports() {
           {register.isPending ? (
             <Loading />
           ) : register.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Asset ID</th>
@@ -187,13 +203,17 @@ export function Reports() {
                       <td>{a.assetType}</td>
                       <td>{a.owningTeam}</td>
                       <td>{a.location ?? '—'}</td>
-                      <td><Badge value={a.status} /></td>
+                      <td>
+                        <Badge value={a.status} />
+                      </td>
                       <td>{a.purchaseDate ?? '—'}</td>
                       <td className="mono">
-                        {a.purchaseCost != null ? `₹${a.purchaseCost.toLocaleString('en-IN')}` : '—'}
+                        {a.purchaseCost != null
+                          ? `₹${a.purchaseCost.toLocaleString('en-IN')}`
+                          : '—'}
                       </td>
-                      <td className="mono">₹{a.currentValue.toLocaleString('en-IN')}</td>
-                      <td className="mono">₹{a.depreciatedValue.toLocaleString('en-IN')}</td>
+                      <td className="mono">{formatInr(a.currentValue)}</td>
+                      <td className="mono">{formatInr(a.depreciatedValue)}</td>
                       <td className="mono">{a.serialNumber ?? '—'}</td>
                     </tr>
                   ))}
@@ -211,8 +231,8 @@ export function Reports() {
           {locations.isPending ? (
             <Loading />
           ) : locations.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Location</th>
@@ -229,10 +249,12 @@ export function Reports() {
                         <strong>{l.name || l.code}</strong>
                         <span className="muted small-text block">· {l.code}</span>
                       </td>
-                      <td><Badge value={l.level} /></td>
+                      <td>
+                        <Badge value={l.level} />
+                      </td>
                       <td>{l.assetCount}</td>
-                      <td className="mono">₹{l.purchaseValue.toLocaleString('en-IN')}</td>
-                      <td className="mono">₹{l.currentValue.toLocaleString('en-IN')}</td>
+                      <td className="mono">{formatInr(l.purchaseValue)}</td>
+                      <td className="mono">{formatInr(l.currentValue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -249,8 +271,8 @@ export function Reports() {
           {warranty.isPending ? (
             <Loading />
           ) : warranty.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Asset</th>
@@ -284,8 +306,8 @@ export function Reports() {
           {tickets.isPending ? (
             <Loading />
           ) : tickets.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Ticket</th>
@@ -304,10 +326,14 @@ export function Reports() {
                       <td className="mono">#{t.ticketNumber}</td>
                       <td>{t.subject}</td>
                       <td>{t.teamName}</td>
-                      <td><Badge value={t.status} /></td>
+                      <td>
+                        <Badge value={t.status} />
+                      </td>
                       <td>{t.priority}</td>
                       <td>{new Date(t.createdAt).toLocaleDateString('en-IN')}</td>
-                      <td>{t.completedAt ? new Date(t.completedAt).toLocaleDateString('en-IN') : '—'}</td>
+                      <td>
+                        {t.completedAt ? new Date(t.completedAt).toLocaleDateString('en-IN') : '—'}
+                      </td>
                       <td className="mono">{t.responseTimeHours ?? '—'}</td>
                     </tr>
                   ))}
@@ -325,8 +351,8 @@ export function Reports() {
           {verification.isPending ? (
             <Loading />
           ) : verification.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Cycle</th>
@@ -344,7 +370,9 @@ export function Reports() {
                     <tr key={v.id}>
                       <td className="mono">{v.cycleId}</td>
                       <td>{v.locationName}</td>
-                      <td><Badge value={v.status} /></td>
+                      <td>
+                        <Badge value={v.status} />
+                      </td>
                       <td>{new Date(v.startedAt).toLocaleDateString('en-IN')}</td>
                       <td>{v.totalItems}</td>
                       <td>{v.verifiedItems}</td>

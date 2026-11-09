@@ -1,3 +1,5 @@
+import { formatInr } from '../admin-insights';
+import { StatTile } from './charts';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
@@ -10,6 +12,10 @@ import {
   Loading,
   PageTitle,
   Panel,
+  tableWrapClass,
+  buttonClass,
+  tableClass,
+  cx,
 } from './ui';
 
 interface InsurerAsset {
@@ -73,14 +79,14 @@ export function Insurance() {
       <div className="form-actions" style={{ marginBottom: 20, gap: 12 }}>
         <button
           type="button"
-          className={`button ${tab === 'assets' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'assets' ? 'primary' : 'secondary')}
           onClick={() => setTab('assets')}
         >
           Insured assets
         </button>
         <button
           type="button"
-          className={`button ${tab === 'locations' ? '' : 'secondary'}`}
+          className={buttonClass(tab === 'locations' ? 'primary' : 'secondary')}
           onClick={() => setTab('locations')}
         >
           Totals by location
@@ -89,21 +95,15 @@ export function Insurance() {
 
       {tab === 'assets' && (
         <Panel title="Insured assets">
-          <div className="mini-stats">
-            <div className="stat">
-              <strong>{assets.data?.items.length ?? 0}</strong>
-              <span className="muted small-text">insured assets</span>
-            </div>
-            <div className="stat">
-              <strong>₹{totalPurchasePrice.toLocaleString('en-IN')}</strong>
-              <span className="muted small-text">total purchase price</span>
-            </div>
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile label="Insured assets" value={<>{assets.data?.items.length ?? 0}</>} />
+            <StatTile label="Total purchase price" value={<>{formatInr(totalPurchasePrice)}</>} />
           </div>
           {assets.isPending ? (
             <Loading />
           ) : assets.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Asset ID</th>
@@ -126,10 +126,14 @@ export function Insurance() {
                       <td>{a.assetType}</td>
                       <td>{a.purchaseDate ?? '—'}</td>
                       <td className="mono">
-                        {a.purchaseCost != null ? `₹${a.purchaseCost.toLocaleString('en-IN')}` : '—'}
+                        {a.purchaseCost != null
+                          ? `₹${a.purchaseCost.toLocaleString('en-IN')}`
+                          : '—'}
                       </td>
                       <td>{a.location ?? '—'}</td>
-                      <td><Badge value={a.status} /></td>
+                      <td>
+                        <Badge value={a.status} />
+                      </td>
                       <td className="mono">{a.repairCount}</td>
                     </tr>
                   ))}
@@ -147,8 +151,8 @@ export function Insurance() {
           {locations.isPending ? (
             <Loading />
           ) : locations.data?.items.length ? (
-            <div className="table-scroll">
-              <table className="category-table">
+            <div className={tableWrapClass}>
+              <table className={cx(tableClass, 'category-table')}>
                 <thead>
                   <tr>
                     <th>Location</th>
@@ -164,9 +168,7 @@ export function Insurance() {
                         <span className="muted small-text block">· {l.code}</span>
                       </td>
                       <td>{l.assetCount}</td>
-                      <td className="mono">
-                        ₹{l.totalPurchasePrice.toLocaleString('en-IN')}
-                      </td>
+                      <td className="mono">{formatInr(l.totalPurchasePrice)}</td>
                     </tr>
                   ))}
                 </tbody>

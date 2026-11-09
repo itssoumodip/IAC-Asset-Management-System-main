@@ -90,17 +90,27 @@ test('IT counter initialisation avoids collisions with sequence and existing cod
   const init = async (c: PoolClient, last: number, called: boolean) =>
     BigInt((await c.query('SELECT it_counter_initial_value($1,$2) v', [last, called])).rows[0].v);
   await scratch(async (c) => {
+    // Work above whatever IT codes the shared test DB already holds (the asset sequence
+    // never rolls back, so earlier runs such as the scale probe can leave high numbers).
+    const [{ max }] = (
+      await c.query(
+        "SELECT coalesce(max(substring(asset_code from 8)::int),0)::int AS max FROM assets WHERE asset_code ~ '^IAC-IT-[0-9]{6}$'",
+      )
+    ).rows;
+    const base = BigInt(max);
+    const seq = Number(base) + 100;
     // Sequence branch: is_called=true gives last_value+1; is_called=false gives 1.
-    assert.ok((await init(c, 850000, true)) >= 850001n);
-    assert.ok((await init(c, 850000, false)) < 850000n);
-    // Max-existing-code branch: an IAC-IT-900000 asset must push the result past it.
-    await insertAsset(c, 'IAC-IT-900000');
-    assert.equal(await init(c, 5, true), 900001n);
-    assert.equal(await init(c, 1, false), 900001n);
+    assert.ok((await init(c, seq, true)) >= BigInt(seq) + 1n);
+    assert.ok((await init(c, seq, false)) < BigInt(seq));
+    // Max-existing-code branch: a higher IT asset must push the result past it.
+    const code = base + 200n;
+    await insertAsset(c, `IAC-IT-${String(code).padStart(6, '0')}`);
+    assert.equal(await init(c, 5, true), code + 1n);
+    assert.equal(await init(c, 1, false), code + 1n);
     // Both branches: sequence higher than any code wins and stays strictly greater.
-    const high = await init(c, 950000, true);
-    assert.equal(high, 950001n);
-    assert.ok(high > 900000n && high > 950000n);
+    const high = await init(c, Number(base) + 300, true);
+    assert.equal(high, base + 301n);
+    assert.ok(high > code);
   });
 });
 test('Printer and Networking are room-held', async () => {
@@ -133,7 +143,7 @@ test('convert_legacy_roles converts ADMIN and IT_ADMIN grants and audits each us
   await scratch(async (c) => {
     const mk = async (label: string) =>
       (
-        await c.query("INSERT INTO users(email,display_name) VALUES($1,$2) RETURNING id", [
+        await c.query('INSERT INTO users(email,display_name) VALUES($1,$2) RETURNING id', [
           `${label}-${randomUUID()}@example.test`,
           label,
         ])

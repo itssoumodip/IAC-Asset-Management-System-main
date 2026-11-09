@@ -14,7 +14,7 @@ GRANT INSERT ON in_app_announcements,in_app_announcement_reads TO iac_runtime;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO iac_runtime;
 GRANT UPDATE ON SEQUENCE asset_number_seq TO iac_runtime;
 GRANT INSERT ON ticket_photos,asset_label_prints TO iac_runtime;
-GRANT INSERT,UPDATE ON teams,projects,team_asset_counters,asset_type_policies,user_photos TO iac_runtime;
+GRANT INSERT,UPDATE ON teams,team_asset_counters,asset_type_policies,user_photos TO iac_runtime;
 GRANT INSERT ON zoho_sync_runs TO iac_runtime;
 GRANT DELETE ON user_photos TO iac_runtime;
 GRANT INSERT,UPDATE ON ticket_category_teams TO iac_runtime;
@@ -24,3 +24,10 @@ GRANT INSERT,UPDATE,DELETE ON team_memberships TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON team_view_grants TO iac_runtime;
 -- No DELETE on assets/custody/tickets; no UPDATE/DELETE on immutable evidence.
 -- Reapply explicit grants after new migrations. Do not grant schema ownership.
+GRANT INSERT,UPDATE ON inventory_min_stock TO iac_runtime;
+-- Team transfers: insert + decision columns only; no DELETE.
+GRANT INSERT ON asset_team_transfers TO iac_runtime;
+GRANT UPDATE(state, decision_note, decided_by, decided_at) ON asset_team_transfers TO iac_runtime;
+-- Dashboard summary and background exports.
+GRANT INSERT,UPDATE ON dashboard_daily TO iac_runtime;
+GRANT INSERT,UPDATE,DELETE ON export_jobs TO iac_runtime;

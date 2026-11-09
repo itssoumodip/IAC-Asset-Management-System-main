@@ -6,6 +6,7 @@ import { api, ApiError } from '../api';
 import { useAction } from '../hooks';
 import { can, useSession } from '../session';
 import type { Asset } from '../types';
+import { formatInr } from '../admin-insights';
 import {
   Badge,
   Empty,
@@ -16,8 +17,19 @@ import {
   Select,
   Timeline,
   displayDate,
+  backLinkClass,
+  buttonClass,
+  noticeClass,
+  actionsClass,
+  PersonChip,
 } from './ui';
-import { useReferences, ReferenceBadge, referenceLabel, locationLabel, referenceOptions } from './References';
+import {
+  useReferences,
+  ReferenceBadge,
+  referenceLabel,
+  locationLabel,
+  referenceOptions,
+} from './References';
 import { FormTransfer } from './DataTransfer';
 import { FinanceStatusPanel } from './FinanceReview';
 import { AssetPhoto } from './AssetPhoto';
@@ -76,8 +88,7 @@ export function AssetDetailZoho() {
   const mayLabel = can(user, 'asset.label', assetTeam);
   const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold']);
   const canAssign = (a: Asset) => a.status === 'In Store' && !a.currentAssignment;
-  const canTransfer = (a: Asset) =>
-    !!a.currentAssignment && !terminalAssetStatuses.has(a.status);
+  const canTransfer = (a: Asset) => !!a.currentAssignment && !terminalAssetStatuses.has(a.status);
   const mayCustody =
     can(user, 'asset.custody', assetTeam) &&
     !asset.kitParent &&
@@ -125,7 +136,7 @@ export function AssetDetailZoho() {
 
   return (
     <>
-      <Link to="/assets" className="back-link">
+      <Link to="/assets" className={backLinkClass}>
         ← Asset catalog
       </Link>
       <header className="zoho-header">
@@ -148,32 +159,29 @@ export function AssetDetailZoho() {
         </div>
         <div className="zoho-header-actions">
           {manage && mayEdit ? (
-            <Link className="button secondary" to={`/assets/${id}/edit`}>
+            <Link className={buttonClass('secondary')} to={`/assets/${id}/edit`}>
               Edit
             </Link>
           ) : null}
           {manage && mayLabel ? (
-            <Link className="button secondary" to={`/assets/labels?ids=${asset.id}`}>
+            <Link className={buttonClass('secondary')} to={`/assets/labels?ids=${asset.id}`}>
               Print label
             </Link>
           ) : null}
           {!mayCustody ? null : canTransfer(asset) ? (
-            <Link className="button" to={`/assets/${id}/assign?transfer=1`}>
+            <Link className={buttonClass()} to={`/assets/${id}/assign?transfer=1`}>
               Transfer custody
             </Link>
           ) : canAssign(asset) ? (
-            <Link className="button" to={`/assets/${id}/assign`}>
+            <Link className={buttonClass()} to={`/assets/${id}/assign`}>
               Assign asset
             </Link>
           ) : null}
           {own ? (
-            <Link className="button secondary" to={`/tickets/new?assetId=${asset.id}`}>
+            <Link className={buttonClass('secondary')} to={`/tickets/new?assetId=${asset.id}`}>
               Raise a ticket
             </Link>
           ) : null}
-          <button className="button text" aria-label="More actions">
-            ⋮
-          </button>
         </div>
       </header>
       <ErrorNotice
@@ -183,7 +191,7 @@ export function AssetDetailZoho() {
         }}
       />
       {!manage ? (
-        <div className="notice">
+        <div className={noticeClass()}>
           Asset details are read-only. Contact Admin or raise a support ticket to request a
           correction.
         </div>
@@ -205,26 +213,30 @@ export function AssetDetailZoho() {
             <>
               <AssetPhoto asset={asset} manage={manage} />
               <Panel title="Work orders">
-                {assignment ? (
-                  <p>
-                    <strong>{asset.currentAssignment?.employeeName || 'Employee'}</strong> ·
-                    {asset.currentAssignment?.acknowledgement}
+                {false ? null : (
+                  <p className="text-sm text-gray-500">
+                    Repairs and service requests for this asset are tracked in{' '}
+                    <Link
+                      to="/tickets"
+                      className="font-medium text-navy-700 no-underline hover:underline"
+                    >
+                      Support
+                    </Link>
+                    .
                   </p>
-                ) : (
-                  <p className="muted">No work order found for this asset.</p>
                 )}
               </Panel>
               <Panel title="Depreciation">
                 <dl className="details">
                   <dt>Purchase cost</dt>
                   <dd>
-                    {asset.purchaseCost == null ? 'Pending' : `INR ${asset.purchaseCost}`}
+                    {asset.purchaseCost == null ? 'Pending' : formatInr(Number(asset.purchaseCost))}
                   </dd>
                   <dt>Current value</dt>
                   <dd>
                     {asset.residualValue == null
                       ? 'Pending Finance input'
-                      : `INR ${asset.residualValue}`}
+                      : formatInr(Number(asset.residualValue))}
                   </dd>
                 </dl>
               </Panel>
@@ -269,8 +281,8 @@ export function AssetDetailZoho() {
                   {asset.amcApplies
                     ? displayDate(asset.amcExpiry)
                     : asset.amcApplies === false
-                    ? 'Not applicable'
-                    : 'Unknown'}
+                      ? 'Not applicable'
+                      : 'Unknown'}
                 </dd>
                 {asset.configuration ? (
                   <>
@@ -299,11 +311,22 @@ export function AssetDetailZoho() {
           )}
           {activeTab === 'users' && (
             <Panel title="Asset users">
-              {assignment ? (
-                <p>
-                  {asset.currentAssignment?.employeeName || 'Employee'} ·
-                  {displayDate(asset.currentAssignment?.assignedAt)}
-                </p>
+              {assignment && asset.currentAssignment ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <PersonChip
+                    userId={asset.currentAssignment.userId ?? ''}
+                    name={asset.currentAssignment.employeeName || 'Employee'}
+                    hasPhoto={asset.currentAssignment.employeeHasPhoto}
+                    detail={asset.currentAssignment.employeeDesignation}
+                    designation={asset.currentAssignment.employeeDesignation}
+                    department={asset.currentAssignment.employeeDepartment}
+                    email={asset.currentAssignment.employeeEmail}
+                    size={36}
+                  />
+                  <span className="text-sm text-gray-500">
+                    Since {displayDate(asset.currentAssignment.assignedAt)}
+                  </span>
+                </div>
               ) : (
                 <p className="muted">No current user.</p>
               )}
@@ -350,18 +373,22 @@ export function AssetDetailZoho() {
             <div className="sidebar-user">
               {assignment ? (
                 <>
-                  <div className="sidebar-user-name">
-                    {asset.currentAssignment?.employeeName || 'Employee'}
-                  </div>
-                  <div className="sidebar-user-role">
-                    {asset.currentAssignment?.employeeDesignation || 'Current user'}
-                  </div>
+                  <PersonChip
+                    userId={asset.currentAssignment?.userId ?? ''}
+                    name={asset.currentAssignment?.employeeName || 'Employee'}
+                    hasPhoto={asset.currentAssignment?.employeeHasPhoto}
+                    detail={asset.currentAssignment?.employeeDesignation || 'Current user'}
+                    designation={asset.currentAssignment?.employeeDesignation}
+                    department={asset.currentAssignment?.employeeDepartment}
+                    email={asset.currentAssignment?.employeeEmail}
+                    size={36}
+                  />
                   <p className="muted small-text">
                     {asset.currentAssignment?.acknowledgement === 'ACCEPTED'
                       ? 'Assignment confirmed'
                       : asset.currentAssignment?.acknowledgement === 'DISPUTED'
-                      ? 'Assignment needs review'
-                      : 'Assignment awaiting confirmation'}
+                        ? 'Assignment needs review'
+                        : 'Assignment awaiting confirmation'}
                   </p>
                 </>
               ) : (
@@ -377,8 +404,8 @@ export function AssetDetailZoho() {
             <Panel title="Kit">
               <p>
                 Part of kit{' '}
-                <Link to={`/assets/${asset.kitParent.id}`}>{asset.kitParent.assetCode}</Link>. Custody
-                changes are made on the kit; detach this item first to move it on its own.
+                <Link to={`/assets/${asset.kitParent.id}`}>{asset.kitParent.assetCode}</Link>.
+                Custody changes are made on the kit; detach this item first to move it on its own.
               </p>
             </Panel>
           ) : null}
@@ -388,16 +415,16 @@ export function AssetDetailZoho() {
         </aside>
       </div>
       {own && assignment?.acknowledgement === 'PENDING' ? (
-        <div className="notice warning">
+        <div className={noticeClass('warning')}>
           <strong>This asset needs your confirmation</strong>
           <p>
             Check the serial number, description, and condition against the item received. A
             discrepancy records your feedback without changing custody.
           </p>
-          <div className="actions">
+          <div className={actionsClass}>
             <button
               type="button"
-              className="button"
+              className={buttonClass()}
               onClick={() => {
                 setDecision('ACCEPTED');
                 setReason('');
@@ -410,7 +437,7 @@ export function AssetDetailZoho() {
             </button>
             <button
               type="button"
-              className="button secondary"
+              className={buttonClass('secondary')}
               onClick={() => {
                 setDecision('DISPUTED');
                 setReason('');
@@ -450,16 +477,20 @@ export function AssetDetailZoho() {
                 <p>Confirm that these asset details match the equipment you received.</p>
               )}
               <button
-                className="button"
+                className={buttonClass()}
                 disabled={action.isPending || (decision === 'DISPUTED' && !reason.trim())}
               >
                 {action.isPending
                   ? 'Saving...'
                   : decision === 'DISPUTED'
-                  ? 'Submit discrepancy'
-                  : 'Confirm acceptance'}
+                    ? 'Submit discrepancy'
+                    : 'Confirm acceptance'}
               </button>
-              <button type="button" className="button text" onClick={() => setDecision('')}>
+              <button
+                type="button"
+                className={buttonClass('ghost')}
+                onClick={() => setDecision('')}
+              >
                 Cancel
               </button>
             </form>
@@ -474,14 +505,15 @@ export function AssetDetailZoho() {
               {
                 key: 'condition',
                 required: true,
-                options: referenceOptions(refs.data, 'CONDITION').map((item: { code: string }) => item.code),
+                options: referenceOptions(refs.data, 'CONDITION').map(
+                  (item: { code: string }) => item.code,
+                ),
               },
               {
                 key: 'locationId',
                 required: true,
                 options:
-                  refs.data?.locations.filter((item) => item.active).map((item) => item.id) ??
-                  [],
+                  refs.data?.locations.filter((item) => item.active).map((item) => item.id) ?? [],
               },
               { key: 'reason', required: true },
             ]}
@@ -531,7 +563,7 @@ export function AssetDetailZoho() {
               maxLength={5000}
             />
           </Field>
-          <button className="button" disabled={action.isPending || !reason.trim()}>
+          <button className={buttonClass()} disabled={action.isPending || !reason.trim()}>
             Confirm return
           </button>
         </form>
@@ -606,7 +638,7 @@ function KitPanelZoho({ asset }: { asset: Asset }) {
               <Link to={`/assets/${part.id}`}>{part.assetCode}</Link> {part.description}
               <button
                 type="button"
-                className="button secondary"
+                className={buttonClass('secondary')}
                 disabled={action.isPending || !detachReason.trim()}
                 onClick={() => void detach(part)}
               >
@@ -638,7 +670,10 @@ function KitPanelZoho({ asset }: { asset: Asset }) {
           />
         </Field>
         {lookupError ? <p role="alert">{lookupError}</p> : null}
-        <button className="button" disabled={action.isPending || !code.trim() || !reason.trim()}>
+        <button
+          className={buttonClass()}
+          disabled={action.isPending || !code.trim() || !reason.trim()}
+        >
           Attach part
         </button>
       </form>

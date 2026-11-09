@@ -4,24 +4,27 @@ import { api } from '../api';
 import { usePages, useAction } from '../hooks';
 import { can, useSession } from '../session';
 import type { Asset, Ticket } from '../types';
-import { Badge, Empty, ErrorNotice, Loading, Metric, PageTitle, Panel } from './ui';
+import {
+  Badge,
+  Empty,
+  ErrorNotice,
+  Loading,
+  Metric,
+  PageTitle,
+  Panel,
+  buttonClass,
+  noticeClass,
+  metaLabelClass,
+  actionsClass,
+  linkClass,
+} from './ui';
 import { useReferences, ReferenceBadge } from './References';
-import { AdminInsights } from './AdminInsights';
-import { ExecutiveDashboard, useExecutive } from './ExecutiveDashboard';
-import { greeting, summaryLine, todayLabel } from '../executive';
+import { OverviewDashboard } from './OverviewDashboard';
+import { summaryLine } from '../executive';
 
+/** The greeting and date live in the top bar; dashboards only add their summary line. */
 function Greeting({ line }: { line?: string }) {
-  const { user } = useSession();
-  const now = new Date();
-  return (
-    <section className="greeting" aria-label="Welcome">
-      <h2>{greeting(now, user?.displayName ?? '')}</h2>
-      <p className="muted">
-        <time dateTime={now.toISOString()}>{todayLabel(now)}</time>
-        {line ? <> · {line}</> : null}
-      </p>
-    </section>
-  );
+  return line ? <p className="mb-4 text-sm text-gray-500">{line}</p> : null;
 }
 interface Summary {
   role?: string;
@@ -47,11 +50,15 @@ function useDashboard() {
     queryFn: ({ signal }) => api<Summary>('/dashboard', { signal }),
   });
 }
-function DashboardListSkeleton({ kind, horizontal = false }: { kind: 'equipment' | 'requests'; horizontal?: boolean }) {
+function DashboardListSkeleton({
+  kind,
+  horizontal = false,
+}: {
+  kind: 'equipment' | 'requests';
+  horizontal?: boolean;
+}) {
   return (
-    <div
-      className={`dashboard-data-loading ${kind}${horizontal ? ' horizontal' : ''}`}
-    >
+    <div className={`dashboard-data-loading ${kind}${horizontal ? ' horizontal' : ''}`}>
       <Loading label={kind === 'equipment' ? 'Loading equipment…' : 'Loading requests…'} />
     </div>
   );
@@ -85,7 +92,7 @@ function EmployeeDashboard() {
         title="Overview"
         description="Your equipment, confirmations and open support requests."
         action={
-          <Link className="button" to="/tickets/new">
+          <Link className={buttonClass()} to="/tickets/new">
             Raise a ticket
           </Link>
         }
@@ -121,7 +128,7 @@ function EmployeeDashboard() {
         />
       </div>
       {(summary.data?.assets?.pendingAcknowledgements ?? 0) > 0 ? (
-        <div className="notice warning">
+        <div className={noticeClass('warning')}>
           <strong>A quick check makes a difference.</strong>
           <p>
             Some assigned assets need your confirmation. Review the details and tell us if anything
@@ -129,7 +136,7 @@ function EmployeeDashboard() {
           </p>
         </div>
       ) : null}
-      <div className="dashboard-columns">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Panel title="Your equipment" action={<Link to="/assets">View all →</Link>}>
           <ErrorNotice
             error={assets.error}
@@ -144,7 +151,7 @@ function EmployeeDashboard() {
               {items.slice(0, 4).map((asset) => (
                 <Link to={`/assets/${asset.id}`} className="asset-card" key={asset.id}>
                   <div>
-                    <span className="meta-label">{asset.assetCode}</span>
+                    <span className={metaLabelClass}>{asset.assetCode}</span>
                     <h3>{asset.description}</h3>
                     <p className="muted">
                       {asset.serialNumber
@@ -180,7 +187,7 @@ function EmployeeDashboard() {
             <div className="queue-list">
               {requests.slice(0, 4).map((ticket) => (
                 <Link className="queue-item" key={ticket.id} to={`/tickets/${ticket.id}`}>
-                  <span className="meta-label">Ticket #{ticket.ticketNumber}</span>
+                  <span className={metaLabelClass}>Ticket #{ticket.ticketNumber}</span>
                   <h3>{ticket.subject}</h3>
                   <ReferenceBadge refs={refs.data} kind="TICKET_STATUS" value={ticket.status} />
                 </Link>
@@ -197,96 +204,7 @@ function EmployeeDashboard() {
   );
 }
 export function AdminDashboard() {
-  const summary = useDashboard();
-  const executive = useExecutive();
-  const data = summary.data;
-  const attention = executive.data?.needsAttention;
-  const adminLine = attention
-    ? summaryLine([
-        { label: 'pending Finance', count: attention.pendingFinance },
-        { label: 'holders who left', count: attention.leftHoldersWithAssets },
-        { label: 'high-priority tickets', count: attention.openHighTickets },
-      ])
-    : undefined;
-  return (
-    <>
-      <Greeting line={adminLine} />
-      <PageTitle
-        title="Overview"
-        description="Custody, exceptions and support across the foundation."
-        action={
-          <Link className="button" to="/assets/new">
-            Create asset
-          </Link>
-        }
-      />
-      <ErrorNotice
-        error={summary.error}
-        retry={() => {
-          void summary.refetch();
-        }}
-      />
-      <ExecutiveDashboard />
-      <AdminInsights />
-      <div className="dashboard-columns">
-        <Panel title="What needs attention">
-          <div className="attention-row">
-            <span>
-              <strong>Custody confirmations</strong>
-              <small>Help employees verify the equipment received.</small>
-            </span>
-            <Link className="count-link" to="/assets">
-              {data?.assets?.pendingAcknowledgements ?? '—'} →
-            </Link>
-          </div>
-          <div className="attention-row">
-            <span>
-              <strong>Quarantined import rows</strong>
-              <small>Review exceptions before promotion to the catalog.</small>
-            </span>
-            <Link className="count-link" to="/admin/imports">
-              {data?.imports?.quarantined ?? '—'} →
-            </Link>
-          </div>
-          <div className="attention-row">
-            <span>
-              <strong>Warranty alerts</strong>
-              <small>Known coverage expiring within the alert window.</small>
-            </span>
-            <span className="count-link">{data?.assets?.warrantyExpiring ?? '—'}</span>
-          </div>
-          <div className="notice">
-            <strong>Unknown is not zero</strong>
-            <p>
-              {data?.unknownCounts?.warrantyExpiry ?? '—'} assets have unknown warranty dates.{' '}
-              {data?.unknownCounts?.financePending ?? '—'} have pending financial metadata.
-            </p>
-          </div>
-        </Panel>
-        <Panel title="Workspace actions">
-          <div className="quick-actions">
-            <Link to="/assets/new">
-              <strong>Add an asset</strong>
-              <small>Record identity, condition, and coverage</small>
-            </Link>
-            <Link to="/admin/users">
-              <strong>Manage people</strong>
-              <small>Approve emails, invite staff, and manage access</small>
-            </Link>
-            <Link to="/tickets">
-              <strong>Open support desk</strong>
-              <small>Review requests and update your team</small>
-            </Link>
-            <Link to="/admin/audit">
-              <strong>Review activity</strong>
-              <small>Trace timestamped changes and decisions</small>
-            </Link>
-          </div>
-        </Panel>
-      </div>
-      <StaffQueue />
-    </>
-  );
+  return <OverviewDashboard />;
 }
 export function ITDashboard() {
   const summary = useDashboard();
@@ -304,7 +222,7 @@ export function ITDashboard() {
         title="Support overview"
         description="Your queue, ownership and next actions in one place."
         action={
-          <Link className="button" to="/tickets">
+          <Link className={buttonClass()} to="/tickets">
             Open support desk
           </Link>
         }
@@ -358,11 +276,11 @@ function StaffQueue() {
         <div className="queue-list horizontal">
           {items.slice(0, 4).map((ticket) => (
             <article key={ticket.id} className="queue-item">
-              <span className="meta-label">Ticket #{ticket.ticketNumber}</span>
+              <span className={metaLabelClass}>Ticket #{ticket.ticketNumber}</span>
               <Link to={`/tickets/${ticket.id}`}>
                 <h3>{ticket.subject}</h3>
               </Link>
-              <div className="actions">
+              <div className={actionsClass}>
                 <ReferenceBadge refs={refs.data} kind="TICKET_PRIORITY" value={ticket.priority} />
                 <ReferenceBadge refs={refs.data} kind="TICKET_STATUS" value={ticket.status} />
               </div>
@@ -370,7 +288,7 @@ function StaffQueue() {
               {!ticket.ownerId ? (
                 <button
                   type="button"
-                  className="button secondary small"
+                  className={buttonClass('secondary', 'sm')}
                   disabled={action.isPending}
                   onClick={() =>
                     action.mutate({
@@ -384,7 +302,7 @@ function StaffQueue() {
                   Take ownership
                 </button>
               ) : (
-                <Link className="table-link" to={`/tickets/${ticket.id}`}>
+                <Link className={linkClass} to={`/tickets/${ticket.id}`}>
                   Open conversation →
                 </Link>
               )}

@@ -17,6 +17,13 @@ import {
   Panel,
   Select,
   displayDate,
+  backLinkClass,
+  filterBarClass,
+  searchFormClass,
+  buttonClass,
+  actionsClass,
+  tableWrapClass,
+  tableClass,
 } from './ui';
 import { LAYOUTS, layoutPages, scanUrl } from '../labels/layouts';
 import type { LayoutId } from '../labels/layouts';
@@ -158,7 +165,7 @@ export function LabelPrintPage() {
   return (
     <>
       <div className="no-print">
-        <Link to="/assets" className="back-link">
+        <Link to="/assets" className={backLinkClass}>
           ← Asset catalog
         </Link>
         <PageTitle
@@ -167,9 +174,9 @@ export function LabelPrintPage() {
           description="Select assets, choose your label stock, then print QR stickers that open the report-a-problem page."
         />
         <Panel>
-          <div className="filter-bar">
+          <div className={filterBarClass}>
             <form
-              className="search-form"
+              className={searchFormClass}
               onSubmit={(event: FormEvent) => {
                 event.preventDefault();
                 update('q', search.trim());
@@ -185,7 +192,7 @@ export function LabelPrintPage() {
                 placeholder="Search asset ID, description or serial"
                 maxLength={100}
               />
-              <button className="button secondary" type="submit">
+              <button className={buttonClass('secondary')} type="submit">
                 Search
               </button>
             </form>
@@ -231,10 +238,10 @@ export function LabelPrintPage() {
             <Loading label="Loading assets..." />
           ) : items.length ? (
             <>
-              <div className="actions">
+              <div className={actionsClass}>
                 <button
                   type="button"
-                  className="button secondary"
+                  className={buttonClass('secondary')}
                   disabled={loadingAll}
                   onClick={() => {
                     void selectAll();
@@ -244,7 +251,7 @@ export function LabelPrintPage() {
                 </button>
                 <button
                   type="button"
-                  className="button text small"
+                  className={buttonClass('ghost', 'sm')}
                   disabled={!selected.size}
                   onClick={() => setSelected(new Map())}
                 >
@@ -255,8 +262,8 @@ export function LabelPrintPage() {
                   {selected.size > MAX_LABELS ? ` (first ${MAX_LABELS} will print)` : ''}
                 </span>
               </div>
-              <div className="table-scroll">
-                <table>
+              <div className={tableWrapClass}>
+                <table className={tableClass}>
                   <thead>
                     <tr>
                       <th className="label-table-check">
@@ -322,7 +329,7 @@ export function LabelPrintPage() {
           />
         </Panel>
         <Panel>
-          <div className="filter-bar">
+          <div className={filterBarClass}>
             <Select
               label="Label layout"
               htmlFor="label-layout"
@@ -352,8 +359,13 @@ export function LabelPrintPage() {
             ) : null}
           </div>
           <p className="muted">Print at 100% scale (no fit-to-page)</p>
-          <div className="actions">
-            <button type="button" className="button" disabled={!chosen.length} onClick={print}>
+          <div className={actionsClass}>
+            <button
+              type="button"
+              className={buttonClass()}
+              disabled={!chosen.length}
+              onClick={print}
+            >
               Print {chosen.length} label{chosen.length === 1 ? '' : 's'}
             </button>
           </div>
@@ -362,7 +374,7 @@ export function LabelPrintPage() {
               <strong>Did the labels print correctly?</strong>
               <button
                 type="button"
-                className="button"
+                className={buttonClass()}
                 disabled={record.isPending}
                 onClick={confirmPrinted}
               >
@@ -370,7 +382,7 @@ export function LabelPrintPage() {
               </button>
               <button
                 type="button"
-                className="button secondary"
+                className={buttonClass('secondary')}
                 disabled={record.isPending}
                 onClick={() => setConfirming(false)}
               >

@@ -32,8 +32,10 @@ export class TeamService {
     id(teamId);
     assertCan(req.user, 'team.manage_members', teamId);
     const items = await this.db.query(
-      `SELECT m.user_id,u.display_name,u.email,m.level,m.granted_at
+      `SELECT m.user_id,u.display_name,u.email,m.level,m.granted_at,u.designation,d.name AS department,
+              EXISTS(SELECT 1 FROM user_photos p WHERE p.user_id=u.id) AS has_photo
        FROM team_memberships m JOIN users u ON u.id=m.user_id
+       LEFT JOIN departments d ON d.id=u.department_id
        WHERE m.team_id=$1 ORDER BY m.level,u.display_name`,
       [teamId],
     );

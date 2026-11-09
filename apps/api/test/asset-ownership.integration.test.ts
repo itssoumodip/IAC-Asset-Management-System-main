@@ -39,7 +39,7 @@ describe(
   { skip: !connection, concurrency: false },
   () => {
     let db: Db, service: DomainService;
-    let superAdmin: any, admLead: any, itMember: any, employee: any;
+    let superAdmin: any, admLead: any, itLead: any, itMember: any, employee: any;
     let locationId: string;
     const input = {
       category: 'Ownership Category',
@@ -106,6 +106,7 @@ describe(
       );
       superAdmin = await make(['SUPER_ADMIN']);
       admLead = await joinTeam(db, await make(['EMPLOYEE']), 'LEAD', ADM_TEAM_ID);
+      itLead = await joinTeam(db, await make(['EMPLOYEE']), 'LEAD', IT_TEAM_ID);
       itMember = await joinTeam(db, await make(['EMPLOYEE']), 'MEMBER', IT_TEAM_ID);
       employee = await make(['EMPLOYEE']);
     });
@@ -139,16 +140,16 @@ describe(
     });
     it('Printer without locationId is 422 on create and on edit-to-null', async () => {
       await assert.rejects(
-        create(admLead, { owningTeamId: ADM_TEAM_ID, assetType: 'Printer' }),
+        create(itLead, { owningTeamId: IT_TEAM_ID, assetType: 'Printer' }),
         fieldError('locationId'),
       );
-      const printer = await create(admLead, {
-        owningTeamId: ADM_TEAM_ID,
+      const printer = await create(itLead, {
+        owningTeamId: IT_TEAM_ID,
         assetType: 'Printer',
         locationId,
       });
       await assert.rejects(
-        service.editAsset(request(admLead, printer.version), printer.id, {
+        service.editAsset(request(itLead, printer.version), printer.id, {
           locationId: null,
           reason: 'Synthetic move out',
         }),
@@ -156,26 +157,26 @@ describe(
       );
     });
     it('legacy room-held asset without a location can still be edited', async () => {
-      const printer = await create(admLead, {
-        owningTeamId: ADM_TEAM_ID,
+      const printer = await create(itLead, {
+        owningTeamId: IT_TEAM_ID,
         assetType: 'Printer',
         locationId,
       });
       // Simulate pre-policy legacy data: a Printer that never had a location.
       await db.query('UPDATE assets SET location_id=NULL WHERE id=$1', [printer.id]);
-      const edited = await service.editAsset(request(admLead, printer.version), printer.id, {
+      const edited = await service.editAsset(request(itLead, printer.version), printer.id, {
         description: `${tag} legacy printer edit`,
         reason: 'Synthetic description fix',
       });
       assert.equal(edited.description, `${tag} legacy printer edit`);
       // Changing the location rule's input is still enforced.
-      const located = await create(admLead, {
-        owningTeamId: ADM_TEAM_ID,
+      const located = await create(itLead, {
+        owningTeamId: IT_TEAM_ID,
         assetType: 'Printer',
         locationId,
       });
       await assert.rejects(
-        service.editAsset(request(admLead, located.version), located.id, {
+        service.editAsset(request(itLead, located.version), located.id, {
           locationId: null,
           reason: 'Synthetic move out',
         }),
@@ -191,12 +192,12 @@ describe(
       assert.equal(edited.description, `${tag} untagged edit`);
     });
     it('Printer at a location may also be assigned to a person', async () => {
-      const printer = await create(admLead, {
-        owningTeamId: ADM_TEAM_ID,
+      const printer = await create(itLead, {
+        owningTeamId: IT_TEAM_ID,
         assetType: 'Printer',
         locationId,
       });
-      await service.assign(request(admLead, printer.version), printer.id, {
+      await service.assign(request(itLead, printer.version), printer.id, {
         userId: employee.id,
       });
       const assigned = await service.asset(request(superAdmin), printer.id);

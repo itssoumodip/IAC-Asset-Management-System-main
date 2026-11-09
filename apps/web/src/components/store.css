@@ -1,0 +1,20 @@
+.return-form-row > td {
+  background: var(--surface-muted, rgba(127, 127, 127, 0.06));
+}
+
+.return-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: end;
+  padding: 8px 0;
+}
+
+.return-form .form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.activity-action {
+  white-space: nowrap;
+}

@@ -6,7 +6,17 @@ import { useAction } from '../hooks';
 import type { Asset } from '../types';
 import { downloadFile } from '../transfer-files';
 import { ASSET_LIMITS, preparePhoto } from '../photo-prepare';
-import { ErrorNotice, Field, Loading, Panel, displayDate } from './ui';
+import {
+  ErrorNotice,
+  Field,
+  Loading,
+  Panel,
+  displayDate,
+  buttonClass,
+  actionsClass,
+  noticeClass,
+  fileInputClass,
+} from './ui';
 
 interface PhotoResponse {
   dataUrl: string | null;
@@ -204,7 +214,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
       {query.data?.dataUrl && !query.error ? (
         <button
           type="button"
-          className="button secondary"
+          className={buttonClass('secondary')}
           onClick={downloadSavedPhoto}
           disabled={busy}
         >
@@ -216,7 +226,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
           <div className="asset-photo-capture-actions">
             <button
               type="button"
-              className="button secondary"
+              className={buttonClass('secondary')}
               disabled={busy}
               onClick={() => cameraInput.current?.click()}
             >
@@ -239,9 +249,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
                 void choosePhoto(event);
               }}
             />
-            <span className="muted small-text">
-              Opens your phone’s rear camera when supported.
-            </span>
+            <span className="muted small-text">Opens your phone’s rear camera when supported.</span>
           </div>
           <Field
             label="Choose asset photo"
@@ -252,6 +260,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
               ref={fileInput}
               id={`asset-photo-${asset.id}`}
               type="file"
+              className={fileInputClass}
               accept="image/jpeg,image/png"
               disabled={action.isPending}
               onChange={(event) => {
@@ -273,17 +282,17 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
                   disabled={action.isPending}
                 />
               </Field>
-              <div className="actions">
+              <div className={actionsClass}>
                 <button
                   type="submit"
-                  className="button"
+                  className={buttonClass()}
                   disabled={busy || !reason.trim() || !!query.error}
                 >
                   {action.isPending ? 'Saving photo...' : 'Save photo'}
                 </button>
                 <button
                   type="button"
-                  className="button secondary"
+                  className={buttonClass('secondary')}
                   disabled={busy}
                   onClick={() => {
                     selection.current++;
@@ -300,7 +309,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
             </>
           ) : null}
           {message ? (
-            <p className="notice success" role="status">
+            <p className={noticeClass('success')} role="status">
               {message}
             </p>
           ) : null}
