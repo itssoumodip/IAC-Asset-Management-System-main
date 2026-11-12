@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { formatInr } from '../admin-insights';
+import { lazy, Suspense, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
@@ -19,7 +20,6 @@ import {
   buttonClass,
   noticeClass,
   actionsClass,
-  cx,
   inputClass,
   formStackClass,
 } from './ui';
@@ -54,19 +54,19 @@ const useInvoices = (assetId: string) =>
       query.state.data?.items.some((i) => i.extractionState === 'PENDING') ? 3000 : false,
   });
 
-export function InvoicePreview({ invoice }: { invoice: InvoiceMeta }) {
-  const src = `/api/v1/invoices/${invoice.id}/file`;
+// The PDF viewer (PDF.js) is large, so it loads only when an invoice is opened.
+const InvoiceViewer = lazy(() => import('./InvoiceViewer'));
+
+export function InvoicePreview({ invoice, height }: { invoice: InvoiceMeta; height?: string }) {
   return (
-    <div className="invoice-preview">
-      {invoice.mime === 'application/pdf' ? (
-        <iframe title={`Invoice ${invoice.originalName}`} src={src} />
-      ) : (
-        <img src={src} alt={`Invoice ${invoice.originalName}`} />
-      )}
-      <a className={buttonClass('secondary', 'sm')} href={src} target="_blank" rel="noreferrer">
-        Open / download
-      </a>
-    </div>
+    <Suspense fallback={<Loading label="Opening invoice…" />}>
+      <InvoiceViewer
+        src={`/api/v1/invoices/${invoice.id}/file`}
+        name={invoice.originalName}
+        mime={invoice.mime}
+        height={height}
+      />
+    </Suspense>
   );
 }
 
@@ -356,28 +356,61 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
   if (asset.error || invoices.error) return <ErrorNotice error={asset.error ?? invoices.error} />;
   const invoice = invoices.data.items[0];
   return (
-    <div className="finance-review-grid">
-      <Panel title={invoice ? invoice.originalName : 'No invoice'}>
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="min-w-0">
         {invoice ? (
-          <InvoicePreview invoice={invoice} />
+          <InvoicePreview invoice={invoice} height="calc(100vh - 15rem)" />
         ) : (
           <Empty title="No invoice uploaded">
             Ask the owning team to upload the invoice, or enter the values by hand.
           </Empty>
         )}
-      </Panel>
-      <Panel title={`${asset.data.assetCode} · ${asset.data.description}`}>
+      </div>
+      <Panel
+        title={`${asset.data.assetCode} · ${asset.data.description}`}
+        className="xl:sticky xl:top-20"
+      >
         {asset.data.financeStatus === 'REJECTED' ? (
           <div className={noticeClass('warning')}>
             Rejected: {asset.data.financeRejectionReason}
           </div>
         ) : null}
-        <ReviewForm
-          key={`${item.id}:${invoice?.id}:${invoice?.extractionState}`}
-          asset={asset.data}
-          invoice={invoice}
-          onDone={onDone}
-        />
+        {asset.data.financeStatus === 'APPROVED' ? (
+          // Already approved: show what was approved instead of offering the decision again.
+          <div className="flex flex-col gap-4">
+            <p className={noticeClass('success')}>Approved by Finance.</p>
+            <dl className="grid grid-cols-2 gap-4 text-sm">
+              {(
+                [
+                  ['Supplier', asset.data.supplier],
+                  ['Invoice number', asset.data.invoiceNumber],
+                  [
+                    'Purchase date',
+                    asset.data.purchaseDate ? displayDate(asset.data.purchaseDate) : null,
+                  ],
+                  [
+                    'Purchase cost',
+                    asset.data.purchaseCost == null
+                      ? null
+                      : formatInr(Number(asset.data.purchaseCost)),
+                  ],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-xs text-gray-500">{label}</dt>
+                  <dd className="mt-0.5 text-gray-900">{value || 'Not recorded'}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : (
+          <ReviewForm
+            key={`${item.id}:${invoice?.id}:${invoice?.extractionState}`}
+            asset={asset.data}
+            invoice={invoice}
+            onDone={onDone}
+          />
+        )}
       </Panel>
     </div>
   );
@@ -439,29 +472,73 @@ export function FinanceReview() {
         />
       </div>
       <ErrorNotice error={queue.error} retry={() => void queue.refetch()} />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(280px,340px)_1fr]">
+      {selected ? (
+        <>
+          {/* One asset at a time, full width: invoice on the left, the review form on the right. */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              className={buttonClass('ghost', 'sm')}
+              onClick={() => setSelected(undefined)}
+            >
+              ← Back to queue
+            </button>
+            {(() => {
+              const index = items.findIndex((i) => i.id === selected.id);
+              return index >= 0 ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <button
+                    type="button"
+                    className={buttonClass('secondary', 'sm')}
+                    disabled={index <= 0}
+                    onClick={() => setSelected(items[index - 1])}
+                  >
+                    Previous
+                  </button>
+                  <span className="tabular-nums">
+                    {index + 1} of {items.length}
+                  </span>
+                  <button
+                    type="button"
+                    className={buttonClass('secondary', 'sm')}
+                    disabled={index >= items.length - 1}
+                    onClick={() => setSelected(items[index + 1])}
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null;
+            })()}
+          </div>
+          <ReviewPane
+            key={selected.id}
+            item={selected}
+            onDone={() => {
+              // Move straight to the next asset in the queue after a decision.
+              const index = items.findIndex((i) => i.id === selected.id);
+              setSelected(items[index + 1]);
+              void queryClient.invalidateQueries();
+            }}
+          />
+        </>
+      ) : (
         <Panel
-          title={`Queue${items.length ? ` (${items.length}${queue.hasNextPage ? '+' : ''})` : ''}`}
+          title={`Queue${items.length ? ` · ${items.length}${queue.hasNextPage ? '+' : ''}` : ''}`}
         >
           {queue.isPending ? (
             <Loading />
           ) : items.length ? (
-            <ul className="flex flex-col gap-2">
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
-                    className={cx(
-                      'flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors',
-                      selected?.id === item.id
-                        ? 'border-navy-300 bg-navy-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50',
-                    )}
+                    className="flex h-full w-full flex-col gap-0.5 rounded-lg border border-gray-200 bg-white px-4 py-3 text-left text-sm transition-colors hover:border-navy-300 hover:bg-navy-50/40"
                     onClick={() => setSelected(item)}
                   >
                     <strong className="font-medium text-navy-700">{item.assetCode}</strong>
                     <span className="line-clamp-2 text-gray-700">{item.description}</span>
-                    <small className="text-xs text-gray-500">
+                    <small className="mt-1 text-xs text-gray-500">
                       {item.teamCode} ·{' '}
                       {item.invoiceState === null
                         ? 'No invoice'
@@ -484,20 +561,7 @@ export function FinanceReview() {
             onClick={() => void queue.fetchNextPage()}
           />
         </Panel>
-        <div>
-          {selected ? (
-            <ReviewPane
-              item={selected}
-              onDone={() => {
-                setSelected(undefined);
-                void queryClient.invalidateQueries();
-              }}
-            />
-          ) : (
-            <Empty title="Select an asset">Choose an asset from the queue to review it.</Empty>
-          )}
-        </div>
-      </div>
+      )}
     </>
   );
 }

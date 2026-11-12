@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { Db } from './db';
 import { AuthRequest, SessionGuard, loadTeams, type Actor } from './security';
 import { assetColumns, assetScope, parse, uuid } from './domain-helpers';
+import { assetFieldRestrictions } from './role-field';
 
 const BATCH = 2000;
 const MAX_ACTIVE_PER_USER = 3;
@@ -82,7 +83,12 @@ export async function buildAssetCsv(
   filters: AssetExportFilters,
 ): Promise<{ content: Buffer; rowCount: number }> {
   const select = assetColumns(actor);
-  const header = select.split(',').map((c) => c.replace(/^a\./, ''));
+  // Field permissions page: drop columns every one of this user's roles may not see.
+  const { hidden } = await assetFieldRestrictions(db, actor);
+  const header = select
+    .split(',')
+    .map((c) => c.replace(/^a\./, ''))
+    .filter((c) => !hidden.has(c.replace(/_([a-z0-9])/g, (_m, ch: string) => ch.toUpperCase())));
   const values: any[] = [];
   const where = [assetScope(actor, values)];
   for (const [key, column] of [
@@ -144,7 +150,10 @@ export async function processNextExport(db: Db): Promise<boolean> {
       await db.audit(c, null, 'EXPORT_JOB', job.id, 'EXPORT_READY', { kind: job.kind, rowCount });
     });
   } catch (error) {
-    const code = error instanceof Error && error.message === 'REQUESTER_INACTIVE' ? 'REQUESTER_INACTIVE' : 'EXPORT_FAILED';
+    const code =
+      error instanceof Error && error.message === 'REQUESTER_INACTIVE'
+        ? 'REQUESTER_INACTIVE'
+        : 'EXPORT_FAILED';
     await db.query(
       `UPDATE export_jobs SET state='FAILED',error_code=$2,finished_at=now() WHERE id=$1`,
       [job.id, code],
@@ -218,9 +227,12 @@ export class ExportJobsService {
 
   async file(req: AuthRequest, rawId: string) {
     const job = await this.owned(req, rawId, 'id,state,content,content_type');
-    if (job.state !== 'READY' || !job.content)
-      throw new HttpException('Export is not ready', 409);
-    return { id: job.id as string, content: job.content as Buffer, type: job.content_type as string };
+    if (job.state !== 'READY' || !job.content) throw new HttpException('Export is not ready', 409);
+    return {
+      id: job.id as string,
+      content: job.content as Buffer,
+      type: job.content_type as string,
+    };
   }
 }
 
@@ -252,4 +264,3 @@ export class ExportJobsController {
       .send(file.content);
   }
 }
-

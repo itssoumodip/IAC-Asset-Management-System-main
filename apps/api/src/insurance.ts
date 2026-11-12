@@ -1,12 +1,6 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Injectable,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Inject, Injectable, Req, UseGuards } from '@nestjs/common';
 import { Db } from './db';
+import { withFieldPermissions } from './role-field';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
 
@@ -31,18 +25,20 @@ export class InsuranceService {
                a.purchase_date, a.purchase_cost, l.name, a.status
       ORDER BY a.asset_code
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      assetCode: r.asset_code,
-      description: r.description,
-      category: r.category,
-      assetType: r.asset_type,
-      purchaseDate: r.purchase_date,
-      purchaseCost: r.purchase_cost ? Number(r.purchase_cost) : null,
-      location: r.location,
-      status: r.status,
-      repairCount: r.repair_count,
-    })) };
+    return withFieldPermissions(this.db, req.user, {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        assetCode: r.asset_code,
+        description: r.description,
+        category: r.category,
+        assetType: r.asset_type,
+        purchaseDate: r.purchase_date,
+        purchaseCost: r.purchase_cost ? Number(r.purchase_cost) : null,
+        location: r.location,
+        status: r.status,
+        repairCount: r.repair_count,
+      })),
+    });
   }
 
   async locationTotals(req: AuthRequest) {
@@ -56,13 +52,15 @@ export class InsuranceService {
       GROUP BY l.id, l.code, l.name
       ORDER BY l.code
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      code: r.code,
-      name: r.name,
-      assetCount: r.asset_count,
-      totalPurchasePrice: Number(r.total_purchase_price),
-    })) };
+    return {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        assetCount: r.asset_count,
+        totalPurchasePrice: Number(r.total_purchase_price),
+      })),
+    };
   }
 }
 

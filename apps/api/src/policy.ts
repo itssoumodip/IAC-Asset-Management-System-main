@@ -21,7 +21,7 @@ export const FINANCE_FIELDS: readonly string[] = [
   'usefulLifeYears', 'invoiceNumber', 'supplier', 'insurancePolicyNumber', 'insuranceExpiry', 'financePending'
 ];
 
-export const WRITE_OFF_STATUSES: ReadonlySet<string> = new Set(['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen']);
+export const WRITE_OFF_STATUSES: ReadonlySet<string> = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped', 'Lost', 'Stolen']);
 
 interface Rule {
   superAdmin: boolean;
@@ -54,7 +54,8 @@ const RULES: Record<Action, Rule> = {
   'verification.perform': R(true, false, false, ['AUDITOR']),
   'insurer.view': R(true, false, false, ['INSURER']),
   'procurement.view': R(true, false, false, ['PROCUREMENT']),
-  'approvals.act': R(true, false, false, ['TEAM_LEAD'])
+  // Team leads approve requests and transfers for their team (lead is a team level, not a role).
+  'approvals.act': R(true, true, false, ['TEAM_LEAD'])
 };
 
 const ACTIONS = Object.keys(RULES) as Action[];

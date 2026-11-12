@@ -28,6 +28,8 @@ import { TransferController, TransferService } from './transfers';
 import { FinanceController, FinanceService } from './finance';
 import { AssignablePeopleController, PeopleController, PeopleService } from './people';
 import { ExportJobsController, ExportJobsService } from './export-jobs';
+import { MaintenanceController, MaintenanceService } from './maintenance';
+import { RequestsController, RequestsService } from './requests';
 import {
   DirectoryController,
   UserPhotoController,
@@ -66,6 +68,8 @@ import {
     AssignablePeopleController,
     ApprovalsController,
     ExportJobsController,
+    MaintenanceController,
+    RequestsController,
   ],
   providers: [
     Db,
@@ -96,6 +100,8 @@ import {
     ProcurementService,
     ApprovalsService,
     ExportJobsService,
+    MaintenanceService,
+    RequestsService,
     ZohoSyncService,
     { provide: ZOHO_CLIENT, useFactory: zohoClientFromEnv },
   ],

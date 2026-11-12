@@ -28,7 +28,7 @@ const employee: PolicyActor = { roles: ['EMPLOYEE'] };
 // [label, actor, allowed on own team (IT), allowed globally (no team scoping / other team)]
 const grants: Array<[string, PolicyActor, Set<Action>, Set<Action>]> = [
   ['super admin', sa, new Set(ALL), new Set(ALL)],
-  ['IT lead', itLead, new Set([...TEAM_ALL, ...ANY_TEAM]), new Set(ANY_TEAM)],
+  ['IT lead', itLead, new Set<Action>([...TEAM_ALL, ...ANY_TEAM, 'approvals.act']), new Set<Action>([...ANY_TEAM, 'approvals.act'])],
   ['IT member', itMember, new Set([...MEMBER_OWN, ...ANY_TEAM]), new Set(ANY_TEAM)],
   ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit'])],
   ['executive', exec, new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view'])],
@@ -103,7 +103,7 @@ test('assertCan throws 403', () => {
 
 test('capabilities is JSON-serialisable and splits global vs team', () => {
   const c = capabilities(itLead);
-  assert.deepEqual(new Set(c.global), new Set(ANY_TEAM));
+  assert.deepEqual(new Set(c.global), new Set([...ANY_TEAM, 'approvals.act']));
   assert.deepEqual(new Set(c.teams[IT]), new Set(TEAM_ALL));
   assert.deepEqual(JSON.parse(JSON.stringify(c)), c);
   assert.deepEqual(new Set(capabilities(sa).global), new Set(ALL));
@@ -115,5 +115,5 @@ test('constants', () => {
   assert.deepEqual([...TEAM_SCOPED].sort(), [...TEAM_ALL].sort());
   assert.equal(FINANCE_FIELDS.length, 11);
   assert.ok(FINANCE_FIELDS.includes('financePending'));
-  assert.deepEqual([...WRITE_OFF_STATUSES].sort(), ['Disposed', 'Lost', 'Retired', 'Sold', 'Stolen']);
+  assert.deepEqual([...WRITE_OFF_STATUSES].sort(), ['Disposed', 'Lost', 'Retired', 'Scrapped', 'Sold', 'Stolen']);
 });

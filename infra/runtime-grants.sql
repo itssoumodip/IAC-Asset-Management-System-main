@@ -31,3 +31,13 @@ GRANT UPDATE(state, decision_note, decided_by, decided_at) ON asset_team_transfe
 -- Dashboard summary and background exports.
 GRANT INSERT,UPDATE ON dashboard_daily TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON export_jobs TO iac_runtime;
+-- Field permissions page and Categories page (both save from the admin screens).
+GRANT INSERT,UPDATE ON role_field_permissions TO iac_runtime;
+GRANT INSERT,UPDATE ON category_policies TO iac_runtime;
+GRANT INSERT,DELETE ON category_teams TO iac_runtime;
+-- Preventive maintenance: schedules change; completed records are evidence (insert only).
+GRANT INSERT,UPDATE ON maintenance_schedules TO iac_runtime;
+GRANT INSERT ON maintenance_records TO iac_runtime;
+-- Item requests: people create and cancel requests; teams decide and fulfil each line.
+GRANT INSERT,UPDATE ON asset_requests TO iac_runtime;
+GRANT INSERT,UPDATE ON asset_request_items TO iac_runtime;

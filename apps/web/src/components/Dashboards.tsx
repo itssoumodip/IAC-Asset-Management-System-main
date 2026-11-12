@@ -1,33 +1,16 @@
+import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { usePages, useAction } from '../hooks';
+import { useAction } from '../hooks';
 import { can, useSession } from '../session';
 import type { Asset, Ticket } from '../types';
-import {
-  Badge,
-  Empty,
-  ErrorNotice,
-  Loading,
-  Metric,
-  PageTitle,
-  Panel,
-  buttonClass,
-  noticeClass,
-  metaLabelClass,
-  actionsClass,
-  linkClass,
-} from './ui';
-import { useReferences, ReferenceBadge } from './References';
-import { OverviewDashboard } from './OverviewDashboard';
 import { summaryLine } from '../executive';
+import { BarList, Card, EmptyChart, StatTile } from './charts';
+import { OverviewDashboard } from './OverviewDashboard';
+import { Badge, ErrorNotice, Loading, buttonClass, cx, displayDate } from './ui';
 
-/** The greeting and date live in the top bar; dashboards only add their summary line. */
-function Greeting({ line }: { line?: string }) {
-  return line ? <p className="mb-4 text-sm text-gray-500">{line}</p> : null;
-}
 interface Summary {
-  role?: string;
   assets?: {
     total: number;
     assigned: number;
@@ -41,277 +24,564 @@ interface Summary {
     completed: number;
     unassigned: number;
   };
-  unknownCounts?: { warrantyExpiry: number; amcExpiry: number; financePending: number };
-  imports?: { quarantined: number };
 }
-function useDashboard() {
+interface TeamData {
+  assetsByTeam: {
+    teamId: string;
+    teamName: string;
+    status: string;
+    count: number;
+    value: number;
+  }[];
+  needsAttention: {
+    pendingFinance: number;
+    leftHoldersWithAssets: number;
+    warrantyExpiring30: number;
+    amcExpiring30: number;
+  };
+  openTickets: number;
+}
+interface MaintenanceSummary {
+  items: {
+    id: string;
+    title: string;
+    assetCode: string;
+    assetId: string;
+    nextDue: string;
+    daysUntilDue: number;
+  }[];
+  summary: { overdue: number; dueThisWeek: number; active: number; doneThisMonth: number };
+}
+
+const plain = (n: number) => n.toLocaleString('en-IN');
+const priorityTone: Record<string, string> = { HIGH: 'HIGH', MEDIUM: 'IN_PROGRESS', LOW: 'OPEN' };
+
+function useSummary() {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: ({ signal }) => api<Summary>('/dashboard', { signal }),
   });
 }
-function DashboardListSkeleton({
-  kind,
-  horizontal = false,
-}: {
-  kind: 'equipment' | 'requests';
-  horizontal?: boolean;
-}) {
+
+function Header({ title, line, actions }: { title: string; line?: string; actions?: ReactNode }) {
   return (
-    <div className={`dashboard-data-loading ${kind}${horizontal ? ' horizontal' : ''}`}>
-      <Loading label={kind === 'equipment' ? 'Loading equipment…' : 'Loading requests…'} />
+    <header className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-navy-900">{title}</h1>
+        {line ? <p className="mt-1 text-sm text-gray-500">{line}</p> : null}
+      </div>
+      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+    </header>
+  );
+}
+
+type Tone = 'danger' | 'warning' | 'neutral';
+const toneDot: Record<Tone, string> = {
+  danger: 'bg-red-600',
+  warning: 'bg-yellow-500',
+  neutral: 'bg-navy-500',
+};
+function AttentionRows({
+  items,
+}: {
+  items: { label: string; count?: number; to?: string; tone: Tone }[];
+}) {
+  const open = items.filter((i) => (i.count ?? 0) > 0);
+  if (!open.length)
+    return (
+      <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-800">
+        Everything is in order for your team.
+      </p>
+    );
+  return (
+    <ul className="divide-y divide-gray-100">
+      {open.map((item) => {
+        const body = (
+          <>
+            <span
+              className={cx('size-2 shrink-0 rounded-full', toneDot[item.tone])}
+              aria-hidden="true"
+            />
+            <span className="flex-1 truncate text-sm text-gray-800">{item.label}</span>
+            <span className="text-sm font-semibold text-gray-900 tabular-nums">{item.count}</span>
+          </>
+        );
+        return (
+          <li key={item.label}>
+            {item.to ? (
+              <Link
+                to={item.to}
+                className="flex items-center gap-3 rounded-md px-1 py-2.5 no-underline hover:bg-gray-50"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3 px-1 py-2.5">{body}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function UserDashboard() {
+  const { user } = useSession();
+  // Development only: preview another role's dashboard with ?as=team or ?as=employee.
+  if (import.meta.env.DEV) {
+    const as = new URLSearchParams(window.location.search).get('as');
+    if (as === 'team') return <TeamDashboard />;
+    if (as === 'employee') return <EmployeeDashboard />;
+  }
+  if (can(user, 'report.view')) return <OverviewDashboard />;
+  if (can(user, 'ticket.work')) return <TeamDashboard />;
+  return <EmployeeDashboard />;
+}
+
+/** Team members and leads (IT, Admin…): their queue, their team's assets and what needs action. */
+function TeamDashboard() {
+  const { user } = useSession();
+  const summary = useSummary();
+  const team = useQuery({
+    queryKey: ['dashboard', 'team'],
+    queryFn: ({ signal }) => api<TeamData>('/dashboard/team', { signal }),
+  });
+  const tickets = useQuery({
+    queryKey: ['dashboard', 'team-tickets'],
+    queryFn: ({ signal }) => api<{ items: Ticket[] }>('/tickets?limit=50', { signal }),
+  });
+  const maintenance = useQuery({
+    queryKey: ['maintenance', 'upcoming'],
+    queryFn: ({ signal }) => api<MaintenanceSummary>('/maintenance?view=upcoming', { signal }),
+  });
+  const requests = useQuery({
+    queryKey: ['request-queue'],
+    queryFn: ({ signal }) =>
+      api<{ toDecide: unknown[]; toFulfil: unknown[] }>('/requests/queue', { signal }),
+  });
+  const take = useAction();
+  const open = (tickets.data?.items ?? []).filter((t) => t.status !== 'COMPLETED');
+  const mine = open.filter((t) => t.ownerId === user?.id);
+  const unowned = open.filter((t) => !t.ownerId);
+  const queue = [...unowned, ...open.filter((t) => t.ownerId)].slice(0, 8);
+  const att = team.data?.needsAttention;
+  const statusTotals = new Map<string, number>();
+  for (const row of team.data?.assetsByTeam ?? [])
+    statusTotals.set(row.status, (statusTotals.get(row.status) ?? 0) + row.count);
+  const teamAssets = [...statusTotals.values()].reduce((s, n) => s + n, 0);
+  const mnt = maintenance.data?.summary;
+  const teamNames = (user?.teams ?? []).map((t) => t.teamCode).join(', ');
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Header
+        title={teamNames ? `${teamNames} team` : 'Your team'}
+        line={summaryLine([
+          { label: 'tickets without an owner', count: unowned.length },
+          { label: 'assigned to you', count: mine.length },
+          { label: 'maintenance overdue', count: mnt?.overdue ?? 0 },
+        ])}
+        actions={
+          <>
+            <Link to="/tickets" className={buttonClass('secondary')}>
+              Support desk
+            </Link>
+            {can(user, 'asset.create') ? (
+              <Link to="/assets/new" className={buttonClass()}>
+                Add asset
+              </Link>
+            ) : null}
+          </>
+        }
+      />
+      <ErrorNotice
+        error={summary.error ?? team.error ?? tickets.error}
+        retry={() => void team.refetch()}
+      />
+      {team.isPending || tickets.isPending ? (
+        <Loading label="Loading your team…" />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile
+              label="Team assets"
+              value={plain(teamAssets)}
+              detail="Owned by your team"
+              to="/assets"
+            />
+            <StatTile
+              label="Open tickets"
+              value={plain(open.length)}
+              detail={`${unowned.length} without an owner`}
+              to="/tickets"
+            />
+            <StatTile
+              label="Assigned to you"
+              value={plain(mine.length)}
+              detail="Tickets you own"
+              to="/tickets"
+            />
+            <StatTile
+              label="Maintenance due"
+              value={plain((mnt?.overdue ?? 0) + (mnt?.dueThisWeek ?? 0))}
+              detail={mnt?.overdue ? `${mnt.overdue} overdue` : 'This week'}
+              to="/maintenance"
+            />
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-5">
+            <Card
+              title="Support queue"
+              className="lg:col-span-3"
+              action={
+                <Link
+                  to="/tickets"
+                  className="text-xs font-medium text-navy-700 no-underline hover:underline"
+                >
+                  View all
+                </Link>
+              }
+            >
+              <ErrorNotice error={take.error} />
+              {queue.length ? (
+                <ul className="divide-y divide-gray-100">
+                  {queue.map((t) => (
+                    <li key={t.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          to={`/tickets/${t.id}`}
+                          className="block truncate text-sm font-medium text-gray-900 no-underline hover:text-navy-700"
+                        >
+                          {t.subject}
+                        </Link>
+                        <span className="text-xs text-gray-500">
+                          #{t.ticketNumber} · {t.createdAt ? displayDate(t.createdAt) : ''}
+                        </span>
+                      </div>
+                      <Badge
+                        value={priorityTone[t.priority] ?? t.priority}
+                        label={t.priority.toLowerCase()}
+                      />
+                      {t.ownerId ? (
+                        <span className="w-24 text-right text-xs text-gray-500">
+                          {t.ownerId === user?.id ? 'You' : 'Owned'}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={cx(buttonClass('secondary', 'sm'), 'w-24')}
+                          disabled={take.isPending}
+                          onClick={() =>
+                            void take
+                              .mutateAsync({
+                                path: `/tickets/${t.id}/owner`,
+                                method: 'PATCH',
+                                body: { ownerId: user?.id },
+                                version: t.version,
+                              })
+                              .then(
+                                () => tickets.refetch(),
+                                () => undefined,
+                              )
+                          }
+                        >
+                          Take it
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyChart>No open tickets for your team</EmptyChart>
+              )}
+            </Card>
+            <Card title="Needs attention" className="lg:col-span-2">
+              <AttentionRows
+                items={[
+                  {
+                    label: 'Requests waiting for your decision',
+                    count: requests.data?.toDecide.length,
+                    to: '/requests',
+                    tone: 'warning',
+                  },
+                  {
+                    label: 'Approved requests to hand over',
+                    count: requests.data?.toFulfil.length,
+                    to: '/requests',
+                    tone: 'warning',
+                  },
+                  {
+                    label: 'Tickets without an owner',
+                    count: unowned.length,
+                    to: '/tickets',
+                    tone: 'warning',
+                  },
+                  {
+                    label: 'Maintenance overdue',
+                    count: mnt?.overdue,
+                    to: '/maintenance',
+                    tone: 'danger',
+                  },
+                  {
+                    label: 'Assets with people who have left',
+                    count: att?.leftHoldersWithAssets,
+                    tone: 'danger',
+                  },
+                  {
+                    label: 'Waiting for Finance review',
+                    count: att?.pendingFinance,
+                    to: '/assets',
+                    tone: 'neutral',
+                  },
+                  {
+                    label: 'Warranty ending in 30 days',
+                    count: att?.warrantyExpiring30,
+                    to: '/assets',
+                    tone: 'warning',
+                  },
+                  {
+                    label: 'AMC ending in 30 days',
+                    count: att?.amcExpiring30,
+                    to: '/assets',
+                    tone: 'warning',
+                  },
+                  {
+                    label: 'Custody not yet confirmed',
+                    count: summary.data?.assets?.pendingAcknowledgements,
+                    to: '/assets',
+                    tone: 'neutral',
+                  },
+                ]}
+              />
+            </Card>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card title="Team assets by status">
+              <BarList
+                valueLabel="Assets"
+                empty="Your team has no assets yet"
+                items={[...statusTotals.entries()].map(([status, count]) => ({
+                  label: status,
+                  value: count,
+                  note: teamAssets ? `${Math.round((count / teamAssets) * 100)}%` : undefined,
+                  to: `/assets?status=${encodeURIComponent(status)}`,
+                }))}
+              />
+            </Card>
+            <Card
+              title="Maintenance in the next 30 days"
+              action={
+                <Link
+                  to="/maintenance"
+                  className="text-xs font-medium text-navy-700 no-underline hover:underline"
+                >
+                  Open
+                </Link>
+              }
+            >
+              {maintenance.data?.items.length ? (
+                <ul className="divide-y divide-gray-100">
+                  {maintenance.data.items.slice(0, 6).map((m) => (
+                    <li key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
+                      <Link
+                        to={`/assets/${m.assetId}`}
+                        className="font-medium text-navy-700 no-underline hover:underline"
+                      >
+                        {m.assetCode}
+                      </Link>
+                      <span className="flex-1 truncate text-gray-700">{m.title}</span>
+                      <span
+                        className={cx(
+                          'text-xs',
+                          m.daysUntilDue < 0 ? 'font-medium text-red-700' : 'text-gray-500',
+                        )}
+                      >
+                        {m.daysUntilDue < 0
+                          ? `${-m.daysUntilDue}d overdue`
+                          : displayDate(m.nextDue)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyChart>Nothing due in the next 30 days</EmptyChart>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
-export function UserDashboard() {
-  const { user } = useSession();
-  if (can(user, 'report.view')) return <AdminDashboard />;
-  if (can(user, 'ticket.work')) return <ITDashboard />;
-  return <EmployeeDashboard />;
-}
+
+/** Everyone else: their equipment, anything to confirm, and their own support requests. */
 function EmployeeDashboard() {
-  const refs = useReferences();
-  const summary = useDashboard();
-  const assets = usePages<Asset>('/assets');
-  const tickets = usePages<Ticket>('/tickets', { status: 'OPEN' });
-  const items = assets.data?.pages.flatMap((page) => page.items) ?? [];
-  const requests = tickets.data?.pages.flatMap((page) => page.items) ?? [];
-  const employeeLine = summary.data
-    ? summaryLine([
-        { label: 'to confirm', count: summary.data.assets?.pendingAcknowledgements ?? 0 },
-        {
-          label: 'open requests',
-          count: (summary.data.tickets?.open ?? 0) + (summary.data.tickets?.inProgress ?? 0),
-        },
-      ])
-    : undefined;
-  return (
-    <>
-      <Greeting line={employeeLine} />
-      <PageTitle
-        title="Overview"
-        description="Your equipment, confirmations and open support requests."
-        action={
-          <Link className={buttonClass()} to="/tickets/new">
-            Raise a ticket
-          </Link>
-        }
-      />
-      <ErrorNotice
-        error={summary.error}
-        retry={() => {
-          void summary.refetch();
-        }}
-      />
-      <div className="metric-grid">
-        <Metric
-          label="Assigned to you"
-          value={summary.data?.assets?.assigned}
-          detail="Equipment in your custody"
-          to="/assets"
-        />
-        <Metric
-          label="Needs your review"
-          value={summary.data?.assets?.pendingAcknowledgements}
-          detail="Check details and confirm receipt"
-          to="/assets"
-        />
-        <Metric
-          label="Open support requests"
-          value={
-            summary.data?.tickets
-              ? summary.data.tickets.open + summary.data.tickets.inProgress
-              : undefined
-          }
-          detail="Your requests in progress"
-          to="/tickets"
-        />
-      </div>
-      {(summary.data?.assets?.pendingAcknowledgements ?? 0) > 0 ? (
-        <div className={noticeClass('warning')}>
-          <strong>A quick check makes a difference.</strong>
-          <p>
-            Some assigned assets need your confirmation. Review the details and tell us if anything
-            needs correcting.
-          </p>
-        </div>
-      ) : null}
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Panel title="Your equipment" action={<Link to="/assets">View all →</Link>}>
-          <ErrorNotice
-            error={assets.error}
-            retry={() => {
-              void assets.refetch();
-            }}
-          />
-          {assets.isPending ? (
-            <DashboardListSkeleton kind="equipment" />
-          ) : items.length ? (
-            <div className="asset-card-list">
-              {items.slice(0, 4).map((asset) => (
-                <Link to={`/assets/${asset.id}`} className="asset-card" key={asset.id}>
-                  <div>
-                    <span className={metaLabelClass}>{asset.assetCode}</span>
-                    <h3>{asset.description}</h3>
-                    <p className="muted">
-                      {asset.serialNumber
-                        ? `Serial ${asset.serialNumber}`
-                        : 'Serial number unknown'}
-                    </p>
-                    {asset.currentAssignment ? (
-                      <Badge value={asset.currentAssignment.acknowledgement} />
-                    ) : (
-                      <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
-                    )}
-                  </div>
-                  <span aria-hidden="true">→</span>
-                </Link>
-              ))}
-            </div>
-          ) : !assets.error ? (
-            <Empty title="No equipment assigned">
-              Assets appear here once your administrator records a handover.
-            </Empty>
-          ) : null}
-        </Panel>
-        <Panel title="Support at a glance" action={<Link to="/tickets">View all →</Link>}>
-          <ErrorNotice
-            error={tickets.error}
-            retry={() => {
-              void tickets.refetch();
-            }}
-          />
-          {tickets.isPending ? (
-            <DashboardListSkeleton kind="requests" />
-          ) : requests.length ? (
-            <div className="queue-list">
-              {requests.slice(0, 4).map((ticket) => (
-                <Link className="queue-item" key={ticket.id} to={`/tickets/${ticket.id}`}>
-                  <span className={metaLabelClass}>Ticket #{ticket.ticketNumber}</span>
-                  <h3>{ticket.subject}</h3>
-                  <ReferenceBadge refs={refs.data} kind="TICKET_STATUS" value={ticket.status} />
-                </Link>
-              ))}
-            </div>
-          ) : !tickets.error ? (
-            <Empty title="You're all caught up">
-              Need a hand? Your support team is a ticket away.
-            </Empty>
-          ) : null}
-        </Panel>
-      </div>
-    </>
-  );
-}
-export function AdminDashboard() {
-  return <OverviewDashboard />;
-}
-export function ITDashboard() {
-  const summary = useDashboard();
-  const data = summary.data;
-  const itLine = data?.tickets
-    ? summaryLine([
-        { label: 'open tickets', count: data.tickets.open },
-        { label: 'unassigned', count: data.tickets.unassigned },
-      ])
-    : undefined;
-  return (
-    <>
-      <Greeting line={itLine} />
-      <PageTitle
-        title="Support overview"
-        description="Your queue, ownership and next actions in one place."
-        action={
-          <Link className={buttonClass()} to="/tickets">
-            Open support desk
-          </Link>
-        }
-      />
-      <ErrorNotice error={summary.error} />
-      <div className="metric-grid">
-        <Metric
-          label="Open tickets"
-          value={data?.tickets?.open}
-          detail="New requests needing attention"
-          to="/tickets?status=OPEN"
-        />
-        <Metric
-          label="In progress"
-          value={data?.tickets?.inProgress}
-          detail="Work already underway"
-          to="/tickets?status=IN_PROGRESS"
-        />
-        <Metric
-          label="Unassigned"
-          value={data?.tickets?.unassigned}
-          detail="Take ownership and get started"
-          to="/tickets"
-        />
-      </div>
-      <StaffQueue />
-    </>
-  );
-}
-function StaffQueue() {
-  const refs = useReferences();
   const { user } = useSession();
-  const query = usePages<Ticket>('/tickets', { status: 'OPEN' });
-  const action = useAction();
-  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const summary = useSummary();
+  const assets = useQuery({
+    queryKey: ['my-assets'],
+    queryFn: ({ signal }) => api<{ items: Asset[] }>('/assets?limit=100', { signal }),
+  });
+  const tickets = useQuery({
+    queryKey: ['dashboard', 'my-tickets'],
+    queryFn: ({ signal }) => api<{ items: Ticket[] }>('/tickets?limit=25', { signal }),
+  });
+  const mine = (assets.data?.items ?? []).filter((a) => a.currentAssignment?.userId === user?.id);
+  const toConfirm = mine.filter((a) => a.currentAssignment?.acknowledgement === 'PENDING');
+  const requests = tickets.data?.items ?? [];
+  const openRequests = requests.filter((t) => t.status !== 'COMPLETED');
+
   return (
-    <Panel
-      title="Requests needing attention"
-      action={<Link to="/tickets">View support desk →</Link>}
-    >
-      <ErrorNotice
-        error={query.error}
-        retry={() => {
-          void query.refetch();
-        }}
+    <div className="flex flex-col gap-6">
+      <Header
+        title="Your workspace"
+        line={summaryLine([
+          { label: 'to confirm', count: toConfirm.length },
+          { label: 'open requests', count: openRequests.length },
+        ])}
+        actions={
+          <Link to="/tickets/new" className={buttonClass()}>
+            Report a problem
+          </Link>
+        }
       />
-      <ErrorNotice error={action.error} />
-      {query.isPending ? (
-        <DashboardListSkeleton kind="requests" horizontal />
-      ) : items.length ? (
-        <div className="queue-list horizontal">
-          {items.slice(0, 4).map((ticket) => (
-            <article key={ticket.id} className="queue-item">
-              <span className={metaLabelClass}>Ticket #{ticket.ticketNumber}</span>
-              <Link to={`/tickets/${ticket.id}`}>
-                <h3>{ticket.subject}</h3>
-              </Link>
-              <div className={actionsClass}>
-                <ReferenceBadge refs={refs.data} kind="TICKET_PRIORITY" value={ticket.priority} />
-                <ReferenceBadge refs={refs.data} kind="TICKET_STATUS" value={ticket.status} />
-              </div>
-              <p className="muted small-text">{ticket.ownerId ? 'Assigned' : 'No owner yet'}</p>
-              {!ticket.ownerId ? (
-                <button
-                  type="button"
-                  className={buttonClass('secondary', 'sm')}
-                  disabled={action.isPending}
-                  onClick={() =>
-                    action.mutate({
-                      path: `/tickets/${ticket.id}/owner`,
-                      method: 'PATCH',
-                      body: { ownerId: user?.id },
-                      version: ticket.version,
-                    })
-                  }
-                >
-                  Take ownership
-                </button>
-              ) : (
-                <Link className={linkClass} to={`/tickets/${ticket.id}`}>
-                  Open conversation →
-                </Link>
-              )}
-            </article>
-          ))}
-        </div>
-      ) : !query.error ? (
-        <Empty title="Nothing waiting here">New support requests appear in this queue.</Empty>
+      <ErrorNotice
+        error={summary.error ?? assets.error ?? tickets.error}
+        retry={() => void assets.refetch()}
+      />
+
+      {toConfirm.length ? (
+        <section className="rounded-xl border border-yellow-200 bg-yellow-50 p-5">
+          <h2 className="text-sm font-semibold text-yellow-900">
+            {toConfirm.length === 1
+              ? 'One item is waiting for you to confirm'
+              : `${toConfirm.length} items are waiting for you to confirm`}
+          </h2>
+          <p className="mt-0.5 text-sm text-yellow-900">
+            Check that you received them and that the details are right.
+          </p>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {toConfirm.slice(0, 4).map((a) => (
+              <li
+                key={a.id}
+                className="rounded-lg bg-white px-3 py-1.5 text-sm text-gray-800 ring-1 ring-yellow-200"
+              >
+                <span className="font-medium">{a.assetCode}</span> · {a.description}
+              </li>
+            ))}
+          </ul>
+          <Link to="/my-assets" className={cx(buttonClass('primary', 'sm'), 'mt-4')}>
+            Confirm now
+          </Link>
+        </section>
       ) : null}
-    </Panel>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatTile
+          label="With you"
+          value={plain(mine.length)}
+          detail="Items in your care"
+          to="/my-assets"
+        />
+        <StatTile
+          label="To confirm"
+          value={plain(toConfirm.length)}
+          detail="Waiting for you"
+          to="/my-assets"
+        />
+        <StatTile
+          label="Open requests"
+          value={plain(openRequests.length)}
+          detail="Support you asked for"
+          to="/tickets"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card
+          title="Your equipment"
+          action={
+            <Link
+              to="/my-assets"
+              className="text-xs font-medium text-navy-700 no-underline hover:underline"
+            >
+              View all
+            </Link>
+          }
+        >
+          {assets.isPending ? (
+            <Loading />
+          ) : mine.length ? (
+            <ul className="divide-y divide-gray-100">
+              {mine.slice(0, 6).map((a) => (
+                <li key={a.id} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      to={`/assets/${a.id}`}
+                      className="text-sm font-medium text-navy-700 no-underline hover:underline"
+                    >
+                      {a.assetCode}
+                    </Link>
+                    <span className="block truncate text-xs text-gray-500">{a.description}</span>
+                  </div>
+                  {a.currentAssignment?.acknowledgement === 'PENDING' ? (
+                    <Badge value="PENDING" label="To confirm" />
+                  ) : a.currentAssignment?.acknowledgement === 'DISPUTED' ? (
+                    <Badge value="DISPUTED" label="Reported" />
+                  ) : (
+                    <Badge value="ACCEPTED" label="Confirmed" />
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyChart>No equipment is assigned to you yet</EmptyChart>
+          )}
+        </Card>
+        <Card
+          title="Your support requests"
+          action={
+            <Link
+              to="/tickets"
+              className="text-xs font-medium text-navy-700 no-underline hover:underline"
+            >
+              View all
+            </Link>
+          }
+        >
+          {tickets.isPending ? (
+            <Loading />
+          ) : requests.length ? (
+            <ul className="divide-y divide-gray-100">
+              {requests.slice(0, 6).map((t) => (
+                <li key={t.id} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      to={`/tickets/${t.id}`}
+                      className="block truncate text-sm font-medium text-gray-900 no-underline hover:text-navy-700"
+                    >
+                      {t.subject}
+                    </Link>
+                    <span className="text-xs text-gray-500">
+                      #{t.ticketNumber}
+                      {t.updatedAt ? ` · updated ${displayDate(t.updatedAt)}` : ''}
+                    </span>
+                  </div>
+                  <Badge value={t.status} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <p className="text-sm text-gray-500">You have not raised any requests.</p>
+              <Link to="/tickets/new" className={buttonClass('secondary', 'sm')}>
+                Report a problem
+              </Link>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 }

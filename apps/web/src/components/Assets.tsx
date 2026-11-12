@@ -91,7 +91,7 @@ function assetExportRow(asset: Record<string, unknown>, manage: boolean) {
   return Object.fromEntries(columns.map((key) => [key, asset[key] ?? '']));
 }
 
-const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold']);
+const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
 function canAssign(asset: Asset) {
   return asset.status === 'In Store' && !asset.currentAssignment;
 }

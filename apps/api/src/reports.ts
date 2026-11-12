@@ -1,12 +1,6 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Injectable,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Inject, Injectable, Req, UseGuards } from '@nestjs/common';
 import { Db } from './db';
+import { withFieldPermissions } from './role-field';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
 
@@ -38,21 +32,23 @@ export class ReportsService {
       LEFT JOIN locations l ON l.id = a.location_id
       ORDER BY a.asset_code
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      assetCode: r.asset_code,
-      description: r.description,
-      category: r.category,
-      assetType: r.asset_type,
-      owningTeam: r.owning_team,
-      location: r.location,
-      status: r.status,
-      purchaseDate: r.purchase_date,
-      purchaseCost: r.purchase_cost ? Number(r.purchase_cost) : null,
-      currentValue: Number(r.current_value),
-      depreciatedValue: Number(r.depreciated_value),
-      serialNumber: r.serial_number,
-    })) };
+    return withFieldPermissions(this.db, req.user, {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        assetCode: r.asset_code,
+        description: r.description,
+        category: r.category,
+        assetType: r.asset_type,
+        owningTeam: r.owning_team,
+        location: r.location,
+        status: r.status,
+        purchaseDate: r.purchase_date,
+        purchaseCost: r.purchase_cost ? Number(r.purchase_cost) : null,
+        currentValue: Number(r.current_value),
+        depreciatedValue: Number(r.depreciated_value),
+        serialNumber: r.serial_number,
+      })),
+    });
   }
 
   async assetsByLocation(req: AuthRequest) {
@@ -73,15 +69,17 @@ export class ReportsService {
       GROUP BY l.id, l.code, l.name, l.level
       ORDER BY l.code
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      code: r.code,
-      name: r.name,
-      level: r.level,
-      assetCount: r.asset_count,
-      purchaseValue: Number(r.purchase_value),
-      currentValue: Number(r.purchase_value) - Number(r.depreciated_value),
-    })) };
+    return {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        level: r.level,
+        assetCount: r.asset_count,
+        purchaseValue: Number(r.purchase_value),
+        currentValue: Number(r.purchase_value) - Number(r.depreciated_value),
+      })),
+    };
   }
 
   async warrantyExpiry(req: AuthRequest) {
@@ -96,14 +94,16 @@ export class ReportsService {
       WHERE a.warranty_expiry IS NOT NULL
       ORDER BY a.warranty_expiry
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      assetCode: r.asset_code,
-      description: r.description,
-      owningTeam: r.owning_team,
-      warrantyExpiry: r.warranty_expiry,
-      daysRemaining: r.days_remaining,
-    })) };
+    return withFieldPermissions(this.db, req.user, {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        assetCode: r.asset_code,
+        description: r.description,
+        owningTeam: r.owning_team,
+        warrantyExpiry: r.warranty_expiry,
+        daysRemaining: r.days_remaining,
+      })),
+    });
   }
 
   async ticketResponseTimes(req: AuthRequest) {
@@ -117,17 +117,21 @@ export class ReportsService {
       WHERE t.completed_at IS NOT NULL
       ORDER BY t.created_at DESC
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      ticketNumber: r.ticket_number,
-      subject: r.subject,
-      teamName: r.team_name,
-      status: r.status,
-      priority: r.priority,
-      createdAt: r.created_at,
-      completedAt: r.completed_at,
-      responseTimeHours: r.response_time_hours ? Math.round(Number(r.response_time_hours) * 100) / 100 : null,
-    })) };
+    return {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        ticketNumber: r.ticket_number,
+        subject: r.subject,
+        teamName: r.team_name,
+        status: r.status,
+        priority: r.priority,
+        createdAt: r.created_at,
+        completedAt: r.completed_at,
+        responseTimeHours: r.response_time_hours
+          ? Math.round(Number(r.response_time_hours) * 100) / 100
+          : null,
+      })),
+    };
   }
 
   async verificationReport(req: AuthRequest) {
@@ -146,19 +150,21 @@ export class ReportsService {
       GROUP BY vc.id, vc.cycle_id, l.name, vc.status, vc.started_at, vc.completed_at, u.display_name
       ORDER BY vc.started_at DESC
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      cycleId: r.cycle_id,
-      locationName: r.location_name,
-      status: r.status,
-      startedAt: r.started_at,
-      completedAt: r.completed_at,
-      auditorName: r.auditor_name,
-      totalItems: r.total_items,
-      verifiedItems: r.verified_items,
-      notFoundItems: r.not_found_items,
-      wrongPlaceItems: r.wrong_place_items,
-    })) };
+    return {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        cycleId: r.cycle_id,
+        locationName: r.location_name,
+        status: r.status,
+        startedAt: r.started_at,
+        completedAt: r.completed_at,
+        auditorName: r.auditor_name,
+        totalItems: r.total_items,
+        verifiedItems: r.verified_items,
+        notFoundItems: r.not_found_items,
+        wrongPlaceItems: r.wrong_place_items,
+      })),
+    };
   }
 }
 

@@ -19,6 +19,7 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { Db } from './db';
+import { submitAssetToFinance } from './finance-submit';
 import { DomainService } from './domain';
 import {
   assetInput,
@@ -159,6 +160,13 @@ export class FinanceService {
   private async backToPending(req: AuthRequest, assetId: string, c: any, via: string) {
     await patchObject(this.db, 'assets', assetId, { financeStatus: 'PENDING' }, c);
     await this.db.audit(c, req.user, 'asset', assetId, 'FINANCE_RESUBMITTED', { via });
+    // Tell Finance it is back in their queue (in-app notice and email).
+    const [asset] = await this.db.query(
+      'SELECT id,asset_code,description,purchase_cost FROM assets WHERE id=$1',
+      [assetId],
+      c,
+    );
+    if (asset) await submitAssetToFinance(this.db, c, req.user, asset, via, { audit: false });
   }
 
   async listForAsset(req: AuthRequest, assetId: string) {
@@ -369,7 +377,10 @@ export class FinanceController {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     // Same-origin framing is needed for the in-page preview; the sandbox keeps images inert.
     if (row.mime !== 'application/pdf')
-      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox; frame-ancestors 'self'");
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'none'; sandbox; frame-ancestors 'self'",
+      );
     else res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
     res.end(row.file);
   }

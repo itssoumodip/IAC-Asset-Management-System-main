@@ -269,6 +269,6 @@ function canAssign(asset: Asset) {
   return asset.status === 'In Store' && !asset.currentAssignment;
 }
 function canTransfer(asset: Asset) {
-  const terminal = new Set(['Retired', 'Disposed', 'Sold']);
+  const terminal = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
   return !!asset.currentAssignment && !terminal.has(asset.status);
 }

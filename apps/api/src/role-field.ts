@@ -81,6 +81,16 @@ export function stripHiddenFields<T extends Record<string, unknown>>(
   for (const item of items) for (const field of hidden) delete item[field];
 }
 
+/** Applies the actor's hidden fields to a `{ items }` response of asset rows and returns it. */
+export async function withFieldPermissions<T extends { items: Record<string, unknown>[] }>(
+  db: Db,
+  actor: { roles: string[]; teams?: { level: string }[] },
+  result: T,
+): Promise<T> {
+  stripHiddenFields(result.items, (await assetFieldRestrictions(db, actor)).hidden);
+  return result;
+}
+
 export class RoleFieldService {
   constructor(@Inject(Db) private readonly db: Db) {}
 

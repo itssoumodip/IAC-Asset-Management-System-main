@@ -47,7 +47,7 @@ const locationPatch = z
   })
   .strict();
 // Assets in these states have left the location for good and do not block deactivation.
-const GONE = "('Retired','Disposed','Sold')";
+const GONE = "('Retired','Disposed','Sold','Scrapped')";
 
 const treeInput = z
   .object({

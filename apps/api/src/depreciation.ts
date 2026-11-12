@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Db } from './db';
+import { withFieldPermissions } from './role-field';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
 import { parse } from './domain-helpers';
@@ -42,29 +43,32 @@ export class DepreciationService {
       WHERE a.purchase_cost IS NOT NULL
       ORDER BY a.asset_code
     `);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      assetCode: r.asset_code,
-      description: r.description,
-      assetType: r.asset_type,
-      category: r.category,
-      owningTeamId: r.owning_team_id,
-      teamName: r.team_name,
-      status: r.status,
-      purchaseDate: r.purchase_date,
-      purchaseCost: r.purchase_cost ? Number(r.purchase_cost) : null,
-      residualValue: r.residual_value ? Number(r.residual_value) : null,
-      depreciationMethod: r.depreciation_method,
-      usefulLifeYears: r.useful_life_years,
-      capitalisationDate: r.capitalisation_date,
-      currentValue: Number(r.current_value),
-      depreciatedValue: Number(r.depreciated_value),
-    })) };
+    return withFieldPermissions(this.db, req.user, {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        assetCode: r.asset_code,
+        description: r.description,
+        assetType: r.asset_type,
+        category: r.category,
+        owningTeamId: r.owning_team_id,
+        teamName: r.team_name,
+        status: r.status,
+        purchaseDate: r.purchase_date,
+        purchaseCost: r.purchase_cost ? Number(r.purchase_cost) : null,
+        residualValue: r.residual_value ? Number(r.residual_value) : null,
+        depreciationMethod: r.depreciation_method,
+        usefulLifeYears: r.useful_life_years,
+        capitalisationDate: r.capitalisation_date,
+        currentValue: Number(r.current_value),
+        depreciatedValue: Number(r.depreciated_value),
+      })),
+    });
   }
 
   async schedules(req: AuthRequest, financialYearStart: number) {
     assertCan(req.user, 'asset.finance_edit');
-    const rows = await this.db.query(`
+    const rows = await this.db.query(
+      `
       SELECT ds.id, a.asset_code, ds.financial_year_start, ds.method, ds.rate,
              ds.purchase_cost, ds.opening_value, ds.depreciation_charge,
              ds.closing_value, ds.accumulated_depreciation
@@ -72,19 +76,23 @@ export class DepreciationService {
       JOIN assets a ON a.id = ds.asset_id
       WHERE ds.financial_year_start = $1
       ORDER BY a.asset_code
-    `, [financialYearStart]);
-    return { items: rows.map((r: any) => ({
-      id: r.id,
-      assetCode: r.asset_code,
-      financialYearStart: r.financial_year_start,
-      method: r.method,
-      rate: Number(r.rate),
-      purchaseCost: Number(r.purchase_cost),
-      openingValue: Number(r.opening_value),
-      depreciationCharge: Number(r.depreciation_charge),
-      closingValue: Number(r.closing_value),
-      accumulatedDepreciation: Number(r.accumulated_depreciation),
-    })) };
+    `,
+      [financialYearStart],
+    );
+    return {
+      items: rows.map((r: any) => ({
+        id: r.id,
+        assetCode: r.asset_code,
+        financialYearStart: r.financial_year_start,
+        method: r.method,
+        rate: Number(r.rate),
+        purchaseCost: Number(r.purchase_cost),
+        openingValue: Number(r.opening_value),
+        depreciationCharge: Number(r.depreciation_charge),
+        closingValue: Number(r.closing_value),
+        accumulatedDepreciation: Number(r.accumulated_depreciation),
+      })),
+    };
   }
 
   async run(req: AuthRequest, body: unknown) {
@@ -109,12 +117,17 @@ export class DepreciationService {
       const usefulLife = Number(asset.useful_life_years || 5);
 
       // Determine opening value from last schedule
-      const [lastSchedule] = await this.db.query(`
+      const [lastSchedule] = await this.db.query(
+        `
         SELECT closing_value FROM depreciation_schedules
         WHERE asset_id = $1 AND financial_year_start < $2
         ORDER BY financial_year_start DESC LIMIT 1
-      `, [asset.id, fyStart]);
-      const openingValue = lastSchedule ? Number(lastSchedule.closing_value) : (purchaseCost - residualValue);
+      `,
+        [asset.id, fyStart],
+      );
+      const openingValue = lastSchedule
+        ? Number(lastSchedule.closing_value)
+        : purchaseCost - residualValue;
 
       if (openingValue <= 0) continue;
 
@@ -129,7 +142,8 @@ export class DepreciationService {
       const closingValue = Math.max(0, openingValue - depreciationCharge);
       const accumulatedDepreciation = purchaseCost - residualValue - closingValue;
 
-      await this.db.query(`
+      await this.db.query(
+        `
         INSERT INTO depreciation_schedules
           (asset_id, financial_year_start, method, rate, purchase_cost,
            opening_value, depreciation_charge, closing_value, accumulated_depreciation)
@@ -142,7 +156,19 @@ export class DepreciationService {
           depreciation_charge = EXCLUDED.depreciation_charge,
           closing_value = EXCLUDED.closing_value,
           accumulated_depreciation = EXCLUDED.accumulated_depreciation
-      `, [asset.id, fyStart, depMethod, 15, purchaseCost, openingValue, depreciationCharge, closingValue, accumulatedDepreciation]);
+      `,
+        [
+          asset.id,
+          fyStart,
+          depMethod,
+          15,
+          purchaseCost,
+          openingValue,
+          depreciationCharge,
+          closingValue,
+          accumulatedDepreciation,
+        ],
+      );
 
       results.push({
         assetId: asset.id,

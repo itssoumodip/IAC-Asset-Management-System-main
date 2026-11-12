@@ -86,7 +86,7 @@ export function AssetDetailZoho() {
   const assetTeam = asset.owningTeamId ?? undefined;
   const mayEdit = can(user, 'asset.edit', assetTeam) || can(user, 'asset.finance_edit');
   const mayLabel = can(user, 'asset.label', assetTeam);
-  const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold']);
+  const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
   const canAssign = (a: Asset) => a.status === 'In Store' && !a.currentAssignment;
   const canTransfer = (a: Asset) => !!a.currentAssignment && !terminalAssetStatuses.has(a.status);
   const mayCustody =

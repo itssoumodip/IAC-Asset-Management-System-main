@@ -17,17 +17,26 @@ import { Db } from './db';
 import { id as asUuid, parse, text } from './domain-helpers';
 import { assertCan } from './policy';
 import { AuthRequest, SessionGuard } from './security';
+import { RequestsService } from './requests';
+import { TransferService } from './transfers';
 
+// The page historically sent APPROVED / REJECTED; accept both spellings.
 const approvalDecision = z
   .object({
-    decision: z.enum(['APPROVE', 'REJECT']),
+    decision: z
+      .enum(['APPROVE', 'REJECT', 'APPROVED', 'REJECTED'])
+      .transform((d) => (d.startsWith('APPROVE') ? 'APPROVE' : 'REJECT') as 'APPROVE' | 'REJECT'),
     reason: text(1000),
   })
   .strict();
 
 @Injectable()
 export class ApprovalsService {
-  constructor(@Inject(Db) private readonly db: Db) {}
+  constructor(
+    @Inject(Db) private readonly db: Db,
+    @Inject(RequestsService) private readonly requests: RequestsService,
+    @Inject(TransferService) private readonly transfers: TransferService,
+  ) {}
 
   async list(req: AuthRequest, tab: string) {
     assertCan(req.user, 'approvals.act');
@@ -49,7 +58,7 @@ export class ApprovalsService {
       case 'requests':
         return this.listRequests(req);
       case 'transfers':
-        return this.listTransfers(userTeamIds);
+        return this.listTransfers(req, userTeamIds);
       case 'change-requests':
         return this.listChangeRequests(userRole);
       case 'verification':
@@ -59,37 +68,64 @@ export class ApprovalsService {
     }
   }
 
-  private async listRequests(_req: AuthRequest) {
-    // Open tickets that are unassigned (owner_id IS NULL) - requests needing action
-    const rows = await this.db.query(
-      `SELECT t.id, t.subject, t.description, t.created_at, u.display_name AS requester_name,
-              u.email AS requester_email, t.team_id, tm.code AS team_code
-       FROM tickets t
-       JOIN users u ON u.id = t.reporter_id
-       JOIN teams tm ON tm.id = t.team_id
-       WHERE t.owner_id IS NULL AND t.status = 'OPEN'
-       ORDER BY t.created_at DESC`,
-    );
+  /** Item request lines waiting for this lead's decision (Super Admin sees all). */
+  private async listRequests(req: AuthRequest) {
+    const { toDecide } = await this.requests.queue(req);
     return {
-      items: rows.map((row: any) => ({
+      items: toDecide.map((row: any) => ({
         id: row.id,
-        requester: row.requester_name,
-        requesterRole: 'Employee',
-        entityType: 'ticket',
-        entityId: row.id,
-        entityLabel: row.subject,
-        action: 'Create ticket',
-        before: '—',
-        after: 'Open',
-        when: row.created_at,
-        reason: row.description?.slice(0, 120),
+        requester: row.requesterName,
+        requesterRole: row.teamCode
+          ? `Request #${row.requestNumber} · for ${row.teamCode}`
+          : `Request #${row.requestNumber}`,
+        entityType: 'request',
+        entityId: row.requestId,
+        entityLabel: `${row.quantity} × ${row.assetTypeCode}`,
+        action: 'Request item',
+        before: row.inStock > 0 ? `${row.inStock} in store` : 'Out of stock',
+        after: row.neededBy ? `Needed by ${String(row.neededBy).slice(0, 10)}` : 'No date given',
+        when: row.createdAt,
+        reason: row.remarks ?? '',
         status: 'PENDING',
       })),
     };
   }
 
-  private async listTransfers(userTeamIds: string[]) {
-    // Assignments where acknowledgement='PENDING' and the user's team owns the asset
+  /** Team-to-team transfers waiting for the receiving team (Super Admin sees all). */
+  private async listTransfers(req: AuthRequest, userTeamIds: string[]) {
+    const superAdmin = req.user.roles.includes('SUPER_ADMIN');
+    const transfers = await this.db.query(
+      `SELECT x.id,x.asset_id,x.reason,x.requested_at,a.asset_code,a.description,
+              ft.code AS from_code,tt.code AS to_code,u.display_name AS requester_name
+         FROM asset_team_transfers x JOIN assets a ON a.id=x.asset_id
+         JOIN teams ft ON ft.id=x.from_team_id JOIN teams tt ON tt.id=x.to_team_id
+         JOIN users u ON u.id=x.requested_by
+        WHERE x.state='REQUESTED' ${superAdmin ? '' : 'AND x.to_team_id = ANY($1::uuid[])'}
+        ORDER BY x.requested_at`,
+      superAdmin
+        ? []
+        : [userTeamIds.length ? userTeamIds : ['00000000-0000-0000-0000-000000000000']],
+    );
+    return {
+      items: transfers.map((row: any) => ({
+        id: row.id,
+        requester: row.requester_name,
+        requesterRole: `${row.from_code} team`,
+        entityType: 'transfer',
+        entityId: row.asset_id,
+        entityLabel: row.asset_code || row.description || 'Asset',
+        action: 'Move to another team',
+        before: row.from_code,
+        after: row.to_code,
+        when: row.requested_at,
+        reason: row.reason,
+        status: 'PENDING',
+      })),
+    };
+  }
+
+  /** Older list of custody handovers awaiting the receiver; kept for reference, not shown. */
+  private async listPendingHandovers(userTeamIds: string[]) {
     const rows = await this.db.query(
       `SELECT a.id, a.asset_id, a.user_id, a.assigned_by, a.assigned_at, a.handover_note,
               u.display_name AS requester_name,
@@ -120,7 +156,8 @@ export class ApprovalsService {
       items: rows.map((row: any) => ({
         id: row.id,
         requester: row.requester_name,
-        requesterRole: (row.requester_role_code as string | undefined)?.replace('_', ' ') ?? 'Employee',
+        requesterRole:
+          (row.requester_role_code as string | undefined)?.replace('_', ' ') ?? 'Employee',
         entityType: 'asset',
         entityId: row.asset_id,
         entityLabel: row.asset_code || row.asset_desc || 'Asset',
@@ -176,6 +213,18 @@ export class ApprovalsService {
     assertCan(req.user, 'approvals.act');
     const input = parse(approvalDecision, body);
     const idUuid = asUuid(id);
+
+    // Item request line → the requests service decides it (lead of the handling team).
+    if (await this.requests.isRequestItem(idUuid))
+      return this.requests.decide(req, idUuid, { decision: input.decision, reason: input.reason });
+    // Team transfer → accept or decline on behalf of the receiving team.
+    const [transfer] = await this.db.query('SELECT 1 FROM asset_team_transfers WHERE id=$1', [
+      idUuid,
+    ]);
+    if (transfer)
+      return input.decision === 'APPROVE'
+        ? this.transfers.accept(req, idUuid, { note: input.reason })
+        : this.transfers.decline(req, idUuid, { note: input.reason });
 
     const [existing] = await this.db.query(
       'SELECT id, status FROM asset_change_requests WHERE id = $1 FOR UPDATE',

@@ -41,7 +41,14 @@ interface Transfer {
   decidedAt: string | null;
 }
 
-const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen']);
+const terminalAssetStatuses = new Set([
+  'Retired',
+  'Disposed',
+  'Sold',
+  'Scrapped',
+  'Lost',
+  'Stolen',
+]);
 
 function StateBadge({ state }: { state: Transfer['state'] }) {
   return <span className={`transfer-state ${state.toLowerCase()}`}>{state.toLowerCase()}</span>;
@@ -141,15 +148,28 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
 /** /transfers: incoming and outgoing team transfer requests. */
 export function TeamTransfers() {
   const { user } = useSession();
-  const [tab, setTab] = useState<'incoming' | 'outgoing'>('incoming');
+  const superAdmin = user?.roles.includes('SUPER_ADMIN') ?? false;
+  // Super Admin sees every team's transfers, so incoming/outgoing means nothing there;
+  // they get "waiting for a decision" and "all transfers" instead.
+  type Tab = 'incoming' | 'outgoing' | 'waiting' | 'all';
+  const tabs: { key: Tab; label: string; query: string }[] = superAdmin
+    ? [
+        { key: 'waiting', label: 'Waiting for a decision', query: 'direction=all&state=REQUESTED' },
+        { key: 'all', label: 'All transfers', query: 'direction=all' },
+      ]
+    : [
+        { key: 'incoming', label: 'Incoming', query: 'direction=incoming' },
+        { key: 'outgoing', label: 'Outgoing', query: 'direction=outgoing' },
+      ];
+  const [tab, setTab] = useState<Tab>(superAdmin ? 'waiting' : 'incoming');
+  const current = tabs.find((t) => t.key === tab) ?? tabs[0]!;
   const [notes, setNotes] = useState<Record<string, string>>({});
   const action = useAction();
   const list = useQuery({
-    queryKey: ['team-transfers', tab],
-    queryFn: ({ signal }) => api<{ items: Transfer[] }>(`/transfers?direction=${tab}`, { signal }),
+    queryKey: ['team-transfers', current.query],
+    queryFn: ({ signal }) => api<{ items: Transfer[] }>(`/transfers?${current.query}`, { signal }),
   });
   const teamIds = new Set((user?.teams ?? []).map((t) => t.teamId));
-  const superAdmin = user?.roles.includes('SUPER_ADMIN') ?? false;
   const items = list.data?.items ?? [];
 
   async function decide(t: Transfer, verb: 'accept' | 'decline' | 'cancel') {
@@ -176,17 +196,17 @@ export function TeamTransfers() {
         description="Requests to move assets between teams. The receiving team accepts or declines."
       />
       <ErrorNotice error={action.error ?? list.error} />
-      <div className="transfer-tabs" role="tablist">
-        {(['incoming', 'outgoing'] as const).map((key) => (
+      <div className="mb-4 flex flex-wrap gap-2" role="tablist">
+        {tabs.map((t) => (
           <button
-            key={key}
+            key={t.key}
             type="button"
             role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? 'active' : ''}
-            onClick={() => setTab(key)}
+            aria-selected={current.key === t.key}
+            className={buttonClass(current.key === t.key ? 'primary' : 'secondary', 'sm')}
+            onClick={() => setTab(t.key)}
           >
-            {key === 'incoming' ? 'Incoming' : 'Outgoing'}
+            {t.label}
           </button>
         ))}
       </div>
@@ -292,7 +312,15 @@ export function TeamTransfers() {
             </table>
           </div>
         ) : (
-          <Empty title={`No ${tab} transfers`} />
+          <Empty
+            title={
+              current.key === 'waiting'
+                ? 'No transfers waiting for a decision'
+                : current.key === 'all'
+                  ? 'No transfers yet'
+                  : `No ${current.key} transfers`
+            }
+          />
         )}
       </Panel>
     </>

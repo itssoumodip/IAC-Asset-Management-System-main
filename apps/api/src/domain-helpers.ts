@@ -48,8 +48,8 @@ export const statuses = [
   'Broken',
   'Scrapped',
 ] as const;
-export const NON_REPORTABLE_STATUSES = ['Retired', 'Disposed', 'Sold', 'Lost', 'Stolen'] as const;
-export const terminal = new Set(['Retired', 'Disposed', 'Sold']);
+export const NON_REPORTABLE_STATUSES = ['Retired', 'Disposed', 'Sold', 'Scrapped', 'Lost', 'Stolen'] as const;
+export const terminal = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
 export const assetInput = z
   .object({
     category: text(100),
