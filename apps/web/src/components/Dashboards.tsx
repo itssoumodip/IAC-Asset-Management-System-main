@@ -8,6 +8,13 @@ import type { Asset, Ticket } from '../types';
 import { summaryLine } from '../executive';
 import { BarList, Card, EmptyChart, StatTile } from './charts';
 import { OverviewDashboard } from './OverviewDashboard';
+import {
+  AuditorDashboard,
+  FinanceDashboard,
+  InsurerDashboard,
+  ProcurementDashboard,
+  StoreDashboard,
+} from './RoleDashboards';
 import { Badge, ErrorNotice, Loading, buttonClass, cx, displayDate } from './ui';
 
 interface Summary {
@@ -127,14 +134,26 @@ function AttentionRows({
 
 export function UserDashboard() {
   const { user } = useSession();
-  // Development only: preview another role's dashboard with ?as=team or ?as=employee.
+  // Development only: preview another role's dashboard with ?as=<role> (team, finance, store…).
   if (import.meta.env.DEV) {
     const as = new URLSearchParams(window.location.search).get('as');
     if (as === 'team') return <TeamDashboard />;
     if (as === 'employee') return <EmployeeDashboard />;
+    if (as === 'finance') return <FinanceDashboard />;
+    if (as === 'store') return <StoreDashboard />;
+    if (as === 'auditor') return <AuditorDashboard />;
+    if (as === 'insurer') return <InsurerDashboard />;
+    if (as === 'procurement') return <ProcurementDashboard />;
   }
+  const roles = user?.roles ?? [];
+  // Most specific first. Someone with several roles gets the one closest to their daily work.
   if (can(user, 'report.view')) return <OverviewDashboard />;
+  if (roles.includes('FINANCE')) return <FinanceDashboard />;
   if (can(user, 'ticket.work')) return <TeamDashboard />;
+  if (roles.includes('STORE')) return <StoreDashboard />;
+  if (roles.includes('PROCUREMENT')) return <ProcurementDashboard />;
+  if (roles.includes('AUDITOR')) return <AuditorDashboard />;
+  if (roles.includes('INSURER')) return <InsurerDashboard />;
   return <EmployeeDashboard />;
 }
 

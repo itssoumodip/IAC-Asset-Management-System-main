@@ -145,19 +145,46 @@ export function FinanceDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="Waiting for review" value={count(pending)} detail="New and corrected assets" to="/finance" />
-            <StatTile label="Missing cost" value={plain(missingCost)} detail={`${noInvoice} without an invoice`} to="/finance" />
-            <StatTile label="Total purchase cost" value={inrShort(totalCost)} detail="Assets with a cost" to="/depreciation" />
-            <StatTile label="Current book value" value={inrShort(totalValue)} detail="After depreciation" to="/depreciation" />
+            <StatTile
+              label="Waiting for review"
+              value={count(pending)}
+              detail="New and corrected assets"
+              to="/finance"
+            />
+            <StatTile
+              label="Missing cost"
+              value={plain(missingCost)}
+              detail={`${noInvoice} without an invoice`}
+              to="/finance"
+            />
+            <StatTile
+              label="Total purchase cost"
+              value={inrShort(totalCost)}
+              detail="Assets with a cost"
+              to="/depreciation"
+            />
+            <StatTile
+              label="Current book value"
+              value={inrShort(totalValue)}
+              detail="After depreciation"
+              to="/depreciation"
+            />
           </div>
           <div className="grid gap-6 lg:grid-cols-5">
-            <Card title="Review queue" className="lg:col-span-3" action={viewLink('/finance', 'Open queue')}>
+            <Card
+              title="Review queue"
+              className="lg:col-span-3"
+              action={viewLink('/finance', 'Open queue')}
+            >
               {waiting.length ? (
                 <ul className="divide-y divide-gray-100">
                   {waiting.slice(0, 8).map((i) => (
                     <li key={i.id} className="flex items-center gap-3 py-2.5">
                       <div className="min-w-0 flex-1">
-                        <Link to="/finance" className="text-sm font-medium text-navy-700 no-underline hover:underline">
+                        <Link
+                          to="/finance"
+                          className="text-sm font-medium text-navy-700 no-underline hover:underline"
+                        >
                           {i.assetCode}
                         </Link>
                         <span className="block truncate text-xs text-gray-500">
@@ -186,7 +213,9 @@ export function FinanceDashboard() {
                       <span className="font-medium text-gray-900">{i.assetCode}</span>
                       <span className="text-xs text-gray-500"> · {i.teamCode}</span>
                       {i.financeRejectionReason ? (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-600">“{i.financeRejectionReason}”</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-600">
+                          “{i.financeRejectionReason}”
+                        </p>
                       ) : null}
                     </li>
                   ))}
@@ -214,22 +243,37 @@ export function StoreDashboard() {
   const stores = useQuery({
     queryKey: ['store-dash', 'locations'],
     queryFn: ({ signal }) =>
-      api<{ items: { id: string; code: string; name: string; inStoreCount: number; assetCount: number; purchaseValue: number }[] }>(
-        '/store',
-        { signal },
-      ),
+      api<{
+        items: {
+          id: string;
+          code: string;
+          name: string;
+          inStoreCount: number;
+          assetCount: number;
+          purchaseValue: number;
+        }[];
+      }>('/store', { signal }),
   });
   const activity = useQuery({
     queryKey: ['store-dash', 'activity'],
     queryFn: ({ signal }) =>
-      api<{ items: { id: string; occurredAt: string; action: string; assetCode: string; actorName: string; locationName: string | null }[] }>(
-        '/store/activity',
-        { signal },
-      ),
+      api<{
+        items: {
+          id: string;
+          occurredAt: string;
+          action: string;
+          assetCode: string;
+          actorName: string;
+          locationName: string | null;
+        }[];
+      }>('/store/activity', { signal }),
   });
   const ready = useQuery({
     queryKey: ['store-dash', 'ready'],
-    queryFn: ({ signal }) => api<{ items: Asset[] }>(`/assets?status=${encodeURIComponent('Ready to Assign')}&limit=50`, { signal }),
+    queryFn: ({ signal }) =>
+      api<{ items: Asset[] }>(`/assets?status=${encodeURIComponent('Ready to Assign')}&limit=50`, {
+        signal,
+      }),
   });
   const items = stores.data?.items ?? [];
   const inStore = items.reduce((s, l) => s + l.inStoreCount, 0);
@@ -242,7 +286,10 @@ export function StoreDashboard() {
   return (
     <Shell
       title="Store"
-      line={summaryLine([{ label: 'items in store', count: inStore }, { label: 'ready to assign', count: ready.data?.items.length ?? 0 }])}
+      line={summaryLine([
+        { label: 'items in store', count: inStore },
+        { label: 'ready to assign', count: ready.data?.items.length ?? 0 },
+      ])}
       actions={
         <Link to="/store" className={buttonClass()}>
           Open store
@@ -255,9 +302,24 @@ export function StoreDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="In store" value={plain(inStore)} detail="Across all stores and racks" to="/store" />
-            <StatTile label="Ready to assign" value={plain(ready.data?.items.length ?? 0)} detail="Prepared for hand-over" to="/assets?status=Ready%20to%20Assign" />
-            <StatTile label="Store locations" value={plain(items.length)} detail="Stores and racks" to="/locations" />
+            <StatTile
+              label="In store"
+              value={plain(inStore)}
+              detail="Across all stores and racks"
+              to="/store"
+            />
+            <StatTile
+              label="Ready to assign"
+              value={plain(ready.data?.items.length ?? 0)}
+              detail="Prepared for hand-over"
+              to="/assets?status=Ready%20to%20Assign"
+            />
+            <StatTile
+              label="Store locations"
+              value={plain(items.length)}
+              detail="Stores and racks"
+              to="/locations"
+            />
             <StatTile label="Value in store" value={inrShort(value)} detail="Purchase cost" />
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
@@ -265,7 +327,11 @@ export function StoreDashboard() {
               <BarList
                 valueLabel="In store"
                 empty="No store locations yet"
-                items={items.map((l) => ({ label: l.name || l.code, value: l.inStoreCount, note: l.purchaseValue ? inrShort(l.purchaseValue) : undefined }))}
+                items={items.map((l) => ({
+                  label: l.name || l.code,
+                  value: l.inStoreCount,
+                  note: l.purchaseValue ? inrShort(l.purchaseValue) : undefined,
+                }))}
               />
             </Card>
             <Card title="Recent store activity">
@@ -278,7 +344,9 @@ export function StoreDashboard() {
                         {label[a.action] ?? a.action}
                         {a.locationName ? ` · ${a.locationName}` : ''}
                       </span>
-                      <span className="text-xs whitespace-nowrap text-gray-500">{displayDate(a.occurredAt)}</span>
+                      <span className="text-xs whitespace-nowrap text-gray-500">
+                        {displayDate(a.occurredAt)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -312,11 +380,15 @@ export function AuditorDashboard() {
   const all = cycles.data?.items ?? [];
   const open = all.filter((c) => c.status !== 'COMPLETED');
   const sum = (k: keyof Cycle) => open.reduce((s, c) => s + Number(c[k] ?? 0), 0);
-  const toVerify = sum('totalItems') - sum('verifiedItems') - sum('notFoundItems') - sum('wrongPlaceItems');
+  const toVerify =
+    sum('totalItems') - sum('verifiedItems') - sum('notFoundItems') - sum('wrongPlaceItems');
   return (
     <Shell
       title="Verification"
-      line={summaryLine([{ label: 'cycles open', count: open.length }, { label: 'items still to check', count: Math.max(0, toVerify) }])}
+      line={summaryLine([
+        { label: 'cycles open', count: open.length },
+        { label: 'items still to check', count: Math.max(0, toVerify) },
+      ])}
       actions={
         <Link to="/verification" className={buttonClass()}>
           Start or continue a cycle
@@ -329,10 +401,30 @@ export function AuditorDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="To verify" value={plain(Math.max(0, toVerify))} detail="In open cycles" to="/verification" />
-            <StatTile label="Verified" value={plain(sum('verifiedItems'))} detail="Found in place" to="/verification" />
-            <StatTile label="Not found" value={plain(sum('notFoundItems'))} detail="Need follow-up" to="/verification" />
-            <StatTile label="Wrong place" value={plain(sum('wrongPlaceItems'))} detail="Found elsewhere" to="/verification" />
+            <StatTile
+              label="To verify"
+              value={plain(Math.max(0, toVerify))}
+              detail="In open cycles"
+              to="/verification"
+            />
+            <StatTile
+              label="Verified"
+              value={plain(sum('verifiedItems'))}
+              detail="Found in place"
+              to="/verification"
+            />
+            <StatTile
+              label="Not found"
+              value={plain(sum('notFoundItems'))}
+              detail="Need follow-up"
+              to="/verification"
+            />
+            <StatTile
+              label="Wrong place"
+              value={plain(sum('wrongPlaceItems'))}
+              detail="Found elsewhere"
+              to="/verification"
+            />
           </div>
           <Card title="Verification cycles" action={viewLink('/verification')}>
             {all.length ? (
@@ -344,15 +436,24 @@ export function AuditorDashboard() {
                     <li key={c.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-gray-900">{c.locationName}</span>
-                        <span className="text-xs text-gray-500"> · {c.cycleId} · started {displayDate(c.startedAt)}</span>
+                        <span className="text-xs text-gray-500">
+                          {' '}
+                          · {c.cycleId} · started {displayDate(c.startedAt)}
+                        </span>
                         <span className="mt-1.5 block h-1.5 rounded-full bg-gray-100">
-                          <span className="block h-1.5 rounded-full bg-chart-1" style={{ width: `${pct}%` }} />
+                          <span
+                            className="block h-1.5 rounded-full bg-chart-1"
+                            style={{ width: `${pct}%` }}
+                          />
                         </span>
                       </div>
                       <span className="w-20 text-right text-xs text-gray-500 tabular-nums">
                         {done}/{c.totalItems}
                       </span>
-                      <Badge value={c.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS'} label={c.status.toLowerCase().replace('_', ' ')} />
+                      <Badge
+                        value={c.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS'}
+                        label={c.status.toLowerCase().replace('_', ' ')}
+                      />
                     </li>
                   );
                 })}
@@ -371,18 +472,29 @@ export function InsurerDashboard() {
   const assets = useQuery({
     queryKey: ['insurer-dash', 'assets'],
     queryFn: ({ signal }) =>
-      api<{ items: { id: string; assetCode: string; description: string; category: string; purchaseCost: number | null; repairCount: number }[] }>(
-        '/insurance',
-        { signal },
-      ),
+      api<{
+        items: {
+          id: string;
+          assetCode: string;
+          description: string;
+          category: string;
+          purchaseCost: number | null;
+          repairCount: number;
+        }[];
+      }>('/insurance', { signal }),
   });
   const locations = useQuery({
     queryKey: ['insurer-dash', 'locations'],
     queryFn: ({ signal }) =>
-      api<{ items: { id: string; name: string; code: string; assetCount: number; totalPurchasePrice: number }[] }>(
-        '/insurance/locations',
-        { signal },
-      ),
+      api<{
+        items: {
+          id: string;
+          name: string;
+          code: string;
+          assetCount: number;
+          totalPurchasePrice: number;
+        }[];
+      }>('/insurance/locations', { signal }),
   });
   const items = assets.data?.items ?? [];
   const total = items.reduce((s, a) => s + (a.purchaseCost ?? 0), 0);
@@ -403,10 +515,30 @@ export function InsurerDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="Insured assets" value={plain(items.length)} detail="In the register" to="/insurance" />
-            <StatTile label="Total purchase value" value={inrShort(total)} detail="Sum of purchase cost" to="/insurance" />
-            <StatTile label="Locations" value={plain(locations.data?.items.length ?? 0)} detail="With insured assets" to="/insurance" />
-            <StatTile label="Repaired assets" value={plain(repaired.length)} detail="With repair history" to="/insurance" />
+            <StatTile
+              label="Insured assets"
+              value={plain(items.length)}
+              detail="In the register"
+              to="/insurance"
+            />
+            <StatTile
+              label="Total purchase value"
+              value={inrShort(total)}
+              detail="Sum of purchase cost"
+              to="/insurance"
+            />
+            <StatTile
+              label="Locations"
+              value={plain(locations.data?.items.length ?? 0)}
+              detail="With insured assets"
+              to="/insurance"
+            />
+            <StatTile
+              label="Repaired assets"
+              value={plain(repaired.length)}
+              detail="With repair history"
+              to="/insurance"
+            />
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
             <Card title="Value by location" action={viewLink('/insurance')}>
@@ -414,19 +546,28 @@ export function InsurerDashboard() {
                 valueLabel="Value"
                 format={inrShort}
                 empty="No location totals yet"
-                items={(locations.data?.items ?? []).map((l) => ({ label: l.name || l.code, value: l.totalPurchasePrice, note: `${l.assetCount} assets` }))}
+                items={(locations.data?.items ?? []).map((l) => ({
+                  label: l.name || l.code,
+                  value: l.totalPurchasePrice,
+                  note: `${l.assetCount} assets`,
+                }))}
               />
             </Card>
             <Card title="Most repaired assets">
               {repaired.length ? (
                 <ul className="divide-y divide-gray-100">
-                  {[...repaired].sort((a, b) => b.repairCount - a.repairCount).slice(0, 6).map((a) => (
-                    <li key={a.id} className="flex items-center gap-3 py-2.5 text-sm">
-                      <span className="font-medium text-navy-700">{a.assetCode}</span>
-                      <span className="flex-1 truncate text-gray-700">{a.description}</span>
-                      <span className="text-xs text-gray-500 tabular-nums">{a.repairCount} repairs</span>
-                    </li>
-                  ))}
+                  {[...repaired]
+                    .sort((a, b) => b.repairCount - a.repairCount)
+                    .slice(0, 6)
+                    .map((a) => (
+                      <li key={a.id} className="flex items-center gap-3 py-2.5 text-sm">
+                        <span className="font-medium text-navy-700">{a.assetCode}</span>
+                        <span className="flex-1 truncate text-gray-700">{a.description}</span>
+                        <span className="text-xs text-gray-500 tabular-nums">
+                          {a.repairCount} repairs
+                        </span>
+                      </li>
+                    ))}
                 </ul>
               ) : (
                 <EmptyChart>No repairs recorded</EmptyChart>
@@ -443,24 +584,41 @@ export function ProcurementDashboard() {
   const toBuy = useQuery({
     queryKey: ['procurement-dash', 'to-buy'],
     queryFn: ({ signal }) =>
-      api<{ items: { id: string; assetTypeCode: string; categoryCode: string; quantity: number; teamCode: string | null; requestNumber: number; neededBy: string | null; decidedAt: string; requesterName: string }[] }>(
-        '/requests/to-buy',
-        { signal },
-      ),
+      api<{
+        items: {
+          id: string;
+          assetTypeCode: string;
+          categoryCode: string;
+          quantity: number;
+          teamCode: string | null;
+          requestNumber: number;
+          neededBy: string | null;
+          decidedAt: string;
+          requesterName: string;
+        }[];
+      }>('/requests/to-buy', { signal }),
   });
   const purchases = useQuery({
     queryKey: ['procurement-dash', 'purchases'],
     queryFn: ({ signal }) =>
-      api<{ items: { id: string; purchaseCode: string; supplier: string; purchaseDate: string; quantity: number; amount: number }[] }>(
-        '/procurement',
-        { signal },
-      ),
+      api<{
+        items: {
+          id: string;
+          purchaseCode: string;
+          supplier: string;
+          purchaseDate: string;
+          quantity: number;
+          amount: number;
+        }[];
+      }>('/procurement', { signal }),
   });
   const lines = toBuy.data?.items ?? [];
   const units = lines.reduce((s, l) => s + l.quantity, 0);
   const monthStart = new Date();
   monthStart.setDate(1);
-  const thisMonth = (purchases.data?.items ?? []).filter((p) => new Date(p.purchaseDate) >= monthStart);
+  const thisMonth = (purchases.data?.items ?? []).filter(
+    (p) => new Date(p.purchaseDate) >= monthStart,
+  );
   const spentThisMonth = thisMonth.reduce((s, p) => s + Number(p.amount || 0), 0);
   return (
     <Shell
@@ -478,10 +636,29 @@ export function ProcurementDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="To buy" value={plain(lines.length)} detail={`${units} units approved`} />
-            <StatTile label="Purchases this month" value={plain(thisMonth.length)} detail="Recorded" to="/procurement" />
-            <StatTile label="Spent this month" value={inrShort(spentThisMonth)} detail="Recorded amount" to="/procurement" />
-            <StatTile label="All purchases" value={plain(purchases.data?.items.length ?? 0)} detail="On record" to="/procurement" />
+            <StatTile
+              label="To buy"
+              value={plain(lines.length)}
+              detail={`${units} units approved`}
+            />
+            <StatTile
+              label="Purchases this month"
+              value={plain(thisMonth.length)}
+              detail="Recorded"
+              to="/procurement"
+            />
+            <StatTile
+              label="Spent this month"
+              value={inrShort(spentThisMonth)}
+              detail="Recorded amount"
+              to="/procurement"
+            />
+            <StatTile
+              label="All purchases"
+              value={plain(purchases.data?.items.length ?? 0)}
+              detail="On record"
+              to="/procurement"
+            />
           </div>
           <div className="grid gap-6 lg:grid-cols-5">
             <Card title="Approved requests to buy" className="lg:col-span-3">
@@ -499,7 +676,9 @@ export function ProcurementDashboard() {
                         </span>
                       </div>
                       <span className="text-xs text-gray-500">
-                        {l.neededBy ? `Needed by ${displayDate(l.neededBy)}` : `Approved ${displayDate(l.decidedAt)}`}
+                        {l.neededBy
+                          ? `Needed by ${displayDate(l.neededBy)}`
+                          : `Approved ${displayDate(l.decidedAt)}`}
                       </span>
                     </li>
                   ))}
@@ -508,7 +687,11 @@ export function ProcurementDashboard() {
                 <EmptyChart>Nothing approved is waiting to be bought</EmptyChart>
               )}
             </Card>
-            <Card title="Recent purchases" className="lg:col-span-2" action={viewLink('/procurement')}>
+            <Card
+              title="Recent purchases"
+              className="lg:col-span-2"
+              action={viewLink('/procurement')}
+            >
               {purchases.data?.items.length ? (
                 <ul className="divide-y divide-gray-100">
                   {purchases.data.items.slice(0, 6).map((p) => (
@@ -519,7 +702,9 @@ export function ProcurementDashboard() {
                           {p.purchaseCode} · {displayDate(p.purchaseDate)}
                         </span>
                       </div>
-                      <span className="text-sm text-gray-900 tabular-nums">{formatInr(Number(p.amount))}</span>
+                      <span className="text-sm text-gray-900 tabular-nums">
+                        {formatInr(Number(p.amount))}
+                      </span>
                     </li>
                   ))}
                 </ul>
