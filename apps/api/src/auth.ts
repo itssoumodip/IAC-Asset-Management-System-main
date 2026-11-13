@@ -33,6 +33,7 @@ import {
   loadTeams,
 } from './security';
 import { privileged } from './policy';
+import { applyViewAs } from './view-as-core';
 import {
   configuration,
   decrypt,
@@ -430,7 +431,13 @@ export class AuthService {
     return { message: 'Signed out' };
   }
   async current(req: Request) {
-    return publicUser(await resolveSession(this.db, req));
+    const actor = await resolveSession(this.db, req);
+    // A Super Admin preview changes what the portal shows; sign-in and MFA stay on the real account.
+    const ready =
+      actor.sessionScope === 'APP' &&
+      !!actor.portalAcceptedAt &&
+      (!privileged(actor) || !!actor.mfaVerifiedAt);
+    return publicUser(ready ? await applyViewAs(this.db, req, actor) : actor);
   }
   async updateProfile(req: AuthRequest, body: unknown) {
     const data = z.object({

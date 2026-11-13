@@ -38,6 +38,7 @@ import {
   ackInput,
   camel,
   eligibleEmployee,
+  filterList,
   found,
   id,
   idempotent,
@@ -138,36 +139,51 @@ export class AssetDomain extends MasterDomain {
     const p = requestPage(query, ['asset_code', 'id']);
     const values: any[] = [];
     const where = [assetScope(req.user, values)];
-    for (const [key, column] of [
-      ['status', 'status'],
-      ['category', 'category'],
-      ['assetType', 'asset_type'],
-      ['departmentId', 'department_id'],
-      ['owningTeamId', 'owning_team_id'],
-    ] as const)
-      if (p[key] && key !== 'status') {
-        values.push(p[key]);
-        where.push(`a.${column}=$${values.length}`);
-      }
-    if (p.status) {
-      if (['Assigned', 'In Use'].includes(p.status)) where.push(`a.status IN ('Assigned','In Use')`);
-      else {
-        values.push(p.status);
-        where.push(`a.status=$${values.length}`);
+    // Each filter takes one value or several (comma-separated): any of them matches.
+    for (const [key, column, cast] of [
+      ['category', 'category', 'text'],
+      ['assetType', 'asset_type', 'text'],
+      ['departmentId', 'department_id', 'uuid'],
+      ['owningTeamId', 'owning_team_id', 'uuid'],
+    ] as const) {
+      const list = filterList(p[key]);
+      if (list.length) {
+        values.push(list);
+        where.push(`a.${column}=ANY($${values.length}::${cast}[])`);
       }
     }
+    // Brand: the register spells brands inconsistently (HP / hp), so match ignoring case.
+    const brands = filterList(p.manufacturer).map((b) => b.toLowerCase());
+    if (brands.length) {
+      values.push(brands);
+      where.push(`lower(btrim(a.manufacturer))=ANY($${values.length}::text[])`);
+    }
+    const statuses = filterList(p.status);
+    if (statuses.length) {
+      // Assigned and In Use are the same held state.
+      if (statuses.some((s) => s === 'Assigned' || s === 'In Use')) statuses.push('Assigned', 'In Use');
+      values.push([...new Set(statuses)]);
+      where.push(`a.status=ANY($${values.length}::text[])`);
+    }
     if (p.locationId) {
-      values.push(p.locationId);
+      values.push(filterList(p.locationId));
       where.push(
         `a.location_id IN (
           WITH RECURSIVE location_subtree AS (
-            SELECT id FROM locations WHERE id=$${values.length}
+            SELECT id FROM locations WHERE id=ANY($${values.length}::uuid[])
             UNION ALL
             SELECT child.id FROM locations child
             JOIN location_subtree parent ON child.parent_id=parent.id
           )
           SELECT id FROM location_subtree
         )`,
+      );
+    }
+    // Everything one person currently holds.
+    if (p.holderId) {
+      values.push(filterList(p.holderId));
+      where.push(
+        `EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL AND holder.user_id=ANY($${values.length}::uuid[]))`,
       );
     }
     if (p.labelPrinted && canSomewhere(req.user, 'asset.label'))

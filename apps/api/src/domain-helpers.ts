@@ -170,6 +170,19 @@ export const found = <T>(value: T | undefined): T => {
   if (!value) throw new NotFoundException('Record not found');
   return value;
 };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** One id or several comma-separated ids (at most 100). */
+const uuidList = z
+  .string()
+  .max(3800)
+  .refine((v) => {
+    const parts = filterList(v);
+    return parts.length > 0 && parts.length <= 100 && parts.every((p) => UUID_RE.test(p));
+  }, 'Invalid id list');
+/** Split a comma-separated filter value into distinct, trimmed parts. */
+export function filterList(value: string | undefined): string[] {
+  return [...new Set((value ?? '').split(',').map((v) => v.trim()).filter(Boolean))].slice(0, 100);
+}
 export function requestPage(query: any, fields: string[]) {
   const input = parse(
     z
@@ -177,12 +190,15 @@ export function requestPage(query: any, fields: string[]) {
         limit: z.coerce.number().int().min(1).max(100).default(25),
         cursor: z.string().max(1000).optional(),
         q: z.string().trim().max(100).optional(),
-        status: z.string().max(100).optional(),
-        category: z.string().max(100).optional(),
-        assetType: z.string().max(100).optional(),
-        departmentId: uuid.optional(),
-        owningTeamId: uuid.optional(),
-        locationId: uuid.optional(),
+        // Asset filters accept one value or several, comma-separated (column checkbox filters).
+        status: z.string().max(2000).optional(),
+        category: z.string().max(2000).optional(),
+        assetType: z.string().max(4000).optional(),
+        manufacturer: z.string().max(4000).optional(),
+        departmentId: uuidList.optional(),
+        owningTeamId: uuidList.optional(),
+        locationId: uuidList.optional(),
+        holderId: uuidList.optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
         teamId: uuid.optional(),

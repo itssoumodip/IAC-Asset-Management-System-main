@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import webpush from 'web-push';
 import { Db } from './db';
-import { encrypt, hash, decrypt, configuration } from './config';
+import { encrypt, hash, decrypt, configuration, outboundNotificationsEnabled } from './config';
 import { sanitizeImage } from './image-sanitize';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
@@ -81,7 +81,8 @@ export class PushService {
   }
 
   publicKey() {
-    return { enabled: !!vapid(), publicKey: vapid()?.publicKey ?? null };
+    const on = outboundNotificationsEnabled();
+    return { enabled: on && !!vapid(), publicKey: on ? (vapid()?.publicKey ?? null) : null };
   }
 
   async subscribe(req: AuthRequest, input: unknown) {
@@ -112,7 +113,8 @@ export class PushService {
 
   async broadcast(req: AuthRequest, body: unknown) {
     assertCan(req.user, 'announcement.send');
-    const keys = vapid();
+    // Push is outbound: while OUTBOUND_NOTIFICATIONS is off, announcements stay in-app only.
+    const keys = outboundNotificationsEnabled() ? vapid() : undefined;
     const input = z
       .object({
         title: z.string().trim().min(1).max(100),

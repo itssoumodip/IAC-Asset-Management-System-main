@@ -11,6 +11,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { Db } from './db';
 import { configuration, equal, hash, isAllowedAppOrigin, validCsrf } from './config';
 import { capabilities, privileged, type TeamMembership } from './policy';
+import { applyViewAs } from './view-as-core';
 export interface Actor {
   requestId?: string;
   id: string;
@@ -33,6 +34,8 @@ export interface Actor {
   sessionHash: string;
   hasPhoto?: boolean;
   assetViewFields?: string[];
+  /** Set while a Super Admin previews the portal as another role or team (read-only). */
+  viewAs?: { target: string; label: string };
 }
 export interface AuthRequest extends Request {
   user: Actor;
@@ -114,6 +117,8 @@ export class SessionGuard implements CanActivate {
       req.user.portalNoticeVersion !== configuration().noticeVersion
     )
       throw new ForbiddenException('Accept portal access first');
+    // Checks above run on the real account; a Super Admin preview applies after them.
+    req.user = await applyViewAs(this.db, req, req.user);
     return true;
   }
 }
@@ -167,4 +172,5 @@ export const publicUser = (user: Actor) => ({
   enrollmentOnly: user.sessionScope === 'MFA_ENROLLMENT',
   mfaEnrollmentRequired: user.sessionScope === 'MFA_ENROLLMENT',
   hasPhoto: user.hasPhoto ?? false,
+  viewAs: user.viewAs ?? null,
 });

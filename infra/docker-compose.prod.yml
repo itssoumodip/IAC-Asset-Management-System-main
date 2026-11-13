@@ -28,6 +28,13 @@ x-app-env: &app-env
   PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
   PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
   PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT:-}
+  # Email and push to people stay OFF until OUTBOUND_NOTIFICATIONS=on is set in .env.production.
+  OUTBOUND_NOTIFICATIONS: ${OUTBOUND_NOTIFICATIONS:-off}
+  # Zoho People directory sync (read-only). Leave blank to switch the sync off.
+  ZOHO_CLIENT_ID: ${ZOHO_CLIENT_ID:-}
+  ZOHO_CLIENT_SECRET: ${ZOHO_CLIENT_SECRET:-}
+  ZOHO_REFRESH_TOKEN: ${ZOHO_REFRESH_TOKEN:-}
+  ZOHO_DC: ${ZOHO_DC:-in}
 
 services:
   db:

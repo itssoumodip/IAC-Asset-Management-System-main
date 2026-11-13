@@ -2,7 +2,8 @@ import { Children, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, resetCsrf } from './api';
+import { api, resetCsrf, setViewAs } from './api';
+import { ViewAsBanner, ViewAsMenu } from './components/ViewAs';
 import { useSession, can, roleLabel, teamChipLabel } from './session';
 import { AuthScreen, AccessScreen, SecurityScreen } from './components/Auth';
 import { AssetList, AssetEditor } from './components/Assets';
@@ -360,6 +361,7 @@ function Shell() {
     try {
       await api('/auth/logout', { method: 'POST', body: {} });
       resetCsrf();
+      setViewAs(null);
       clearReturnTo();
       client.clear();
       window.location.assign('/login');
@@ -438,7 +440,8 @@ function Shell() {
                 Asset catalog
               </SideLink>
             )}
-            {(can(user, 'approvals.act') || can(user, 'asset.finance_edit')) && (
+            {/* Same rule as the /approvals route and API: team leads and Super Admin. */}
+            {(can(user, 'approvals.act') || can(user, 'system.admin')) && (
               <SideLink to="/approvals" icon="approvals">
                 Approvals
               </SideLink>
@@ -598,6 +601,7 @@ function Shell() {
           </button>
           <TopbarGreeting name={user.displayName} />
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <ViewAsMenu />
             <NavLink
               to="/notifications"
               className={({ isActive }) =>
@@ -648,6 +652,7 @@ function Shell() {
             </button>
           </div>
         </header>
+        <ViewAsBanner />
         <main
           id="main"
           tabIndex={-1}
@@ -939,6 +944,9 @@ export function App() {
             </Route>
             <Route element={<Guard action="ticket.work" />}>
               <Route path="/maintenance" element={<Maintenance />} />
+            </Route>
+            {/* Auditors verify; the API checks verification.perform, so the page does too. */}
+            <Route element={<Guard action="verification.perform" />}>
               <Route path="/verification" element={<Verification />} />
             </Route>
             <Route element={<Guard action="system.admin" />}>

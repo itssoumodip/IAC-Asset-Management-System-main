@@ -27,6 +27,8 @@ jobs:
       APP_ORIGIN: http://127.0.0.1:5173
       SMTP_HOST: 127.0.0.1
       SMTP_PORT: 11025
+      # CI mail goes only to the Mailpit service above.
+      OUTBOUND_NOTIFICATIONS: 'on'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

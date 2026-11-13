@@ -127,7 +127,7 @@ export async function createApp(): Promise<INestApplication> {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'If-Match', 'Idempotency-Key'],
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'If-Match', 'Idempotency-Key', 'X-View-As'],
     exposedHeaders: ['ETag', 'X-Request-Id'],
   });
   app.use('/api/v1/tickets', (req: Request, res: Response, next: () => void) =>

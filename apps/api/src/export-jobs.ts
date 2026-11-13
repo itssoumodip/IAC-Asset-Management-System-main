@@ -17,7 +17,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { Db } from './db';
 import { AuthRequest, SessionGuard, loadTeams, type Actor } from './security';
-import { assetColumns, assetScope, parse, uuid } from './domain-helpers';
+import { assetColumns, assetScope, filterList, parse, uuid } from './domain-helpers';
 import { assetFieldRestrictions } from './role-field';
 
 const BATCH = 2000;
@@ -27,13 +27,23 @@ const CSV = 'text/csv; charset=utf-8';
 const filtersInput = z
   .object({
     q: z.string().trim().max(100).optional(),
-    status: z.string().max(100).optional(),
-    category: z.string().max(100).optional(),
-    assetType: z.string().max(100).optional(),
-    departmentId: uuid.optional(),
-    owningTeamId: uuid.optional(),
+    // Same filters as the catalog: one value or several, comma-separated.
+    status: z.string().max(2000).optional(),
+    category: z.string().max(2000).optional(),
+    assetType: z.string().max(4000).optional(),
+    manufacturer: z.string().max(4000).optional(),
+    departmentId: z.string().max(3800).optional(),
+    owningTeamId: z.string().max(3800).optional(),
+    holderId: z.string().max(3800).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (f) =>
+      [f.departmentId, f.owningTeamId, f.holderId].every((v) =>
+        filterList(v).every((id) => uuid.safeParse(id).success),
+      ),
+    'Invalid id list',
+  );
 const createInput = z
   .object({
     kind: z.literal('assets'),
@@ -91,17 +101,36 @@ export async function buildAssetCsv(
     .filter((c) => !hidden.has(c.replace(/_([a-z0-9])/g, (_m, ch: string) => ch.toUpperCase())));
   const values: any[] = [];
   const where = [assetScope(actor, values)];
-  for (const [key, column] of [
-    ['status', 'status'],
-    ['category', 'category'],
-    ['assetType', 'asset_type'],
-    ['departmentId', 'department_id'],
-    ['owningTeamId', 'owning_team_id'],
-  ] as const)
-    if (filters[key]) {
-      values.push(filters[key]);
-      where.push(`a.${column}=$${values.length}`);
+  for (const [key, column, cast] of [
+    ['category', 'category', 'text'],
+    ['assetType', 'asset_type', 'text'],
+    ['departmentId', 'department_id', 'uuid'],
+    ['owningTeamId', 'owning_team_id', 'uuid'],
+  ] as const) {
+    const list = filterList(filters[key]);
+    if (list.length) {
+      values.push(list);
+      where.push(`a.${column}=ANY($${values.length}::${cast}[])`);
     }
+  }
+  const brands = filterList(filters.manufacturer).map((b) => b.toLowerCase());
+  if (brands.length) {
+    values.push(brands);
+    where.push(`lower(btrim(a.manufacturer))=ANY($${values.length}::text[])`);
+  }
+  const statuses = filterList(filters.status);
+  if (statuses.length) {
+    if (statuses.some((s) => s === 'Assigned' || s === 'In Use')) statuses.push('Assigned', 'In Use');
+    values.push([...new Set(statuses)]);
+    where.push(`a.status=ANY($${values.length}::text[])`);
+  }
+  const holders = filterList(filters.holderId);
+  if (holders.length) {
+    values.push(holders);
+    where.push(
+      `EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL AND holder.user_id=ANY($${values.length}::uuid[]))`,
+    );
+  }
   if (filters.q) {
     values.push(`%${filters.q.replace(/[\\%_]/g, '\\$&')}%`);
     const n = values.length;

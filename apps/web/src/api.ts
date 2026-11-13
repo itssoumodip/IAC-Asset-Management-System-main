@@ -17,6 +17,27 @@ export interface RequestOptions {
   idempotencyKey?: string;
   signal?: AbortSignal;
 }
+// Super Admin "View as" preview: kept for this browser tab only and sent with every request.
+const VIEW_AS_KEY = 'iac-view-as';
+let viewAs: string | null = (() => {
+  try {
+    return sessionStorage.getItem(VIEW_AS_KEY);
+  } catch {
+    return null;
+  }
+})();
+export function getViewAs() {
+  return viewAs;
+}
+export function setViewAs(target: string | null) {
+  viewAs = target;
+  try {
+    if (target) sessionStorage.setItem(VIEW_AS_KEY, target);
+    else sessionStorage.removeItem(VIEW_AS_KEY);
+  } catch {
+    // Storage blocked: the preview still works until the page reloads.
+  }
+}
 let csrfPromise: Promise<string> | undefined;
 export function resetCsrf() {
   csrfPromise = undefined;
@@ -65,6 +86,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
   if (options.version !== undefined) headers['If-Match'] = `"${options.version}"`;
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+  // Sign-in endpoints always act as the real account.
+  if (viewAs && !path.startsWith('/auth/')) headers['X-View-As'] = viewAs;
   let response: Response;
   try {
     response = await fetch(`/api/v1${path}`, {

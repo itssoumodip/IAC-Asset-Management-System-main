@@ -75,6 +75,8 @@ export interface User {
   mfaEnrolled?: boolean;
   enrollmentOnly?: boolean;
   mfaEnrollmentRequired?: boolean;
+  /** Set while a Super Admin previews the portal as another role or team. */
+  viewAs?: { target: string; label: string } | null;
 }
 export interface Assignment {
   id: string;

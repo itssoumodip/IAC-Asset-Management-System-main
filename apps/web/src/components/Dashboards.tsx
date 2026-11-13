@@ -8,6 +8,7 @@ import type { Asset, Ticket } from '../types';
 import { summaryLine } from '../executive';
 import { BarList, Card, EmptyChart, StatTile } from './charts';
 import { OverviewDashboard } from './OverviewDashboard';
+import { AssetInsights, type InsightsVariant } from './Insights';
 import {
   AuditorDashboard,
   FinanceDashboard,
@@ -132,34 +133,44 @@ function AttentionRows({
   );
 }
 
+/** Each role dashboard, followed by charts over the assets that person may see. */
+function withInsights(dashboard: ReactNode, variant: InsightsVariant) {
+  return (
+    <>
+      {dashboard}
+      <AssetInsights variant={variant} />
+    </>
+  );
+}
+
 export function UserDashboard() {
   const { user } = useSession();
   // Development only: preview another role's dashboard with ?as=<role> (team, finance, store…).
   if (import.meta.env.DEV) {
     const as = new URLSearchParams(window.location.search).get('as');
-    if (as === 'team') return <TeamDashboard />;
-    if (as === 'employee') return <EmployeeDashboard />;
-    if (as === 'finance') return <FinanceDashboard />;
-    if (as === 'store') return <StoreDashboard />;
-    if (as === 'auditor') return <AuditorDashboard />;
-    if (as === 'insurer') return <InsurerDashboard />;
-    if (as === 'procurement') return <ProcurementDashboard />;
+    if (as === 'team') return withInsights(<TeamDashboard />, 'team');
+    if (as === 'employee') return withInsights(<EmployeeDashboard />, 'employee');
+    if (as === 'finance') return withInsights(<FinanceDashboard />, 'finance');
+    if (as === 'store') return withInsights(<StoreDashboard />, 'store');
+    if (as === 'auditor') return withInsights(<AuditorDashboard />, 'auditor');
+    if (as === 'insurer') return withInsights(<InsurerDashboard />, 'insurer');
+    if (as === 'procurement') return withInsights(<ProcurementDashboard />, 'procurement');
   }
   const roles = user?.roles ?? [];
   // Most specific first. Someone with several roles gets the one closest to their daily work.
   // Finance and Auditor can also open Reports (report.view), but their own dashboard
   // fits their daily work better than the organisation overview.
   const overview = roles.includes('SUPER_ADMIN') || roles.includes('EXECUTIVE');
-  if (!overview && roles.includes('FINANCE')) return <FinanceDashboard />;
-  if (!overview && roles.includes('AUDITOR') && !can(user, 'ticket.work')) return <AuditorDashboard />;
-  if (can(user, 'report.view')) return <OverviewDashboard />;
-  if (roles.includes('FINANCE')) return <FinanceDashboard />;
-  if (can(user, 'ticket.work')) return <TeamDashboard />;
-  if (roles.includes('STORE')) return <StoreDashboard />;
-  if (roles.includes('PROCUREMENT')) return <ProcurementDashboard />;
-  if (roles.includes('AUDITOR')) return <AuditorDashboard />;
-  if (roles.includes('INSURER')) return <InsurerDashboard />;
-  return <EmployeeDashboard />;
+  if (!overview && roles.includes('FINANCE')) return withInsights(<FinanceDashboard />, 'finance');
+  if (!overview && roles.includes('AUDITOR') && !can(user, 'ticket.work')) return withInsights(<AuditorDashboard />, 'auditor');
+  if (can(user, 'report.view')) return withInsights(<OverviewDashboard />, 'overview');
+  if (roles.includes('FINANCE')) return withInsights(<FinanceDashboard />, 'finance');
+  if (can(user, 'ticket.work')) return withInsights(<TeamDashboard />, 'team');
+  if (roles.includes('STORE')) return withInsights(<StoreDashboard />, 'store');
+  if (roles.includes('PROCUREMENT')) return withInsights(<ProcurementDashboard />, 'procurement');
+  if (roles.includes('AUDITOR')) return withInsights(<AuditorDashboard />, 'auditor');
+  if (roles.includes('INSURER')) return withInsights(<InsurerDashboard />, 'insurer');
+  return withInsights(<EmployeeDashboard />, 'employee');
 }
 
 /** Team members and leads (IT, Admin…): their queue, their team's assets and what needs action. */

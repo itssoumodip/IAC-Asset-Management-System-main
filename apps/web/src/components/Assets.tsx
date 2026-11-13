@@ -9,6 +9,8 @@ import type { Asset, AssignablePerson } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
 import { AssetTags } from './AssetTags';
+import { useBrands, useHolders } from './Insights';
+import { ColumnFilter, FilterChips, FiltersButton, fromList, toList, type FilterGroup } from './ColumnFilter';
 import { StoreReceiving } from './StoreReceiving';
 import { AssetDetailTabs } from './AssetDetailTabs';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
@@ -139,12 +141,92 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     status: assignmentMode ? 'In Store' : params.get('status') || undefined,
     category: params.get('category') || undefined,
     assetType: params.get('assetType') || undefined,
+    manufacturer: params.get('manufacturer') || undefined,
+    departmentId: params.get('departmentId') || undefined,
+    holderId: params.get('holderId') || undefined,
     locationId: params.get('locationId') || undefined,
     owningTeamId: params.get('owningTeamId') || undefined,
   };
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
   const query = usePages<Asset>('/assets', filters);
+  const holders = useHolders();
+  const brands = useBrands();
+  // Column checkbox filters: every value is a comma-separated list in the URL.
+  const refOptions = (kind: string, selected: string[]) =>
+    (refs.data?.values ?? [])
+      .filter((v) => v.kind === kind && (v.active || selected.includes(v.code)))
+      .map((v) => ({ value: v.code, label: v.label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  const sel = (key: string) => toList(params.get(key));
+  const filterGroups: FilterGroup[] = [
+    ...(!assignmentMode
+      ? [{ key: 'status', title: 'Status', options: refOptions('STATUS', sel('status')), selected: sel('status') }]
+      : []),
+    { key: 'category', title: 'Category', options: refOptions('CATEGORY', sel('category')), selected: sel('category') },
+    { key: 'assetType', title: 'Subcategory', options: refOptions('ASSET_TYPE', sel('assetType')), selected: sel('assetType') },
+    {
+      key: 'manufacturer',
+      title: 'Brand',
+      options: (brands.data?.items ?? []).map((b) => ({ value: b.name, label: `${b.name} (${b.count})` })),
+      selected: sel('manufacturer'),
+    },
+    {
+      key: 'departmentId',
+      title: 'Department',
+      options: (refs.data?.departments ?? [])
+        .filter((d) => d.active || sel('departmentId').includes(d.id))
+        .map((d) => ({ value: d.id, label: d.name })),
+      selected: sel('departmentId'),
+    },
+    ...(!assignmentMode
+      ? [
+          {
+            key: 'holderId',
+            title: 'Held by',
+            // Only people who hold something, with how many items each holds.
+            options: (holders.data?.items ?? [])
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((h) => ({ value: h.userId, label: `${h.name} (${h.count})` })),
+            selected: sel('holderId'),
+          },
+        ]
+      : []),
+    {
+      key: 'locationId',
+      title: 'Location',
+      options: (refs.data?.locations ?? [])
+        .filter((l) => l.active || sel('locationId').includes(l.id))
+        .map((l) => ({ value: l.id, label: locationLabel(l) })),
+      selected: sel('locationId'),
+    },
+    ...(manage
+      ? [
+          {
+            key: 'owningTeamId',
+            title: 'Team',
+            options: (refs.data?.teams ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.code})` })),
+            selected: sel('owningTeamId'),
+          },
+        ]
+      : []),
+  ];
+  const groupFor = (key: string) => filterGroups.find((g) => g.key === key);
+  function setFilter(key: string, values: string[]) {
+    const next = new URLSearchParams(params);
+    if (values.length) next.set(key, fromList(values));
+    else next.delete(key);
+    setParams(next);
+  }
+  function applyFilters(all: Record<string, string[]>) {
+    const next = new URLSearchParams(params);
+    for (const [key, values] of Object.entries(all)) {
+      if (values.length) next.set(key, fromList(values));
+      else next.delete(key);
+    }
+    setParams(next);
+  }
   const loadedItems = query.data?.pages.flatMap((page) => page.items) ?? [];
   const items = assignmentMode ? loadedItems.filter(canAssign) : loadedItems;
   const [search, setSearch] = useState(filters.q ?? '');
@@ -245,75 +327,16 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               Search
             </button>
           </form>
-          {!assignmentMode ? (
-            <Field label="Status" htmlFor="filter-status">
-              <ReferenceSelect
-                refs={refs.data}
-                kind="status"
-                id="filter-status"
-                value={filters.status ?? ''}
-                onChange={(value) => update('status', value)}
-                required={false}
-                allowEmpty
-                includeInactive
-              />
-            </Field>
-          ) : null}
-          <Field label="Category" htmlFor="filter-category">
-            <ReferenceSelect
-              refs={refs.data}
-              kind="category"
-              id="filter-category"
-              value={filters.category ?? ''}
-              onChange={(value) => update('category', value)}
-              required={false}
-              allowEmpty
-              includeInactive
-            />
-          </Field>
-          <Field label="Subcategory" htmlFor="filter-asset-type">
-            <ReferenceSelect
-              refs={refs.data}
-              kind="assetType"
-              id="filter-asset-type"
-              value={filters.assetType ?? ''}
-              onChange={(value) => update('assetType', value)}
-              required={false}
-              allowEmpty
-              includeInactive
-            />
-          </Field>
-          <Select
-            label="Location"
-            htmlFor="filter-location"
-            value={filters.locationId ?? ''}
-            onChange={(value) => update('locationId', value)}
-            options={[
-              { value: '', label: 'All locations' },
-              ...(refs.data?.locations
-                .filter((item) => item.active || item.id === filters.locationId)
-                .map((item) => ({
-                  value: item.id,
-                  label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
-                })) || []),
-            ]}
-          />
-          {manage ? (
-            <Select
-              label="Team"
-              htmlFor="filter-team"
-              value={filters.owningTeamId ?? ''}
-              onChange={(value) => update('owningTeamId', value)}
-              options={[
-                { value: '', label: 'All teams' },
-                ...(refs.data?.teams?.map((item) => ({
-                  value: item.id,
-                  label: `${item.name} (${item.code})${!item.active ? ' (inactive)' : ''}`,
-                })) || []),
-              ]}
-            />
-          ) : null}
+          {/* Phones hide the table headers, so their filters live behind this button. */}
+          <div className="flex-none md:hidden">
+            <FiltersButton groups={filterGroups} onApply={applyFilters} />
+          </div>
         </div>
+        <FilterChips
+          groups={filterGroups}
+          onRemove={(key, value) => setFilter(key, toList(params.get(key)).filter((v) => v !== value))}
+          onClearAll={() => applyFilters(Object.fromEntries(filterGroups.map((g) => [g.key, []])))}
+        />
         <ErrorNotice
           error={query.error}
           retry={() => {
@@ -331,12 +354,72 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                     <span className="sr-only">Photo</span>
                   </th>
                   <th>Asset</th>
-                  <th>Brand</th>
-                  <th>Category</th>
-                  <th>Subcategory</th>
-                  <th>Barcode</th>
-                  <th>Held by</th>
-                  <th>Status</th>
+                  <th>
+                    Brand
+                    {groupFor('manufacturer') ? (
+                      <ColumnFilter
+                        title="Brand"
+                        options={groupFor('manufacturer')!.options}
+                        selected={groupFor('manufacturer')!.selected}
+                        onApply={(values) => setFilter('manufacturer', values)}
+                      />
+                    ) : null}
+                  </th>
+                  <th>
+                    Category
+                    {groupFor('category') ? (
+                      <ColumnFilter
+                        title="Category"
+                        options={groupFor('category')!.options}
+                        selected={groupFor('category')!.selected}
+                        onApply={(values) => setFilter('category', values)}
+                      />
+                    ) : null}
+                  </th>
+                  <th>
+                    Subcategory
+                    {groupFor('assetType') ? (
+                      <ColumnFilter
+                        title="Subcategory"
+                        options={groupFor('assetType')!.options}
+                        selected={groupFor('assetType')!.selected}
+                        onApply={(values) => setFilter('assetType', values)}
+                      />
+                    ) : null}
+                  </th>
+                  <th>
+                    Department
+                    {groupFor('departmentId') ? (
+                      <ColumnFilter
+                        title="Department"
+                        options={groupFor('departmentId')!.options}
+                        selected={groupFor('departmentId')!.selected}
+                        onApply={(values) => setFilter('departmentId', values)}
+                      />
+                    ) : null}
+                  </th>
+                  <th>
+                    Held by
+                    {groupFor('holderId') ? (
+                      <ColumnFilter
+                        title="Held by"
+                        options={groupFor('holderId')!.options}
+                        selected={groupFor('holderId')!.selected}
+                        onApply={(values) => setFilter('holderId', values)}
+                      />
+                    ) : null}
+                  </th>
+                  <th>
+                    Status
+                    {groupFor('status') ? (
+                      <ColumnFilter
+                        title="Status"
+                        options={groupFor('status')!.options}
+                        selected={groupFor('status')!.selected}
+                        onApply={(values) => setFilter('status', values)}
+                      />
+                    ) : null}
+                  </th>
                   <th>
                     <span className="sr-only">View</span>
                   </th>
@@ -366,7 +449,9 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                         ? referenceLabel(refs.data, 'ASSET_TYPE', asset.assetType)
                         : '-'}
                     </td>
-                    <td data-label="Barcode/QR">{asset.barcode ?? '-'}</td>
+                    <td data-label="Department">
+                      {refs.data?.departments.find((d) => d.id === asset.departmentId)?.name ?? '-'}
+                    </td>
                     <td data-label="Owned by / Held by">
                       {asset.currentAssignment?.employeeName ? (
                         <PersonChip
@@ -376,6 +461,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                           designation={asset.currentAssignment.employeeDesignation}
                           department={asset.currentAssignment.employeeDepartment}
                           email={asset.currentAssignment.employeeEmail}
+                          holdingsHref={asset.currentAssignment.userId ? `/assets?holderId=${asset.currentAssignment.userId}` : undefined}
                         />
                       ) : (
                         <span className="text-gray-500">

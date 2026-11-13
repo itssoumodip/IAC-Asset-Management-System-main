@@ -321,6 +321,7 @@ export function AssetDetailZoho() {
                     designation={asset.currentAssignment.employeeDesignation}
                     department={asset.currentAssignment.employeeDepartment}
                     email={asset.currentAssignment.employeeEmail}
+                    holdingsHref={asset.currentAssignment.userId ? `/assets?holderId=${asset.currentAssignment.userId}` : undefined}
                     size={36}
                   />
                   <span className="text-sm text-gray-500">

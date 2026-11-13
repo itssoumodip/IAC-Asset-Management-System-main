@@ -33,6 +33,8 @@ import { ExportJobsController, ExportJobsService } from './export-jobs';
 import { MaintenanceController, MaintenanceService } from './maintenance';
 import { RequestsController, RequestsService } from './requests';
 import { CategoryController, CategoryService } from './categories';
+import { ViewAsController } from './view-as';
+import { InsightsController, InsightsService } from './insights';
 import {
   DirectoryController,
   UserPhotoController,
@@ -76,6 +78,8 @@ import {
     AssetIdentifierController,
     FieldPermissionController,
     CategoryController,
+    ViewAsController,
+    InsightsController,
   ],
   providers: [
     Db,
@@ -111,6 +115,7 @@ import {
     AssetIdentifierService,
     FieldPermissionService,
     CategoryService,
+    InsightsService,
     ZohoSyncService,
     { provide: ZOHO_CLIENT, useFactory: zohoClientFromEnv },
   ],

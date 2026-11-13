@@ -209,12 +209,14 @@ export function ColumnChart({
   shortFormat = format,
   empty = 'No data yet',
   valueLabel = 'Value',
+  labelHeader = 'Period',
 }: {
   items: { label: string; value: number; detail?: string }[];
   format: (value: number) => string;
   shortFormat?: (value: number) => string;
   empty?: string;
   valueLabel?: string;
+  labelHeader?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(0, ...items.map((i) => i.value));
@@ -266,8 +268,153 @@ export function ColumnChart({
         ))}
       </div>
       <TableView
-        headers={['Period', valueLabel]}
+        headers={[labelHeader, valueLabel]}
         rows={items.map((i) => [i.label, format(i.value)])}
+      />
+    </>
+  );
+}
+
+/*
+  Categorical slots for part-of-whole charts, in fixed order (never cycled). Validated
+  for colour-blind separation on the light chart surface (dataviz reference palette).
+  Slices beyond the slots fold into a grey "Other".
+*/
+const SLICE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'];
+const OTHER_COLOR = '#a8a7a1';
+
+function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number) {
+  const p = (r: number, a: number) => `${cx + r * Math.sin(a)} ${cy - r * Math.cos(a)}`;
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${p(r1, a0)} A ${r1} ${r1} 0 ${large} 1 ${p(r1, a1)} L ${p(r0, a1)} A ${r0} ${r0} 0 ${large} 0 ${p(r0, a0)} Z`;
+}
+
+/** Part-of-whole donut: thin ring, surface gaps between slices, legend with counts and shares. */
+export function DonutChart({
+  items,
+  format = (n) => n.toLocaleString('en-IN'),
+  empty = 'No data yet',
+  valueLabel = 'Value',
+  labelHeader = 'Name',
+  centerLabel = 'Total',
+}: {
+  items: { label: string; value: number; to?: string }[];
+  format?: (value: number) => string;
+  empty?: string;
+  valueLabel?: string;
+  labelHeader?: string;
+  centerLabel?: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const positive = items.filter((i) => i.value > 0);
+  const total = positive.reduce((sum, i) => sum + i.value, 0);
+  if (!total) return <EmptyChart>{empty}</EmptyChart>;
+  // Keep the given order; fold anything past the colour slots into Other.
+  const shown = positive.length > SLICE_COLORS.length
+    ? [
+        ...positive.slice(0, SLICE_COLORS.length - 1),
+        {
+          label: 'Other',
+          value: positive.slice(SLICE_COLORS.length - 1).reduce((s, i) => s + i.value, 0),
+        },
+      ]
+    : positive;
+  const color = (index: number, label: string) =>
+    label === 'Other' && index === shown.length - 1 && positive.length > SLICE_COLORS.length
+      ? OTHER_COLOR
+      : SLICE_COLORS[index];
+  const pct = (v: number) => `${Math.round((v / total) * 100)}%`;
+  const gap = shown.length > 1 ? 0.035 : 0; // ~2px surface gap at this size
+  let angle = 0;
+  const slices = shown.map((item, index) => {
+    const sweep = (item.value / total) * Math.PI * 2;
+    const a0 = angle + gap / 2;
+    const a1 = angle + sweep - gap / 2;
+    angle += sweep;
+    return { item, index, path: sweep >= Math.PI * 2 - 0.001 ? null : arc(60, 60, 40, 56, a0, Math.max(a0 + 0.001, a1)) };
+  });
+  const focus = hover === null ? null : shown[hover];
+  return (
+    <>
+      <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+        <div className="relative size-36 shrink-0">
+          <svg
+            viewBox="0 0 120 120"
+            className="size-full"
+            role="img"
+            aria-label={shown.map((i) => `${i.label}: ${format(i.value)} (${pct(i.value)})`).join('; ')}
+          >
+            {slices.map(({ item, index, path }) =>
+              path ? (
+                <path
+                  key={item.label}
+                  d={path}
+                  fill={color(index, item.label)}
+                  opacity={hover === null || hover === index ? 1 : 0.35}
+                  onMouseEnter={() => setHover(index)}
+                  onMouseLeave={() => setHover(null)}
+                />
+              ) : (
+                <circle
+                  key={item.label}
+                  cx="60"
+                  cy="60"
+                  r="48"
+                  fill="none"
+                  stroke={color(index, item.label)}
+                  strokeWidth="16"
+                  onMouseEnter={() => setHover(index)}
+                  onMouseLeave={() => setHover(null)}
+                />
+              ),
+            )}
+          </svg>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="text-lg font-medium text-gray-900 tabular-nums">
+              {format(focus ? focus.value : total)}
+            </span>
+            <span className="max-w-20 truncate text-[11px] text-gray-500">
+              {focus ? `${focus.label} · ${pct(focus.value)}` : centerLabel}
+            </span>
+          </div>
+        </div>
+        <ul className="w-full min-w-0 flex-1 space-y-1.5 text-sm">
+          {shown.map((item, index) => {
+            const row = (
+              <>
+                <span
+                  className="size-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: color(index, item.label) }}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate text-gray-700">{item.label}</span>
+                <span className="font-medium text-gray-900 tabular-nums">{format(item.value)}</span>
+                <span className="w-10 text-right text-xs text-gray-500 tabular-nums">{pct(item.value)}</span>
+              </>
+            );
+            const to = (item as { to?: string }).to;
+            return (
+              <li
+                key={item.label}
+                onMouseEnter={() => setHover(index)}
+                onMouseLeave={() => setHover(null)}
+                className={cx('rounded-md px-1.5 py-0.5', hover === index && 'bg-gray-50')}
+              >
+                {to ? (
+                  <Link to={to} className="flex items-center gap-2 no-underline">
+                    {row}
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-2">{row}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <TableView
+        headers={[labelHeader, valueLabel, 'Share']}
+        rows={shown.map((i) => [i.label, format(i.value), pct(i.value)])}
       />
     </>
   );

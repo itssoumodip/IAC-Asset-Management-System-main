@@ -18,6 +18,8 @@ const child = spawn(process.execPath, [cli, 'run', 'test:integration', '-w', '@i
     SMTP_USER: '',
     SMTP_PASSWORD: '',
     SMTP_FROM: 'synthetic-tests@example.org',
+    // Tests deliver only to the local Mailpit catcher above, so delivery can be exercised.
+    OUTBOUND_NOTIFICATIONS: 'on',
   },
 });
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));

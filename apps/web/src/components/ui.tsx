@@ -701,6 +701,7 @@ export function PersonChip({
   department,
   email,
   size = 28,
+  holdingsHref,
 }: {
   userId: string;
   name: string;
@@ -711,9 +712,23 @@ export function PersonChip({
   department?: string | null;
   email?: string | null;
   size?: number;
+  /** Optional link in the card to everything this person holds. */
+  holdingsHref?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  // The card floats above the page (fixed), so table scroll areas never cut it off.
+  const [place, setPlace] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 });
+  function toggle() {
+    if (!open && button.current) {
+      const r = button.current.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - 256 - 8);
+      const below = window.innerHeight - r.bottom;
+      setPlace(below >= 340 || below >= r.top ? { left, top: r.bottom + 8 } : { left, bottom: window.innerHeight - r.top + 8 });
+    }
+    setOpen(!open);
+  }
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => {
@@ -722,18 +737,27 @@ export function PersonChip({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
+    const onMove = (event: Event) => {
+      if (ref.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
     };
   }, [open]);
   return (
     <span ref={ref} className="relative inline-flex max-w-full">
       <button
+        ref={button}
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         aria-expanded={open}
         aria-label={`Show profile of ${name}`}
         className="inline-flex max-w-full items-center gap-2 rounded-full py-0.5 pr-2 pl-0.5 text-left transition-colors hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-navy-500"
@@ -748,7 +772,8 @@ export function PersonChip({
         <span
           role="dialog"
           aria-label={name}
-          className="absolute top-full left-0 z-40 mt-2 flex w-64 flex-col items-center rounded-xl border border-gray-200 bg-white p-5 text-center shadow-lg"
+          className="fixed z-50 flex w-64 flex-col items-center rounded-xl border border-gray-200 bg-white p-5 text-center shadow-lg"
+          style={place}
         >
           <Avatar userId={userId} name={name} hasPhoto={hasPhoto} size={88} />
           <span className="mt-3 text-base font-semibold text-navy-900">{name}</span>
@@ -761,6 +786,15 @@ export function PersonChip({
             >
               {email}
             </a>
+          ) : null}
+          {holdingsHref ? (
+            <Link
+              to={holdingsHref}
+              onClick={() => setOpen(false)}
+              className={cx(buttonClass('secondary', 'sm'), 'mt-4 w-full justify-center')}
+            >
+              See everything they hold
+            </Link>
           ) : null}
         </span>
       ) : null}

@@ -42,6 +42,14 @@ export const configuration = () => {
     noticeVersion: process.env.PORTAL_NOTICE_VERSION || '1',
   };
 };
+/**
+ * Master switch for anything that reaches people outside the portal (email, web push).
+ * OFF unless OUTBOUND_NOTIFICATIONS=on: while the system is being tested, nobody may
+ * receive mail or push from it. In-app notices inside the portal are unaffected.
+ */
+export function outboundNotificationsEnabled(): boolean {
+  return process.env.OUTBOUND_NOTIFICATIONS?.trim().toLowerCase() === 'on';
+}
 export function isAllowedAppOrigin(value: string): boolean {
   const config = configuration();
   if (config.origins.includes(value)) return true;

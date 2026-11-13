@@ -1,5 +1,5 @@
 import { Db } from './db';
-import { configuration, decrypt } from './config';
+import { configuration, decrypt, outboundNotificationsEnabled } from './config';
 import nodemailer from 'nodemailer';
 import { randomUUID } from 'node:crypto';
 import { ZohoSyncService, zohoClientFromEnv } from './zoho';
@@ -8,6 +8,14 @@ import { refreshDashboardSummary } from './dashboard-summary';
 import { processNextExport, purgeExpiredExports } from './export-jobs';
 const retryMinutes = [1, 5, 15, 60, 360];
 export async function dispatchOnce(db: Db): Promise<boolean> {
+  if (!outboundNotificationsEnabled()) {
+    // Email is switched off: retire everything queued so nothing is sent later either.
+    await db.query(
+      `UPDATE email_deliveries SET state='DEAD',last_error_code='SUPPRESSED',leased_until=NULL,lease_token=NULL
+       WHERE state IN ('PENDING','LEASED')`,
+    );
+    return false;
+  }
   const lease = randomUUID();
   const delivery = await db.tx(async (c) => {
     await db.query(
