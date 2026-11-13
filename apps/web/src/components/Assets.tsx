@@ -1532,8 +1532,13 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
             {validation}
           </div>
         ) : null}
-        <fieldset disabled={financeOnly} style={lockedStyle}>
-          <Panel title="Ownership">
+        <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
+          <Panel title="Identity & configuration">
+            {roomHeld ? (
+              <p className={noticeClass()} role="note">
+                A location is required because this asset type is held in a room.
+              </p>
+            ) : null}
             <div className="form-grid">
               <Select
                 label="Owning team"
@@ -1557,15 +1562,6 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   ).map((item) => ({ value: item.id, label: `${item.name} (${item.code})` })),
                 ]}
               />
-            </div>
-            {roomHeld ? (
-              <p className={noticeClass()} role="note">
-                A location is required because this asset type is held in a room.
-              </p>
-            ) : null}
-          </Panel>
-          <Panel title="Identity & configuration">
-            <div className="form-grid">
               {textFields.map(([name, label]) => (
                 <Field key={name} label={label} htmlFor={name}>
                   <input
@@ -1711,7 +1707,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 />
               </Field>
             ))}
-            <fieldset disabled={financeOnly} style={lockedStyle}>
+            <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
               <Field label="Disposal method" htmlFor="disposalMethod">
                 <ReferenceSelect
                   refs={refs.data}
@@ -1815,7 +1811,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
           </fieldset>
         </Panel>
         <Panel title="Notes & accountability">
-          <fieldset disabled={financeOnly} style={lockedStyle}>
+          <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
             <Field label="Comment type" htmlFor="commentType">
               <ReferenceSelect
                 refs={refs.data}

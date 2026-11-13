@@ -92,11 +92,11 @@ function PersonList({
           {people.map((p) => (
             <tr key={p.id} aria-selected={p.id === selectedId}>
               <td>
-                <div className="person-row">
+                <div className="flex items-center gap-3">
                   <Avatar userId={p.id} name={p.displayName} hasPhoto={p.hasPhoto} />
-                  <div>
-                    <strong>{p.displayName}</strong>
-                    <span className="cell-description">{p.email}</span>
+                  <div className="flex min-w-0 flex-col leading-tight">
+                    <strong className="font-medium text-gray-900">{p.displayName}</strong>
+                    <span className="truncate text-xs text-gray-500">{p.email}</span>
                   </div>
                 </div>
               </td>
@@ -272,13 +272,13 @@ export function Directory() {
                 {recover.data.items.map((item) => (
                   <tr key={`${item.userId}-${item.assetId}`}>
                     <td>
-                      <div className="person-row">
+                      <div className="flex items-center gap-3">
                         <Avatar
                           userId={item.userId}
                           name={item.displayName}
                           hasPhoto={item.hasPhoto}
                         />
-                        <div>
+                        <div className="flex min-w-0 flex-col leading-tight">
                           <strong>{item.displayName}</strong>
                           <span className="cell-description">{item.email}</span>
                         </div>
