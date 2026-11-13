@@ -101,6 +101,7 @@ export interface Asset {
   owningTeamId?: string | null;
   status: string;
   version: number;
+  identifiers?: AssetIdentifier[];
   manufacturer?: string;
   model?: string;
   serialNumber?: string;
@@ -134,6 +135,13 @@ export interface Asset {
   kitParent?: { id: string; assetCode: string } | null;
   timeline?: TimelineEvent[];
   [key: string]: unknown;
+}
+export interface AssetIdentifier {
+  id: string;
+  kind: 'QR' | 'BARCODE' | 'NFC' | 'RFID';
+  value: string;
+  createdAt?: string;
+  createdBy?: string | null;
 }
 export interface TimelineEvent {
   id: string;
@@ -188,6 +196,9 @@ export interface LocationReference {
   floor?: string | null;
   room?: string | null;
   name?: string;
+  path?: string;
+  level?: string;
+  parentId?: string | null;
   active: boolean;
   version: number;
 }
@@ -203,6 +214,8 @@ export interface TeamReference {
 export interface AssetTypePolicy {
   assetTypeCode: string;
   requiresCustodian: boolean;
+  owningTeamId?: string | null;
+  handlingTeamId?: string | null;
 }
 export interface References {
   values: ReferenceValue[];

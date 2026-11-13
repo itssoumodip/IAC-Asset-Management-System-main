@@ -147,6 +147,11 @@ export function UserDashboard() {
   }
   const roles = user?.roles ?? [];
   // Most specific first. Someone with several roles gets the one closest to their daily work.
+  // Finance and Auditor can also open Reports (report.view), but their own dashboard
+  // fits their daily work better than the organisation overview.
+  const overview = roles.includes('SUPER_ADMIN') || roles.includes('EXECUTIVE');
+  if (!overview && roles.includes('FINANCE')) return <FinanceDashboard />;
+  if (!overview && roles.includes('AUDITOR') && !can(user, 'ticket.work')) return <AuditorDashboard />;
   if (can(user, 'report.view')) return <OverviewDashboard />;
   if (roles.includes('FINANCE')) return <FinanceDashboard />;
   if (can(user, 'ticket.work')) return <TeamDashboard />;

@@ -1,4 +1,3 @@
-import { formatInr } from '../admin-insights';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -9,9 +8,11 @@ import { can, useSession } from '../session';
 import type { Asset, AssignablePerson } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
+import { AssetTags } from './AssetTags';
+import { StoreReceiving } from './StoreReceiving';
+import { AssetDetailTabs } from './AssetDetailTabs';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
 import { FinanceStatusPanel } from './FinanceReview';
-import { AssetTransferPanel } from './TeamTransfers';
 import {
   useReferences,
   ReferenceSelect,
@@ -93,7 +94,7 @@ function assetExportRow(asset: Record<string, unknown>, manage: boolean) {
 
 const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
 function canAssign(asset: Asset) {
-  return asset.status === 'In Store' && !asset.currentAssignment;
+  return ['In Store', 'Ready to Assign'].includes(asset.status) && !asset.currentAssignment;
 }
 function canTransfer(asset: Asset) {
   return !!asset.currentAssignment && !terminalAssetStatuses.has(asset.status);
@@ -290,11 +291,11 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             options={[
               { value: '', label: 'All locations' },
               ...(refs.data?.locations
-                .filter((item) => item.active)
+                .filter((item) => item.active || item.id === filters.locationId)
                 .map((item) => ({
                   value: item.id,
-                  label: locationLabel(item),
-                })) ?? []),
+                  label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
+                })) || []),
             ]}
           />
           {manage ? (
@@ -800,215 +801,280 @@ export function AssetDetail() {
           ) : null}
         </div>
       ) : null}
-      <div className="detail-grid">
-        <Panel title="Asset overview">
-          <dl className="details">
-            <dt>Asset ID</dt>
-            <dd className="mono">{asset.assetCode}</dd>
-            <dt>Status</dt>
-            <dd>
-              <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
-            </dd>
-            <dt>Manufacturer / model</dt>
-            <dd>{[asset.manufacturer, asset.model].filter(Boolean).join(' / ') || 'Unknown'}</dd>
-            <dt>Serial number</dt>
-            <dd>{asset.serialNumber || 'Unknown'}</dd>
-            <dt>Condition</dt>
-            <dd>{referenceLabel(refs.data, 'CONDITION', asset.condition)}</dd>
-            <dt>Risk level</dt>
-            <dd>{referenceLabel(refs.data, 'RISK', asset.riskLevel)}</dd>
-            {manage ? (
-              <>
-                <dt>Owning team</dt>
+      <AssetDetailTabs
+        summary={
+          <div className="stack">
+            <Panel title="Asset summary">
+              <p className="asset-code">{asset.assetCode}</p>
+              <p>{asset.description}</p>
+              <Badge value={asset.status} />
+              <p className="muted">
+                {assignment?.employeeName
+                  ? `Assigned to ${assignment.employeeName}`
+                  : loc
+                    ? `Located at ${locationLabel(loc)}`
+                    : 'No current custodian or location'}
+              </p>
+            </Panel>
+            <AssetPhoto key={`summary-${asset.id}`} asset={asset} manage={manage} />
+          </div>
+        }
+        details={
+          <div className="detail-grid">
+            <Panel title="Asset overview">
+              <dl className="details">
+                <dt>Asset ID</dt>
+                <dd className="mono">{asset.assetCode}</dd>
+                <dt>Status</dt>
                 <dd>
-                  {refs.data?.teams?.find((item) => item.id === asset.owningTeamId)?.name ??
-                    'Unknown'}
+                  <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
                 </dd>
-              </>
-            ) : null}
-            <dt>Department</dt>
-            <dd>{department || 'Unknown'}</dd>
-            <dt>Location</dt>
-            <dd>{loc ? locationLabel(loc) : 'Unknown'}</dd>
-            <dt>Ownership</dt>
-            <dd>{referenceLabel(refs.data, 'OWNERSHIP', asset.ownershipType)}</dd>
-          </dl>
-          {asset.configuration ? (
-            <div className="subsection">
-              <h3>Configuration</h3>
-              <p className="preserve">{asset.configuration}</p>
-            </div>
-          ) : null}
-        </Panel>
-        <div className="stack">
-          <AssetPhoto key={asset.id} asset={asset} manage={manage} />
-          <Panel title="Current custody">
-            {assignment ? (
-              <>
-                <Badge value={assignment.acknowledgement} />
-                <p className="muted">
-                  {assignment.assignedAt
-                    ? `Assigned ${displayDate(assignment.assignedAt)}`
-                    : 'Current assignment recorded'}
-                </p>
+                <dt>Manufacturer / model</dt>
+                <dd>
+                  {[asset.manufacturer, asset.model].filter(Boolean).join(' / ') || 'Unknown'}
+                </dd>
+                <dt>Serial number</dt>
+                <dd>{asset.serialNumber || 'Unknown'}</dd>
+                <dt>Condition</dt>
+                <dd>{referenceLabel(refs.data, 'CONDITION', asset.condition)}</dd>
+                <dt>Risk level</dt>
+                <dd>{referenceLabel(refs.data, 'RISK', asset.riskLevel)}</dd>
                 {manage ? (
-                  <div className="custody-person">
-                    <strong>{assignment.employeeName || 'Employee name not recorded'}</strong>
-                    {assignment.employeeDesignation ? (
-                      <span>{assignment.employeeDesignation}</span>
+                  <>
+                    <dt>Owning team</dt>
+                    <dd>
+                      {refs.data?.teams?.find((item) => item.id === asset.owningTeamId)?.name ??
+                        'Unknown'}
+                    </dd>
+                  </>
+                ) : null}
+                <dt>Department</dt>
+                <dd>{department || 'Unknown'}</dd>
+                <dt>Location</dt>
+                <dd>{loc ? locationLabel(loc) : 'Unknown'}</dd>
+                <dt>Ownership</dt>
+                <dd>{referenceLabel(refs.data, 'OWNERSHIP', asset.ownershipType)}</dd>
+              </dl>
+              {asset.configuration ? (
+                <div className="subsection">
+                  <h3>Configuration</h3>
+                  <p className="preserve">{asset.configuration}</p>
+                </div>
+              ) : null}
+            </Panel>
+            <div className="stack">
+              <AssetPhoto key={asset.id} asset={asset} manage={manage} />
+              <Panel title="Current custody">
+                {assignment ? (
+                  <>
+                    <Badge value={assignment.acknowledgement} />
+                    <p className="muted">
+                      {assignment.assignedAt
+                        ? `Assigned ${displayDate(assignment.assignedAt)}`
+                        : 'Current assignment recorded'}
+                    </p>
+                    {manage ? (
+                      <div className="custody-person">
+                        <strong>{assignment.employeeName || 'Employee name not recorded'}</strong>
+                        {assignment.employeeDesignation ? (
+                          <span>{assignment.employeeDesignation}</span>
+                        ) : null}
+                        {assignment.employeeDepartment ? (
+                          <span className="muted">{assignment.employeeDepartment}</span>
+                        ) : null}
+                      </div>
                     ) : null}
-                    {assignment.employeeDepartment ? (
-                      <span className="muted">{assignment.employeeDepartment}</span>
+                    {assignment.acknowledgedAt ? (
+                      <p>Confirmed {displayDate(assignment.acknowledgedAt, true)}</p>
                     ) : null}
-                  </div>
+                    {manage && !asset.kitParent ? (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => {
+                          setReturning(!returning);
+                          setCustodySnapshot(
+                            assignment
+                              ? { id: assignment.id, version: assignment.version }
+                              : undefined,
+                          );
+                          setCondition(asset.condition ?? '');
+                          setLocation(asset.locationId ?? '');
+                          setReason('');
+                        }}
+                      >
+                        Record return
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="muted">No current assignment.</p>
+                )}
+                {returning && assignment ? (
+                  <form className="form-stack subsection" onSubmit={returnAsset}>
+                    <FormTransfer
+                      formId="asset-return"
+                      fields={[
+                        {
+                          key: 'condition',
+                          required: true,
+                          options: referenceOptions(refs.data, 'CONDITION').map(
+                            (item) => item.code,
+                          ),
+                        },
+                        {
+                          key: 'locationId',
+                          required: true,
+                          options:
+                            refs.data?.locations
+                              .filter((item) => item.active)
+                              .map((item) => item.id) ?? [],
+                        },
+                        { key: 'reason', required: true },
+                      ]}
+                      values={{ condition, locationId: location, reason }}
+                      disabled={action.isPending || refs.isPending || !!refs.error}
+                      onImport={(data) => {
+                        if (typeof data.condition === 'string') setCondition(data.condition);
+                        if (typeof data.locationId === 'string') setLocation(data.locationId);
+                        if (typeof data.reason === 'string') setReason(data.reason);
+                      }}
+                    />
+                    <Field label="Returned condition" htmlFor="return-condition">
+                      <ReferenceSelect
+                        id="return-condition"
+                        kind="condition"
+                        refs={refs.data}
+                        value={condition}
+                        onChange={setCondition}
+                      />
+                    </Field>
+                    <Select
+                      label="Return location"
+                      htmlFor="return-location"
+                      value={location}
+                      onChange={setLocation}
+                      required={true}
+                      options={[
+                        { value: '', label: 'Select location' },
+                        ...(refs.data?.locations
+                          .filter((item) => item.active || item.id === location)
+                          .map((item) => ({
+                            value: item.id,
+                            label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
+                            disabled: !item.active,
+                          })) || []),
+                      ]}
+                    />
+                    <Field label="Return reason" htmlFor="return-reason">
+                      <textarea
+                        id="return-reason"
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        maxLength={5000}
+                        required
+                      />
+                    </Field>
+                    <button className="button" disabled={action.isPending || !reason.trim()}>
+                      Confirm return
+                    </button>
+                  </form>
                 ) : null}
-                {assignment.acknowledgedAt ? (
-                  <p>Confirmed {displayDate(assignment.acknowledgedAt, true)}</p>
-                ) : null}
-                {manage && !asset.kitParent ? (
-                  <button
-                    type="button"
-                    className={buttonClass('secondary')}
-                    onClick={() => {
-                      setReturning(!returning);
-                      setCustodySnapshot(
-                        assignment ? { id: assignment.id, version: assignment.version } : undefined,
-                      );
-                      setCondition(asset.condition ?? '');
-                      setLocation(asset.locationId ?? '');
-                      setReason('');
-                    }}
-                  >
-                    Record return
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              <p className="muted">No current assignment.</p>
-            )}
-            {returning && assignment ? (
-              <form className="form-stack subsection" onSubmit={returnAsset}>
-                <FormTransfer
-                  formId="asset-return"
-                  fields={[
-                    {
-                      key: 'condition',
-                      required: true,
-                      options: referenceOptions(refs.data, 'CONDITION').map((item) => item.code),
-                    },
-                    {
-                      key: 'locationId',
-                      required: true,
-                      options:
-                        refs.data?.locations.filter((item) => item.active).map((item) => item.id) ??
-                        [],
-                    },
-                    { key: 'reason', required: true },
-                  ]}
-                  values={{ condition, locationId: location, reason }}
-                  disabled={action.isPending || refs.isPending || !!refs.error}
-                  onImport={(data) => {
-                    if (typeof data.condition === 'string') setCondition(data.condition);
-                    if (typeof data.locationId === 'string') setLocation(data.locationId);
-                    if (typeof data.reason === 'string') setReason(data.reason);
-                  }}
-                />
-                <Field label="Returned condition" htmlFor="return-condition">
-                  <ReferenceSelect
-                    id="return-condition"
-                    kind="condition"
-                    refs={refs.data}
-                    value={condition}
-                    onChange={setCondition}
-                  />
-                </Field>
-                <Select
-                  label="Return location"
-                  htmlFor="return-location"
-                  value={location}
-                  onChange={setLocation}
-                  required={true}
-                  options={[
-                    { value: '', label: 'Select location' },
-                    ...(refs.data?.locations
-                      .filter((item) => item.active || item.id === location)
-                      .map((item) => ({
-                        value: item.id,
-                        label: `${locationLabel(item)}${!item.active ? ' (inactive)' : ''}`,
-                        disabled: !item.active,
-                      })) || []),
-                  ]}
-                />
-                <Field label="Return reason" htmlFor="return-reason">
-                  <textarea
-                    id="return-reason"
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    maxLength={5000}
-                    required
-                  />
-                </Field>
-                <button className={buttonClass()} disabled={action.isPending || !reason.trim()}>
-                  Confirm return
-                </button>
-              </form>
+              </Panel>
+              <Panel title="Coverage & dates">
+                <dl className="details">
+                  <dt>Warranty expires</dt>
+                  <dd>{displayDate(asset.warrantyExpiry)}</dd>
+                  <dt>AMC</dt>
+                  <dd>
+                    {asset.amcApplies
+                      ? displayDate(asset.amcExpiry)
+                      : asset.amcApplies === false
+                        ? 'Not applicable'
+                        : 'Unknown'}
+                  </dd>
+                  <dt>Next audit</dt>
+                  <dd>{displayDate(asset.nextAuditDate)}</dd>
+                </dl>
+              </Panel>
+            </div>
+            {manage ? (
+              <Panel title="Finance metadata">
+                <p className="muted">
+                  Operational records only. Valuations require Finance policy approval.
+                </p>
+                <dl className="details">
+                  <dt>Purchase cost</dt>
+                  <dd>{asset.purchaseCost == null ? 'Pending' : `INR ${asset.purchaseCost}`}</dd>
+                  <dt>Residual value</dt>
+                  <dd>
+                    {asset.residualValue == null
+                      ? 'Pending Finance input'
+                      : `INR ${asset.residualValue}`}
+                  </dd>
+                  <dt>Purchase date</dt>
+                  <dd>{displayDate(asset.purchaseDate)}</dd>
+                </dl>
+              </Panel>
             ) : null}
+            {asset.kitParent ? (
+              <Panel title="Kit">
+                <p>
+                  Part of kit{' '}
+                  <Link to={`/assets/${asset.kitParent.id}`}>{asset.kitParent.assetCode}</Link>.
+                  Custody changes are made on the kit; detach this item first to move it on its own.
+                </p>
+              </Panel>
+            ) : null}
+            <AssetTags asset={asset} canEdit={mayEdit} />
+            {mayCustody && !asset.currentAssignment && !asset.kitParent ? (
+              <Panel title="Store receiving">
+                <p className="muted">Record where an unassigned asset was received.</p>
+                <StoreReceiving asset={asset} refs={refs.data} />
+              </Panel>
+            ) : null}
+            {can(user, 'asset.custody', assetTeam) && !asset.kitParent ? (
+              <KitPanel asset={asset} />
+            ) : null}
+            <Panel title="Asset history">
+              <Timeline items={asset.timeline ?? []} />
+            </Panel>
+          </div>
+        }
+        tickets={
+          <Panel title="Tickets">
+            <p className="muted">Support requests linked to this asset.</p>
+            <Link
+              className="button secondary"
+              to={`/tickets?assetId=${encodeURIComponent(asset.id)}`}
+            >
+              View asset tickets
+            </Link>
           </Panel>
-          <Panel title="Coverage & dates">
-            <dl className="details">
-              <dt>Warranty expires</dt>
-              <dd>{displayDate(asset.warrantyExpiry)}</dd>
-              <dt>AMC</dt>
-              <dd>
-                {asset.amcApplies
-                  ? displayDate(asset.amcExpiry)
-                  : asset.amcApplies === false
-                    ? 'Not applicable'
-                    : 'Unknown'}
-              </dd>
-              <dt>Next audit</dt>
-              <dd>{displayDate(asset.nextAuditDate)}</dd>
-            </dl>
+        }
+        users={
+          <Panel title="Users">
+            {assignment ? (
+              <div className="custody-person">
+                <strong>{assignment.employeeName || 'Current user not recorded'}</strong>
+                {assignment.employeeDesignation ? (
+                  <span>{assignment.employeeDesignation}</span>
+                ) : null}
+                {assignment.employeeDepartment ? (
+                  <span className="muted">{assignment.employeeDepartment}</span>
+                ) : null}
+              </div>
+            ) : (
+              <p className="muted">No user currently holds this asset.</p>
+            )}
           </Panel>
-        </div>
-        {manage ? (
-          <Panel title="Finance metadata">
-            <p className="muted">
-              Operational records only. Valuations require Finance policy approval.
-            </p>
-            <dl className="details">
-              <dt>Purchase cost</dt>
-              <dd>
-                {asset.purchaseCost == null ? 'Pending' : formatInr(Number(asset.purchaseCost))}
-              </dd>
-              <dt>Residual value</dt>
-              <dd>
-                {asset.residualValue == null
-                  ? 'Pending Finance input'
-                  : formatInr(Number(asset.residualValue))}
-              </dd>
-              <dt>Purchase date</dt>
-              <dd>{displayDate(asset.purchaseDate)}</dd>
-            </dl>
+        }
+        history={
+          <Panel title="History">
+            <Timeline items={asset.timeline ?? []} />
           </Panel>
-        ) : null}
-        {asset.kitParent ? (
-          <Panel title="Kit">
-            <p>
-              Part of kit{' '}
-              <Link to={`/assets/${asset.kitParent.id}`}>{asset.kitParent.assetCode}</Link>. Custody
-              changes are made on the kit; detach this item first to move it on its own.
-            </p>
-          </Panel>
-        ) : null}
-        {can(user, 'asset.custody', assetTeam) && !asset.kitParent ? (
-          <KitPanel asset={asset} />
-        ) : null}
-        <AssetTransferPanel asset={asset} />
-        <Panel title="Asset history">
-          <Timeline items={asset.timeline ?? []} />
-        </Panel>
-      </div>
+        }
+      />
     </>
   );
 }
@@ -1425,33 +1491,83 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   />
                 </Field>
               ))}
-              {['category', 'assetType', 'ownershipType', 'status', 'condition', 'riskLevel'].map(
-                (name) => (
-                  <Field
-                    key={name}
-                    label={
-                      {
-                        category: 'Category',
-                        assetType: 'Asset type',
-                        ownershipType: 'Ownership type',
-                        status: 'Status',
-                        condition: 'Condition',
-                        riskLevel: 'Risk level',
-                      }[name] ?? name
-                    }
-                    htmlFor={name}
-                  >
-                    <ReferenceSelect
-                      refs={refs.data}
-                      kind={name}
-                      id={name}
-                      value={values[name] ?? ''}
-                      onChange={(value) => set(name, value)}
-                      preserveCurrent={!!baseline}
-                    />
-                  </Field>
-                ),
-              )}
+              {['category', 'ownershipType', 'status', 'condition', 'riskLevel'].map((name) => (
+                <Field
+                  key={name}
+                  label={
+                    {
+                      category: 'Category',
+                      ownershipType: 'Ownership type',
+                      status: 'Status',
+                      condition: 'Condition',
+                      riskLevel: 'Risk level',
+                    }[name] ?? name
+                  }
+                  htmlFor={name}
+                >
+                  <ReferenceSelect
+                    refs={refs.data}
+                    kind={name}
+                    id={name}
+                    value={values[name] ?? ''}
+                    onChange={(value) => set(name, value)}
+                    preserveCurrent={!!baseline}
+                  />
+                </Field>
+              ))}
+              {/* Asset type is filtered by the chosen owning team's type→team mapping. */}
+              <Field key="assetType" label="Asset type" htmlFor="assetType">
+                <Select
+                  label=""
+                  htmlFor="assetType"
+                  value={values.assetType ?? ''}
+                  onChange={(value) => set('assetType', value)}
+                  required
+                  options={[
+                    { value: '', label: 'Select asset type' },
+                    ...(refs.data?.assetTypePolicies ?? [])
+                      .filter((policy) => {
+                        if (can(user, 'asset.change_team')) return true;
+                        if (!selectedTeam) return false;
+                        if (policy.owningTeamId === selectedTeam.id) return true;
+                        // Projects may use Admin's facility types for grant purchases.
+                        if (
+                          selectedTeam.code === 'PRJ' &&
+                          policy.owningTeamId === teams.find((t) => t.code === 'ADM')?.id
+                        )
+                          return true;
+                        return false;
+                      })
+                      .filter((policy) => {
+                        const ref = refs.data?.values.find(
+                          (v) => v.kind === 'ASSET_TYPE' && v.code === policy.assetTypeCode,
+                        );
+                        return ref?.active ?? false;
+                      })
+                      .map((policy) => {
+                        const ref = refs.data?.values.find(
+                          (v) => v.kind === 'ASSET_TYPE' && v.code === policy.assetTypeCode,
+                        );
+                        return {
+                          value: policy.assetTypeCode,
+                          label: ref?.label ?? policy.assetTypeCode,
+                        };
+                      }),
+                    // When editing, keep the current type selectable even if the mapping changed.
+                    ...(baseline && baseline.assetType
+                      ? [
+                          {
+                            value: baseline.assetType,
+                            label:
+                              refs.data?.values.find(
+                                (v) => v.kind === 'ASSET_TYPE' && v.code === baseline.assetType,
+                              )?.label ?? baseline.assetType,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </Field>
               <Select
                 label="Department"
                 htmlFor="departmentId"

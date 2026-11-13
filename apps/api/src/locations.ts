@@ -20,6 +20,16 @@ import { camel, found, id, parse, text } from './domain-helpers';
 import { assertCan } from './policy';
 import { AuthRequest, SessionGuard, assertVersion } from './security';
 
+/** Every location with its full path ("Site › Building › Floor"), built root-first. */
+export const LOCATION_PATHS_SQL = `
+  WITH RECURSIVE tree AS (
+    SELECT id, name::text AS path, 1 AS depth FROM locations WHERE parent_id IS NULL
+    UNION ALL
+    SELECT l.id, tree.path || ' › ' || l.name, tree.depth + 1
+    FROM locations l JOIN tree ON l.parent_id = tree.id WHERE tree.depth < 50
+  )`;
+
+
 const levels = ['SITE', 'ZONE', 'BUILDING', 'FLOOR', 'UNIT', 'STORE', 'RACK'] as const;
 // Same rules as Master Control: Admin only, reason required, audited, advisory-locked.
 const locationCode = z

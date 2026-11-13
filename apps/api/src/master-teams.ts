@@ -42,7 +42,9 @@ export async function teamLists(db: Db) {
               EXISTS(SELECT 1 FROM assets a WHERE a.asset_code LIKE 'IAC-'||t.asset_code_prefix||'-%') AS prefix_in_use
        FROM teams t ORDER BY t.name`,
     ),
-    db.query('SELECT asset_type_code,requires_custodian FROM asset_type_policies ORDER BY 1'),
+    db.query(
+      `SELECT asset_type_code,requires_custodian,owning_team_id,handling_team_id,category_code FROM asset_type_policies ORDER BY 1`,
+    ),
     db.query('SELECT category_code,team_id FROM ticket_category_teams ORDER BY 1'),
   ]);
   return {

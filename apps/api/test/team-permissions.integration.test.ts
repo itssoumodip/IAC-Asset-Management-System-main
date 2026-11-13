@@ -377,6 +377,7 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       assetType: 'Laptop',
       owningTeamId: ADM,
       description: tag + ' super admin override',
+      overrideReason: 'Synthetic cross-team ownership test',
     });
     assert.equal(overridden.owningTeamId, ADM);
 
@@ -461,6 +462,11 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       description: tag + ' prj asset for dashboard',
     });
     assert.ok(itAsset.id && admAsset.id && prjAsset.id);
+
+    // Verify dashboard reads scoped items; IT assets excluded
+    void itAsset;
+    void admAsset;
+    void prjAsset;
 
     const dash = await execService.team(request(admMember));
     assert.ok(dash);

@@ -358,7 +358,7 @@ export class ImportDomain extends TicketDomain {
         message: 'Invalid preferred email is quarantined; lower-priority identity cannot bypass it',
       });
     const hasCustodian = !!String(raw.Custodian ?? '').trim();
-    const needsCustody = candidate.status === 'Assigned' || hasCustodian || !!identity.email;
+    const needsCustody = ['Assigned', 'In Use'].includes(candidate.status) || hasCustodian || !!identity.email;
     let custodianId: null | string = null;
     if (needsCustody) {
       if (!identity.email)
@@ -379,11 +379,11 @@ export class ImportDomain extends TicketDomain {
             message: 'Custodian must be an approved active, verified portal Employee',
           });
       }
-      if (!['Assigned', 'Under Repair', 'Lost', 'Stolen'].includes(candidate.status))
+      if (!['Assigned', 'In Use', 'Under Repair', 'Lost', 'Stolen'].includes(candidate.status))
         issues.push({
           code: 'CUSTODY_STATUS_CONFLICT',
           message:
-            'Current custody requires Assigned, Under Repair, Lost or Stolen; owner must resolve ambiguous source status',
+            'Current custody requires Assigned, In Use, Under Repair, Lost or Stolen; owner must resolve ambiguous source status',
         });
     }
     if ((await this.db.query('SELECT id FROM assets WHERE asset_code=$1', [code], c))[0])

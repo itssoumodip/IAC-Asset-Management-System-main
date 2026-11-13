@@ -444,7 +444,12 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
       service.editAsset(request(admin, asset.version), asset.id, { status: 'Assigned', reason }),
       status(409),
     );
-    const alternate = await service.createAsset(request(admin), { ...base, category: 'Other' });
+    const alternate = await service.createAsset(request(admin), {
+      ...base,
+      // Laptop is a subcategory of IT Hardware (category catalog); an override covers team, not type.
+      category: 'IT Hardware',
+      overrideReason: 'Synthetic historical reference test',
+    });
     await assert.rejects(
       service.editAsset(request(admin, alternate.version), alternate.id, {
         category: category.code,

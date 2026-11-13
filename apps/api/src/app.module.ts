@@ -6,6 +6,8 @@ import { SessionGuard } from './security';
 import { DomainController, DomainService } from './domain';
 import { AssetPhotoController, AssetPhotoService } from './asset-photos';
 import { ScanController, ScanService } from './scan';
+import { AssetIdentifierController, AssetIdentifierService } from './asset-identifiers';
+import { FieldPermissionController, FieldPermissionService } from './field-permissions';
 import { LabelController, LabelService } from './labels';
 import { DataTransferController, DataTransferService } from './data-transfers';
 import { AdminDashboardController, AdminDashboardService } from './admin-dashboard';
@@ -30,6 +32,7 @@ import { AssignablePeopleController, PeopleController, PeopleService } from './p
 import { ExportJobsController, ExportJobsService } from './export-jobs';
 import { MaintenanceController, MaintenanceService } from './maintenance';
 import { RequestsController, RequestsService } from './requests';
+import { CategoryController, CategoryService } from './categories';
 import {
   DirectoryController,
   UserPhotoController,
@@ -70,6 +73,9 @@ import {
     ExportJobsController,
     MaintenanceController,
     RequestsController,
+    AssetIdentifierController,
+    FieldPermissionController,
+    CategoryController,
   ],
   providers: [
     Db,
@@ -102,6 +108,9 @@ import {
     ExportJobsService,
     MaintenanceService,
     RequestsService,
+    AssetIdentifierService,
+    FieldPermissionService,
+    CategoryService,
     ZohoSyncService,
     { provide: ZOHO_CLIENT, useFactory: zohoClientFromEnv },
   ],

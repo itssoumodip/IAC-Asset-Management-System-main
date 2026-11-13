@@ -30,7 +30,7 @@ const status = (code: number) => (error: any) => {
 };
 
 describe('domain PostgreSQL integration', { skip: !connection, concurrency: false }, () => {
-  let db: Db, service: DomainService, admin: any, employee: any, other: any, itAdmin: any;
+  let db: Db, service: DomainService, admin: any, employee: any, other: any, itAdmin: any, itLead: any;
   let asset: any, assignment: any, ticket: any;
   const input = {
     category: 'Domain Test Category',
@@ -90,7 +90,9 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
     employee = await make(['EMPLOYEE']);
     other = await make(['EMPLOYEE']);
     itAdmin = await make(['EMPLOYEE']);
+    itLead = await make(['EMPLOYEE']);
     await joinTeam(db, itAdmin, 'MEMBER', ADM_TEAM_ID);
+    await joinTeam(db, itLead, 'LEAD', IT_TEAM_ID);
   });
   after(async () => {
     if (db) await db.onModuleDestroy();
@@ -113,6 +115,80 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
         reason: 'Try to rename',
       }),
       status(422),
+    );
+  });
+
+  it('enforces the expanded assignment statuses', async () => {
+    const makeAsset = (status: string) =>
+      service.createAsset(request(admin), { ...input, description: `status-${status}-${randomUUID()}`, status });
+    const ready = await makeAsset('In Store');
+    await assert.rejects(
+      service.editAsset(request(itAdmin, ready.version), ready.id, {
+        status: 'Ready to Assign',
+        reason: 'Member cannot promote',
+      }),
+      status(403),
+    );
+    const promoted = await service.editAsset(request(itLead, ready.version), ready.id, {
+      status: 'Ready to Assign',
+      reason: 'Ready for handover',
+    });
+
+    it('receives an asset into a store location and records the relocation', async () => {
+      const [store] = await db.query(
+        "INSERT INTO locations(code,name,level) VALUES($1,$2,'STORE') RETURNING id",
+        [`${tag}-store`, `${tag} Store`],
+      );
+      const created = await service.createAsset(request(admin), {
+        ...input,
+        description: `receiving-${randomUUID()}`,
+        locationId: null,
+      });
+      const received = await service.receiveIntoStore(request(itLead, created.version), created.id, {
+        locationId: store.id,
+        note: 'Received from supplier',
+      });
+      assert.equal(received.status, 'In Store');
+      assert.equal(received.locationId, store.id);
+      const [movement] = await db.query(
+        'SELECT kind,reason,to_location_id FROM asset_movements WHERE asset_id=$1 ORDER BY occurred_at DESC LIMIT 1',
+        [created.id],
+      );
+      assert.deepEqual(movement, {
+        kind: 'RELOCATE',
+        reason: 'Received from supplier',
+        to_location_id: store.id,
+      });
+    });
+    assert.equal(promoted.status, 'Ready to Assign');
+    const assigned = await service.assign(request(admin, promoted.version), ready.id, {
+      userId: employee.id,
+      note: 'Handed over',
+    });
+    assert.equal(assigned.assetVersion, promoted.version + 1);
+    const [inUse] = await db.query('SELECT status FROM assets WHERE id=$1', [ready.id]);
+    assert.equal(inUse.status, 'In Use');
+    const assignedFilter = await service.assets(request(admin), { status: 'Assigned', q: ready.assetCode });
+    const inUseFilter = await service.assets(request(admin), { status: 'In Use', q: ready.assetCode });
+    assert.equal(assignedFilter.items[0].id, ready.id);
+    assert.equal(inUseFilter.items[0].id, ready.id);
+
+    const broken = await makeAsset('Broken');
+    await assert.rejects(
+      service.assign(request(admin, broken.version), broken.id, { userId: other.id, note: 'Try broken asset' }),
+      status(409),
+    );
+    const scrapped = await makeAsset('In Store');
+    const writtenOff = await service.editAsset(request(admin, scrapped.version), scrapped.id, {
+      status: 'Scrapped',
+      disposalDate: '2026-10-30',
+      disposalReference: `SCRAP-${randomUUID()}`,
+      reason: 'Beyond repair',
+    });
+    assert.equal(writtenOff.status, 'Scrapped');
+    await assert.rejects(
+      service.assign(request(admin, writtenOff.version), scrapped.id, { userId: other.id, note: 'Try scrapped asset' }),
+      status(409),
     );
   });
   it('keeps asset details unchanged when Employees or IT staff attempt catalog edits', async () => {
@@ -227,7 +303,7 @@ describe('domain PostgreSQL integration', { skip: !connection, concurrency: fals
       status(409),
     );
     const current = await service.asset(request(employee), asset.id);
-    assert.equal(current.status, 'Assigned');
+    assert.equal(current.status, 'In Use');
   });
   it('creates scoped tickets and queues new-ticket emails to verified Admin and routed-team recipients', async () => {
     await service.updateGroup(request(admin), 'ADMIN', {

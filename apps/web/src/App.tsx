@@ -39,6 +39,7 @@ import { Reports } from './components/Reports';
 import { Insurance } from './components/Insurance';
 import { Procurement } from './components/Procurement';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
+import { ChangeRequests } from './components/ChangeRequests';
 import { useAction } from './hooks';
 import { greeting, todayLabel } from './executive';
 import type { Action } from './types';
@@ -440,6 +441,12 @@ function Shell() {
             {(can(user, 'approvals.act') || can(user, 'asset.finance_edit')) && (
               <SideLink to="/approvals" icon="approvals">
                 Approvals
+              </SideLink>
+            )}
+            {/* Protected-field edits wait for the role that owns the field. */}
+            {user.roles.some((role) => ['SUPER_ADMIN', 'STORE', 'AUDITOR', 'TECHNICIAN'].includes(role)) && (
+              <SideLink to="/admin/change-requests" icon="approvals">
+                Change approvals
               </SideLink>
             )}
             {(can(user, 'asset.edit') || can(user, 'system.admin')) && (
@@ -887,6 +894,8 @@ export function App() {
             <Route path="/tickets/:id" element={<TicketDetail />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            {/* Store, Auditor and Technician review edits to fields they own; the API scopes by role. */}
+            <Route path="/admin/change-requests" element={<ChangeRequests />} />
             <Route path="/install" element={<InstallAppPage />} />
             <Route element={<Guard action="announcement.send" />}>
               <Route path="/admin/announcements" element={<PushAnnouncements />} />
@@ -935,6 +944,9 @@ export function App() {
             <Route element={<Guard action="system.admin" />}>
               <Route path="/admin/roles" element={<RoleFieldPermissions />} />
               <Route path="/admin/teams" element={<TeamsAndProjects />} />
+              <Route path="/admin/locations" element={<Locations />} />
+              {/* Main's field-permission page is covered by the fuller /admin/roles page. */}
+              <Route path="/admin/field-permissions" element={<Navigate to="/admin/roles" replace />} />
               <Route path="/admin/directory" element={<Directory />} />
               <Route path="/admin/users" element={<UserAdmin />} />
               <Route path="/admin/audit" element={<AuditView />} />

@@ -287,7 +287,7 @@ export class ZohoSyncService {
     const cols = `u.id,u.email,u.display_name,u.employee_code,u.zoho_record_id,u.state,u.designation,u.manager_name,u.department_id,u.left_at,
       EXISTS(SELECT 1 FROM user_photos p WHERE p.user_id=u.id) AS has_photo,
       (SELECT count(*)::int FROM assignments s WHERE s.user_id=u.id AND s.ended_at IS NULL) AS assets_held,
-      d.name AS department_name`;
+      d.name AS department`;
     const zoho = await this.db.query(
       `SELECT ${cols} FROM users u LEFT JOIN departments d ON d.id=u.department_id WHERE u.state='DIRECTORY' AND u.zoho_record_id IS NOT NULL ORDER BY u.display_name LIMIT 500`,
     );

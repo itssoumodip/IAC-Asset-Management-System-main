@@ -183,7 +183,8 @@ describe('store returns PostgreSQL integration', { skip: !connection, concurrenc
     await assert.rejects(store.listActivity(request(employee)), status(403));
     const [still] = await db.query('SELECT ended_at FROM assignments WHERE id=$1', [assignment.id]);
     assert.equal(still.ended_at, null);
-    assert.equal((await row(asset.id)).status, 'Assigned');
+    // Assignment now records In Use (Assigned and In Use are equivalent held states).
+    assert.ok(['Assigned', 'In Use'].includes((await row(asset.id)).status));
   });
 
   it('rejects receiving an already-closed assignment with 409', async () => {

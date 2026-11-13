@@ -32,6 +32,7 @@ export interface Actor {
   sessionScope: string;
   sessionHash: string;
   hasPhoto?: boolean;
+  assetViewFields?: string[];
 }
 export interface AuthRequest extends Request {
   user: Actor;
@@ -68,6 +69,14 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
     [row.id_hash],
   );
   const teams = await loadTeams(db, row.id);
+  const assetViewFields = row.roles.includes('INSURER')
+    ? (
+        await db.query(
+          `SELECT field_name FROM role_field_permissions
+           WHERE role_code='INSURER' AND can_view ORDER BY field_name`,
+        )
+      ).map((permission) => permission.field_name)
+    : undefined;
   return {
     requestId: String(req.res?.getHeader('X-Request-Id') || ''),
     id: row.id,
@@ -89,6 +98,7 @@ export async function resolveSession(db: Db, req: Request): Promise<Actor> {
     sessionScope: row.scope,
     sessionHash: row.id_hash,
     hasPhoto: row.has_photo,
+    assetViewFields,
   };
 }
 @Injectable()

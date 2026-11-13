@@ -18,7 +18,7 @@ describe(
   { skip: !connection, concurrency: false },
   () => {
     let app: INestApplication, db: Db, base: string;
-    let member: any, finance: any;
+    let member: any, lead: any, finance: any;
     const refs = {
       CATEGORY: `${tag} cat`,
       ASSET_TYPE: `${tag} type`,
@@ -89,6 +89,7 @@ describe(
         return u;
       };
       member = await joinTeam(db, await user(['EMPLOYEE']), 'MEMBER', IT_TEAM_ID);
+      lead = await joinTeam(db, await user(['EMPLOYEE']), 'LEAD', IT_TEAM_ID);
       finance = await user(['FINANCE']);
       for (const [kind, code] of Object.entries(refs))
         await db.query('INSERT INTO reference_values(kind,code,label) VALUES($1,$2,$2)', [
@@ -178,8 +179,17 @@ describe(
     it('accepts Ready to Assign, In Use and Broken, but not Assigned on create', async () => {
       const created = await call(member, 'POST', '/assets', payload());
       assert.equal(created.status, 201);
-      const edited = await call(
+      // Ready to Assign is an owning-team lead (or Super Admin) decision.
+      const byMember = await call(
         member,
+        'PATCH',
+        `/assets/${created.body.id}`,
+        { status: 'Ready to Assign', reason: 'prepared for handover' },
+        created.body.version,
+      );
+      assert.equal(byMember.status, 403, JSON.stringify(byMember.body));
+      const edited = await call(
+        lead,
         'PATCH',
         `/assets/${created.body.id}`,
         { status: 'Ready to Assign', reason: 'prepared for handover' },

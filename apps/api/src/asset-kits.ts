@@ -123,7 +123,7 @@ export async function cascadeAssign(
       c,
     );
     await db.query(
-      "UPDATE assets SET status='Assigned',version=version+1,updated_at=now() WHERE id=$1",
+      "UPDATE assets SET status='In Use',version=version+1,updated_at=now() WHERE id=$1",
       [part.id],
       c,
     );

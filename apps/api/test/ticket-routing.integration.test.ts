@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
+import { ScanService } from '../src/scan';
 import type { AuthRequest } from '../src/security';
 import { ADM_TEAM_ID as ADM, IT_TEAM_ID as IT, PRJ_TEAM_ID as PRJ, joinTeam } from './team-fixtures';
 
@@ -31,8 +32,8 @@ const status =
   };
 
 describe('ticket routing PostgreSQL integration', { skip: !connection, concurrency: false }, () => {
-  let db: Db, service: DomainService;
-  let superAdmin: any, itMember: any, admMember: any, admLead: any, itLead: any, employee: any;
+  let db: Db, service: DomainService, scan: ScanService;
+  let superAdmin: any, itMember: any, admMember: any, admLead: any, itLead: any, employee: any, technician: any;
   const mappedCategory = `${tag}-mapped`;
   const plainCategory = `${tag}-plain`;
   const assetInput = {
@@ -91,6 +92,7 @@ describe('ticket routing PostgreSQL integration', { skip: !connection, concurren
     process.env.AUTH_MAIL_ENCRYPTION_KEY ||= randomBytes(32).toString('hex');
     db = new Db();
     service = new DomainService(db);
+    scan = new ScanService(db);
     for (const [kind, code] of [
       ['CATEGORY', assetInput.category],
       ['ASSET_TYPE', assetInput.assetType],
@@ -108,6 +110,7 @@ describe('ticket routing PostgreSQL integration', { skip: !connection, concurren
     superAdmin = await make(['SUPER_ADMIN']);
     itMember = await joinTeam(db, await make(['EMPLOYEE']), 'MEMBER', IT);
     itLead = await joinTeam(db, await make(['EMPLOYEE']), 'LEAD', IT);
+    technician = await joinTeam(db, await make(['TECHNICIAN', 'EMPLOYEE']), 'MEMBER', IT);
     admMember = await joinTeam(db, await make(['EMPLOYEE']), 'MEMBER', ADM);
     admLead = await joinTeam(db, await make(['EMPLOYEE']), 'LEAD', ADM);
     employee = await make(['EMPLOYEE']);
@@ -164,6 +167,32 @@ describe('ticket routing PostgreSQL integration', { skip: !connection, concurren
     assert.ok(!filtered.items.some((t: any) => t.id === ticket.id));
     const own = await service.tickets(request(employee), { limit: '100' });
     assert.ok(own.items.some((t: any) => t.id === ticket.id));
+  });
+
+  it('technician sees only assets on tickets assigned to them and no private fields', async () => {
+    const assignedAsset = await service.createAsset(request(superAdmin), {
+      ...assetInput,
+      description: `${tag} assigned technician asset`,
+    });
+    const unassignedAsset = await service.createAsset(request(superAdmin), {
+      ...assetInput,
+      description: `${tag} unrelated technician asset`,
+    });
+    const ticket = await report(employee, { assetId: assignedAsset.id });
+    const assigned = await service.ticketOwner(request(itLead, ticket.version), ticket.id, {
+      ownerId: technician.id,
+    });
+
+    const listed = await service.assets(request(technician), { limit: '100', q: tag });
+    assert.ok(listed.items.some((asset: any) => asset.id === assignedAsset.id));
+    assert.ok(!listed.items.some((asset: any) => asset.id === unassignedAsset.id));
+    const listedAssigned = listed.items.find((asset: any) => asset.id === assignedAsset.id);
+    assert.ok(!Object.hasOwn(listedAssigned, 'purchaseCost'));
+    assert.equal((await service.asset(request(technician), assignedAsset.id)).id, assignedAsset.id);
+    await assert.rejects(service.asset(request(technician), unassignedAsset.id), status(404));
+    assert.equal((await scan.view(request(technician), assignedAsset.assetCode)).id, assignedAsset.id);
+    await assert.rejects(scan.view(request(technician), unassignedAsset.assetCode), status(404));
+    assert.equal(assigned.ownerId, technician.id);
   });
 
   it('team members see tickets they reported even for another team', async () => {

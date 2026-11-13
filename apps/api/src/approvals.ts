@@ -19,6 +19,7 @@ import { assertCan } from './policy';
 import { AuthRequest, SessionGuard } from './security';
 import { RequestsService } from './requests';
 import { TransferService } from './transfers';
+import { DomainService } from './domain';
 
 // The page historically sent APPROVED / REJECTED; accept both spellings.
 const approvalDecision = z
@@ -36,6 +37,7 @@ export class ApprovalsService {
     @Inject(Db) private readonly db: Db,
     @Inject(RequestsService) private readonly requests: RequestsService,
     @Inject(TransferService) private readonly transfers: TransferService,
+    @Inject(DomainService) private readonly domain: DomainService,
   ) {}
 
   async list(req: AuthRequest, tab: string) {
@@ -227,21 +229,21 @@ export class ApprovalsService {
         : this.transfers.decline(req, idUuid, { note: input.reason });
 
     const [existing] = await this.db.query(
-      'SELECT id, status FROM asset_change_requests WHERE id = $1 FOR UPDATE',
+      'SELECT id, status FROM asset_change_requests WHERE id = $1',
       [idUuid],
     );
     if (!existing) throw new NotFoundException('Approval request not found');
     if (existing.status !== 'PENDING')
       throw new UnprocessableEntityException('This request has already been reviewed');
 
-    const [updated] = await this.db.query(
-      `UPDATE asset_change_requests
-       SET status = $1, reviewed_by = $2, review_reason = $3, reviewed_at = now()
-       WHERE id = $4 RETURNING id, status`,
-      [input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED', req.user.id, input.reason, idUuid],
-    );
-
-    return { id: updated.id, status: updated.status };
+    // Asset change request → the asset service reviews it: only the owning role
+    // (or Super Admin) may decide, an approval applies the change to the asset
+    // with a version check, and both outcomes are audited.
+    const reviewed = await this.domain.reviewChangeRequest(req, idUuid, {
+      decision: input.decision,
+      reason: input.reason,
+    });
+    return { ...reviewed, id: idUuid, status: input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED' };
   }
 }
 

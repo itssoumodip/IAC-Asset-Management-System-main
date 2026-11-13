@@ -184,7 +184,7 @@ describe('asset kits PostgreSQL integration', { skip: !connection, concurrency: 
     const part = await create(itMember);
     await assignTo(itMember, parent, employee);
     await attach(itMember, parent, part);
-    assert.equal((await row(part.id)).status, 'Assigned');
+    assert.equal((await row(part.id)).status, 'In Use');
     assert.equal((await custody(part.id)).user_id, employee.id);
     const moves = await db.query('SELECT kind FROM asset_movements WHERE asset_id=$1', [part.id]);
     assert.ok(moves.some((m: any) => m.kind === 'ASSIGN'));
@@ -197,7 +197,7 @@ describe('asset kits PostgreSQL integration', { skip: !connection, concurrency: 
     await attach(itMember, parent, p2);
     await assignTo(itMember, parent, employee);
     for (const a of [parent, p1, p2]) {
-      assert.equal((await row(a.id)).status, 'Assigned');
+      assert.equal((await row(a.id)).status, 'In Use');
       assert.equal((await custody(a.id)).user_id, employee.id);
     }
     const parentAssignment = await custody(parent.id);
@@ -267,7 +267,7 @@ describe('asset kits PostgreSQL integration', { skip: !connection, concurrency: 
     await attach(itMember, parent, part);
     await service.detachKitPart(request(itMember), parent.id, part.id, { reason: 'Synthetic' });
     await assignTo(itMember, part, employee);
-    assert.equal((await row(part.id)).status, 'Assigned');
+    assert.equal((await row(part.id)).status, 'In Use');
     assert.equal((await row(parent.id)).status, 'In Store');
   });
   it('retiring a parent with parts is 409', async () => {
