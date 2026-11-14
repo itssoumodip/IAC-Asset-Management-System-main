@@ -170,6 +170,16 @@ export async function createApp(): Promise<INestApplication> {
       ? json({ limit: '15mb' })(req, res, next)
       : next(),
   );
+  app.use('/api/v1/invoices', (req: Request, res: Response, next: () => void) =>
+    req.method === 'POST' &&
+    req.path === '/preview' &&
+    isAllowedAppOrigin(req.headers.origin || '') &&
+    (req.headers.cookie || '')
+      .split(';')
+      .some((c) => c.trim().startsWith(`${configuration().sessionCookie}=`))
+      ? json({ limit: '15mb' })(req, res, next)
+      : next(),
+  );
   app.use(json({ limit: '64kb' }));
   app.use(cookieParser());
   app.use(csrfProtection);

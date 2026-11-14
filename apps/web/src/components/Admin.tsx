@@ -2,7 +2,7 @@ import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { humaniseAction } from '../admin-insights';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAction, usePages } from '../hooks';
 import type { ImportBatch, References, Role, User } from '../types';
@@ -683,6 +683,7 @@ export function UserAdmin() {
                   <th>Roles</th>
                   <th>Designation / department</th>
                   <th>Reports to</th>
+                  <th>Holds</th>
                   <th>Sign-in</th>
                   <th>
                     <span className="sr-only">Actions</span>
@@ -715,6 +716,15 @@ export function UserAdmin() {
                       </span>
                     </td>
                     <td>{user.managerName || '—'}</td>
+                    <td>
+                      {user.assetsHeld ? (
+                        <Link to={`/assets?holderId=${user.id}`} className="font-medium tabular-nums">
+                          {user.assetsHeld} {user.assetsHeld === 1 ? 'asset' : 'assets'}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400">None</span>
+                      )}
+                    </td>
                     <td>
                       <Badge
                         value={user.state}

@@ -440,9 +440,9 @@ export function AuditorDashboard() {
                           {' '}
                           · {c.cycleId} · started {displayDate(c.startedAt)}
                         </span>
-                        <span className="mt-1.5 block h-1.5 rounded-full bg-gray-100">
+                        <span className="mt-1.5 block h-2.5 rounded-[4px] bg-gray-100">
                           <span
-                            className="block h-1.5 rounded-full bg-chart-1"
+                            className="block h-2.5 rounded-[4px] bg-chart-1"
                             style={{ width: `${pct}%` }}
                           />
                         </span>

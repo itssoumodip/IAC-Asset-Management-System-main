@@ -24,8 +24,8 @@ import {
   formStackClass,
 } from './ui';
 
-const MAX_BYTES = 10 * 1024 * 1024;
-const ACCEPT = 'application/pdf,image/jpeg,image/png';
+export const INVOICE_MAX_BYTES = 10 * 1024 * 1024;
+export const INVOICE_ACCEPT = 'application/pdf,image/jpeg,image/png';
 
 export function financeBadge(asset: Pick<Asset, 'financeStatus' | 'financeRejectionReason'>) {
   if (asset.financeStatus === 'REJECTED')
@@ -35,7 +35,7 @@ export function financeBadge(asset: Pick<Asset, 'financeStatus' | 'financeReject
   return null;
 }
 
-function readDataUrl(file: File): Promise<string> {
+export function readDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
@@ -102,7 +102,7 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
   async function upload(file: File | undefined) {
     if (!file) return;
     setError(undefined);
-    if (file.size > MAX_BYTES) return setError(new Error('Choose a file up to 10 MB'));
+    if (file.size > INVOICE_MAX_BYTES) return setError(new Error('Choose a file up to 10 MB'));
     setBusy(true);
     try {
       await api(`/assets/${asset.id}/invoices`, {
@@ -168,7 +168,7 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
             ref={input}
             id={`invoice-file-${asset.id}`}
             type="file"
-            accept={ACCEPT}
+            accept={INVOICE_ACCEPT}
             hidden
             onChange={(event) => void upload(event.target.files?.[0])}
           />
@@ -212,7 +212,14 @@ function ReviewForm({
   invoice: InvoiceMeta | undefined;
   onDone: () => void;
 }) {
-  const proposals = invoice?.extractionState === 'DONE' ? invoice.fields : {};
+  const read = invoice?.extractionState === 'DONE' ? invoice.fields : {};
+  // The register is kept in INR: a total billed in another currency is shown for reference
+  // but never offered as the purchase cost.
+  const foreignTotal =
+    read.currency && read.currency.value !== 'INR' && read.totalAmount
+      ? { currency: read.currency.value, amount: read.totalAmount.value }
+      : null;
+  const proposals: typeof read = foreignTotal ? { ...read, totalAmount: undefined } : read;
   const initial = (name: keyof FormValues) => {
     const proposed = proposals[FIELD_SOURCE[name]];
     if (proposed) return proposed.value;
@@ -259,6 +266,15 @@ function ReviewForm({
   return (
     <form onSubmit={rejecting ? reject : approve} className={formStackClass}>
       {invoice ? <ExtractionNote invoice={invoice} /> : null}
+      {foreignTotal ? (
+        <div className={noticeClass('warning')} role="status">
+          This invoice is in {foreignTotal.currency}: the total is{' '}
+          <strong>
+            {foreignTotal.currency} {foreignTotal.amount}
+          </strong>
+          . Enter the purchase cost in INR at the rate that was paid.
+        </div>
+      ) : null}
       <ErrorNotice error={action.error} />
       <div className="form-grid">
         {(Object.keys(values) as (keyof FormValues)[]).map((name) => {

@@ -13,7 +13,7 @@ export class Db implements OnModuleDestroy {
     if (!configuration().databaseUrl) throw new Error('DATABASE_URL is required');
     this.pool = new Pool({
       connectionString: configuration().databaseUrl,
-      max: 10,
+      max: configuration().databasePoolMax,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       ...(process.env.DATABASE_SSL === 'true' ? { ssl: { rejectUnauthorized: true } } : {}),

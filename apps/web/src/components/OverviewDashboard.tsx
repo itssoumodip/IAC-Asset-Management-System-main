@@ -13,7 +13,15 @@ import {
 } from '../executive';
 import { useReferences } from './References';
 import { buttonClass, cx, displayDate, ErrorNotice, Loading } from './ui';
-import { BarList, Card, ColumnChart, EmptyChart, StatTile, TwoLineChart } from './charts';
+import {
+  BarList,
+  Card,
+  ColumnChart,
+  DonutChart,
+  EmptyChart,
+  PairedColumnChart,
+  StatTile,
+} from './charts';
 
 interface Summary {
   assets?: {
@@ -85,6 +93,8 @@ interface AdminData {
     missingDate: boolean;
   }[];
   recentActivity: { action: string; entityType: string; actor: string; occurredAt: string }[];
+  /** When the figures were computed; totals are refreshed in the background. */
+  asOf?: string;
 }
 type Filters = { fy: string; departmentId: string; category: string };
 const noFilters: Filters = { fy: '', departmentId: '', category: '' };
@@ -315,7 +325,8 @@ export function OverviewDashboard() {
     {
       label: 'Waiting for Finance review',
       count: attention?.pendingFinance,
-      to: '/finance',
+      // Only Finance can open the review queue; others (e.g. Executive) just see the count.
+      to: can(user, 'asset.finance_edit') ? '/finance' : undefined,
       tone: 'warning',
     },
     {
@@ -397,6 +408,11 @@ export function OverviewDashboard() {
             Overview
           </h1>
           {headline ? <p className="mt-1 text-sm text-gray-500">{headline}</p> : null}
+          {all.data?.asOf ? (
+            <p className="mt-1 text-xs text-gray-400">
+              Figures as of {displayDate(all.data.asOf, true)}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {can(user, 'report.view') ? (
@@ -479,13 +495,14 @@ export function OverviewDashboard() {
               <AttentionList items={items} />
             </Card>
             <Card title="Assets by status" className="lg:col-span-2">
-              <BarList
+              <DonutChart
                 valueLabel="Assets"
+                labelHeader="Status"
+                centerLabel="Assets"
                 empty="No assets yet"
                 items={statuses.map((s) => ({
                   label: s.label,
                   value: s.count,
-                  note: totalAssets ? `${Math.round((s.count / totalAssets) * 100)}%` : undefined,
                   to: `/assets?status=${encodeURIComponent(s.label)}`,
                 }))}
               />
@@ -506,7 +523,7 @@ export function OverviewDashboard() {
               />
             </Card>
             <Card title="Support tickets, last 12 weeks">
-              <TwoLineChart
+              <PairedColumnChart
                 series={['Opened', 'Completed']}
                 empty="No tickets in the last 12 weeks"
                 xLabel={(key) => `Week of ${displayDate(key)}`}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAction } from '../hooks';
 import {
@@ -83,6 +84,7 @@ function PersonList({
             <th>Designation</th>
             <th>Code</th>
             <th>Reports to</th>
+            <th>Holds</th>
             <th>
               <span className="sr-only">Select</span>
             </th>
@@ -104,6 +106,15 @@ function PersonList({
               <td>{p.designation ?? '—'}</td>
               <td>{p.employeeCode ?? ''}</td>
               <td>{p.managerName ?? '—'}</td>
+              <td>
+                {p.assetsHeld ? (
+                  <Link to={`/assets?holderId=${p.id}`} className="font-medium tabular-nums">
+                    {p.assetsHeld} {p.assetsHeld === 1 ? 'asset' : 'assets'}
+                  </Link>
+                ) : (
+                  <span className="text-gray-400">None</span>
+                )}
+              </td>
               <td>
                 <button
                   type="button"

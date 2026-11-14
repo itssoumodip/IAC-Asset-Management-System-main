@@ -37,11 +37,23 @@ export const configuration = () => {
     origins,
     port: Number(process.env.PORT || 3000),
     databaseUrl: process.env.DATABASE_URL || '',
+    // Connections this process may hold. Keep (API instances + worker) x this below Postgres max_connections.
+    databasePoolMax: boundedInt(process.env.DATABASE_POOL_MAX, 10, 2, 200),
+    // How long an identical dashboard request is served from memory. Off outside production
+    // so local edits and tests always read live numbers.
+    dashboardCacheSeconds: boundedInt(process.env.DASHBOARD_CACHE_SECONDS, production ? 30 : 0, 0, 600),
     sessionCookie: production ? '__Host-iac_session' : 'iac_dev_session',
     csrfCookie: production ? '__Host-iac_csrf' : 'iac_dev_csrf',
     noticeVersion: process.env.PORTAL_NOTICE_VERSION || '1',
   };
 };
+function boundedInt(raw: string | undefined, fallback: number, min: number, max: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max)
+    throw new Error(`Expected a whole number between ${min} and ${max}`);
+  return value;
+}
 /**
  * Master switch for anything that reaches people outside the portal (email, web push).
  * OFF unless OUTBOUND_NOTIFICATIONS=on: while the system is being tested, nobody may

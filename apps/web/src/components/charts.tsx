@@ -132,7 +132,7 @@ export interface BarItem {
   to?: string;
 }
 
-/** Ranked horizontal bars: label above, thin bar, value right. Single hue. */
+/** Ranked horizontal bars: label left, solid bar on a shared baseline, value right. Single hue. */
 export function BarList({
   items,
   format = (n) => n.toLocaleString('en-IN'),
@@ -158,37 +158,43 @@ export function BarList({
   if (!shown.length || max === 0) return <EmptyChart>{empty}</EmptyChart>;
   return (
     <>
-      <ul className="flex flex-col gap-3">
+      {/* One shared grid so every bar starts on the same baseline, whatever the label length. */}
+      <ul className="grid grid-cols-[fit-content(38%)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5">
         {shown.map((item) => {
           const row = (
             <>
-              <span className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="truncate text-gray-700" title={item.label}>
-                  {item.label}
-                </span>
-                <span className="shrink-0 font-medium text-gray-900 tabular-nums">
-                  {format(item.value)}
-                  {item.note ? (
-                    <span className="ml-1.5 font-normal text-gray-400">{item.note}</span>
-                  ) : null}
-                </span>
+              <span className="min-w-0 truncate text-sm text-gray-700" title={item.label}>
+                {item.label}
               </span>
-              <span className="mt-1.5 block h-1.5 rounded-full bg-gray-100">
+              <span className="block h-4 rounded-[4px] bg-gray-50">
                 <span
-                  className="block h-1.5 rounded-full bg-chart-1 transition-colors group-hover:bg-navy-700"
-                  style={{ width: `${Math.max(2, (item.value / max) * 100)}%` }}
+                  className="block h-4 rounded-[4px] bg-chart-1 transition-colors group-hover:bg-navy-700"
+                  style={{ width: `${Math.max(1.5, (item.value / max) * 100)}%` }}
                 />
+              </span>
+              <span className="flex items-baseline justify-end gap-1.5 text-sm">
+                <span className="font-medium text-gray-900 tabular-nums">{format(item.value)}</span>
+                {item.note ? (
+                  <span className="max-w-28 truncate text-xs text-gray-500" title={item.note}>
+                    {item.note}
+                  </span>
+                ) : null}
               </span>
             </>
           );
+          const rowClass = 'group col-span-3 grid grid-cols-subgrid items-center';
           return (
-            <li key={item.label} title={`${item.label}: ${format(item.value)}`}>
+            <li
+              key={item.label}
+              className="col-span-3 grid grid-cols-subgrid"
+              title={`${item.label}: ${format(item.value)}`}
+            >
               {item.to ? (
-                <Link to={item.to} className="group block rounded-md no-underline">
+                <Link to={item.to} className={cx(rowClass, 'rounded-md no-underline')}>
                   {row}
                 </Link>
               ) : (
-                <div className="group">{row}</div>
+                <div className={rowClass}>{row}</div>
               )}
             </li>
           );
@@ -420,8 +426,8 @@ export function DonutChart({
   );
 }
 
-/** Two-series weekly line chart with a crosshair tooltip and direct end labels. */
-export function TwoLineChart({
+/** Two-series weekly columns (e.g. opened vs completed), side by side, with a per-week tooltip. */
+export function PairedColumnChart({
   points,
   series,
   xLabel,
@@ -434,154 +440,100 @@ export function TwoLineChart({
 }) {
   const [hover, setHover] = useState<number | null>(null);
   if (!points.some((p) => p.a || p.b)) return <EmptyChart>{empty}</EmptyChart>;
-  const W = 640;
-  const H = 200;
-  const L = 28;
-  const R = 84;
-  const T = 12;
-  const B = 26;
   const max = Math.max(1, ...points.flatMap((p) => [p.a, p.b]));
-  const niceMax = max <= 4 ? max : Math.ceil(max / 4) * 4;
-  const x = (i: number) => L + (i * (W - L - R)) / Math.max(points.length - 1, 1);
-  const y = (v: number) => T + ((niceMax - v) * (H - T - B)) / niceMax;
-  const path = (key: 'a' | 'b') =>
-    points.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p[key])}`).join(' ');
+  // Round the axis up to 1, 2, 4, 5 or 10 times a power of ten so the ticks are round numbers.
+  const magnitude = 10 ** Math.floor(Math.log10(max));
+  const niceMax = [1, 2, 4, 5, 10].map((m) => m * magnitude).find((v) => v >= max)!;
+  const ticks = niceMax % 2 === 0 ? [niceMax, niceMax / 2, 0] : [niceMax, 0];
+  const top = (v: number) => `${(1 - v / niceMax) * 100}%`;
+  const height = (v: number) => (v ? `${Math.max(2, (v / niceMax) * 100)}%` : '0%');
   const last = points.length - 1;
-  const ticks = [0, 0.5, 1].map((f) => Math.round(niceMax * f));
-  const hp = hover === null ? null : points[hover]!;
+  const totals = [points.reduce((s, p) => s + p.a, 0), points.reduce((s, p) => s + p.b, 0)];
+  const swatches = ['bg-chart-1', 'bg-chart-2'];
   return (
     <>
-      <div className="mb-2 flex items-center gap-4 text-xs text-gray-600">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded bg-chart-1" /> {series[0]}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded bg-chart-2" /> {series[1]}
-        </span>
+      <div className="mb-4 flex items-center gap-5 text-xs text-gray-600">
+        {series.map((name, i) => (
+          <span key={name} className="inline-flex items-center gap-1.5">
+            <span className={cx('size-2.5 rounded-sm', swatches[i])} aria-hidden="true" />
+            {name}
+            <span className="font-medium text-gray-900 tabular-nums">
+              {totals[i]!.toLocaleString('en-IN')}
+            </span>
+          </span>
+        ))}
       </div>
-      <div className="relative">
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="h-auto w-full overflow-visible"
+      <div className="flex gap-2">
+        <div className="relative h-44 w-6 shrink-0 text-[10px] text-gray-400 tabular-nums">
+          {ticks.map((t) => (
+            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: top(t) }}>
+              {t.toLocaleString('en-IN')}
+            </span>
+          ))}
+        </div>
+        <div
+          className="relative h-44 min-w-0 flex-1 border-b border-gray-200"
           role="img"
-          aria-label={`${series[0]} and ${series[1]} per week. Total ${series[0].toLowerCase()} ${points.reduce((s, p) => s + p.a, 0)}, ${series[1].toLowerCase()} ${points.reduce((s, p) => s + p.b, 0)}.`}
+          aria-label={`${series[0]} and ${series[1]} per week. Total ${series[0].toLowerCase()} ${totals[0]}, ${series[1].toLowerCase()} ${totals[1]}.`}
           onMouseLeave={() => setHover(null)}
         >
-          {ticks.map((t) => (
-            <g key={t}>
-              <line
-                x1={L}
-                x2={W - R}
-                y1={y(t)}
-                y2={y(t)}
-                className="stroke-gray-100"
-                strokeWidth={1}
+          {ticks
+            .filter((t) => t > 0)
+            .map((t) => (
+              <span
+                key={t}
+                className="absolute inset-x-0 border-t border-gray-100"
+                style={{ top: top(t) }}
               />
-              <text x={L - 8} y={y(t) + 4} textAnchor="end" className="fill-gray-400 text-[10px]">
-                {t}
-              </text>
-            </g>
-          ))}
-          {hp ? (
-            <line
-              x1={x(hover!)}
-              x2={x(hover!)}
-              y1={T}
-              y2={H - B}
-              className="stroke-gray-300"
-              strokeWidth={1}
-              strokeDasharray="3 3"
-            />
-          ) : null}
-          <path
-            d={path('a')}
-            fill="none"
-            className="stroke-chart-1"
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-          <path
-            d={path('b')}
-            fill="none"
-            className="stroke-chart-2"
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-          {hp ? (
-            <>
-              <circle
-                cx={x(hover!)}
-                cy={y(hp.a)}
-                r={4}
-                className="fill-chart-1 stroke-white"
-                strokeWidth={2}
-              />
-              <circle
-                cx={x(hover!)}
-                cy={y(hp.b)}
-                r={4}
-                className="fill-chart-2 stroke-white"
-                strokeWidth={2}
-              />
-            </>
-          ) : null}
-          <text x={W - R + 8} y={y(points[last]!.a) + 4} className="fill-gray-600 text-[11px]">
-            {series[0]} {points[last]!.a}
-          </text>
-          <text
-            x={W - R + 8}
-            y={
-              y(points[last]!.b) + (Math.abs(y(points[last]!.a) - y(points[last]!.b)) < 12 ? 16 : 4)
-            }
-            className="fill-gray-600 text-[11px]"
-          >
-            {series[1]} {points[last]!.b}
-          </text>
-          {points.map((p, i) =>
-            i % 2 === last % 2 ? (
-              <text
+            ))}
+          <div className="absolute inset-0 flex items-end">
+            {points.map((p, i) => (
+              <div
                 key={p.key}
-                x={x(i)}
-                y={H - 6}
-                textAnchor="middle"
-                className="fill-gray-400 text-[10px]"
+                className={cx(
+                  'relative flex h-full flex-1 items-end justify-center gap-0.5 px-0.5',
+                  hover === i && 'bg-gray-50',
+                )}
+                onMouseEnter={() => setHover(i)}
               >
-                {p.label}
-              </text>
-            ) : null,
-          )}
-          {points.map((p, i) => (
-            <rect
-              key={`hit-${p.key}`}
-              x={x(i) - (W - L - R) / Math.max(points.length - 1, 1) / 2}
-              y={T}
-              width={(W - L - R) / Math.max(points.length - 1, 1)}
-              height={H - T - B}
-              fill="transparent"
-              onMouseEnter={() => setHover(i)}
-            />
-          ))}
-        </svg>
-        {hp ? (
-          <div
-            className="pointer-events-none absolute top-0 z-10 rounded-md bg-navy-950 px-2.5 py-1.5 text-[11px] leading-relaxed text-white"
-            style={{
-              left: `${(x(hover!) / W) * 100}%`,
-              transform:
-                hover! > points.length / 2 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)',
-            }}
-          >
-            <div className="font-medium">{xLabel(hp.key)}</div>
-            <div>
-              {series[0]}: {hp.a}
-            </div>
-            <div>
-              {series[1]}: {hp.b}
-            </div>
+                <span
+                  className="w-full max-w-3 rounded-t-[4px] bg-chart-1"
+                  style={{ height: height(p.a) }}
+                />
+                <span
+                  className="w-full max-w-3 rounded-t-[4px] bg-chart-2"
+                  style={{ height: height(p.b) }}
+                />
+                {hover === i ? (
+                  <div
+                    className={cx(
+                      'pointer-events-none absolute top-0 z-10 rounded-md bg-navy-950 px-2.5 py-1.5 text-[11px] leading-relaxed whitespace-nowrap text-white',
+                      i > points.length / 2 ? 'right-full mr-1' : 'left-full ml-1',
+                    )}
+                  >
+                    <div className="font-medium">{xLabel(p.key)}</div>
+                    <div>
+                      {series[0]}: {p.a}
+                    </div>
+                    <div>
+                      {series[1]}: {p.b}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </div>
-        ) : null}
+        </div>
+      </div>
+      <div className="mt-1.5 ml-8 flex">
+        {points.map((p, i) => (
+          <span
+            key={p.key}
+            className="flex-1 text-center text-[10px] whitespace-nowrap text-gray-400"
+          >
+            {i % 2 === last % 2 ? p.label : ''}
+          </span>
+        ))}
       </div>
       <TableView
         headers={['Week', series[0], series[1]]}

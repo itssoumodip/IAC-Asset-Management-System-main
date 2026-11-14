@@ -61,6 +61,8 @@ export interface User {
   departmentId?: string | null;
   department?: string | null;
   managerName?: string | null;
+  /** Assets this person currently holds (admin user list only). */
+  assetsHeld?: number;
   roles: Role[];
   teams: TeamMembership[];
   capabilities: Capabilities;
@@ -300,7 +302,10 @@ export interface InvoiceMeta {
   extractionState: 'PENDING' | 'DONE' | 'FAILED';
   extractionError: string | null;
   fields: Partial<
-    Record<'supplier' | 'invoiceNumber' | 'invoiceDate' | 'totalAmount' | 'gstin', ProposedField>
+    Record<
+      'supplier' | 'invoiceNumber' | 'invoiceDate' | 'totalAmount' | 'currency' | 'gstin',
+      ProposedField
+    >
   >;
   assetIds: string[];
 }

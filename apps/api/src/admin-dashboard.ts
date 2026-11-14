@@ -5,6 +5,7 @@ import { parse, text, uuid } from './domain-helpers';
 import { AuthRequest, SessionGuard } from './security';
 import { assertCan } from './policy';
 import { readDashboardSummary } from './dashboard-summary';
+import { configuration } from './config';
 
 const filterInput = z
   .object({
@@ -37,11 +38,33 @@ const top = <T extends { spend: number; count: number }>(rows: T[], limit: numbe
 
 @Injectable()
 export class AdminDashboardService {
+  private readonly cache = new Map<string, { at: number; value: Promise<unknown> }>();
+
   constructor(@Inject(Db) private readonly db: Db) {}
 
   async summary(req: AuthRequest, query: unknown) {
     assertCan(req.user, 'report.view');
     const filters = parse(filterInput, query);
+    // The result depends only on the filters, never on who asks, so identical requests from
+    // many viewers within the window share one set of queries.
+    const ttl = configuration().dashboardCacheSeconds * 1000;
+    if (!ttl) return this.compute(filters);
+    const key = JSON.stringify([filters.fy ?? null, filters.departmentId ?? null, filters.category ?? null]);
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.at < ttl) return hit.value;
+    const value = this.compute(filters);
+    this.cache.delete(key);
+    this.cache.set(key, { at: Date.now(), value });
+    value.catch(() => this.cache.delete(key));
+    // Bound memory: drop the oldest entries (Map keeps insertion order).
+    for (const oldest of this.cache.keys()) {
+      if (this.cache.size <= 200) break;
+      this.cache.delete(oldest);
+    }
+    return value;
+  }
+
+  private async compute(filters: z.infer<typeof filterInput>) {
     const values: any[] = [];
     const where = ['TRUE'];
     if (filters.departmentId) {

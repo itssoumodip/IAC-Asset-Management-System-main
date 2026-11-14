@@ -4,6 +4,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpException,
   Inject,
   Injectable,
   Param,
@@ -33,7 +34,9 @@ import {
   text,
   validateAsset,
 } from './domain-helpers';
-import { assertCan, can } from './policy';
+import { assertCan, can, teamsFor } from './policy';
+import { extractInvoiceFields } from './invoice-extract';
+import { ExtractionError, localTextExtractor } from './invoice-ocr';
 import { AuthRequest, SessionGuard, assertVersion } from './security';
 
 export const INVOICE_MAX_BYTES = 10 * 1024 * 1024;
@@ -101,8 +104,8 @@ export class FinanceService {
     return can(req.user, 'asset.edit', teamId) || can(req.user, 'asset.finance_edit');
   }
 
-  async upload(req: AuthRequest, assetId: string, body: unknown) {
-    id(assetId);
+  /** Validates an uploaded invoice (type, size, real content) and returns its bytes. */
+  private async readUpload(body: unknown) {
     const input = parse(uploadInput, body);
     const match = input.dataUrl.match(/^data:([a-z/+.-]+);base64,([A-Za-z0-9+/=\s]+)$/);
     if (!match || !match[1] || !match[2] || !(MIMES as readonly string[]).includes(match[1]))
@@ -119,8 +122,42 @@ export class FinanceService {
         throw invalidFile();
       }
     }
+    return { bytes, mime, fileName: input.fileName };
+  }
+
+  private previews = 0;
+
+  /**
+   * Reads an invoice and returns the proposed values without storing anything, so the
+   * Create asset form can fill itself before the asset exists. The file is attached to the
+   * asset through the normal upload once the asset has been created.
+   */
+  async preview(req: AuthRequest, body: unknown) {
+    const createTeams = teamsFor(req.user, 'asset.create');
+    if (createTeams !== 'ALL' && !createTeams.length && !can(req.user, 'asset.finance_edit'))
+      throw new ForbiddenException('Insufficient permission');
+    const { bytes, mime } = await this.readUpload(body);
+    // Reading is CPU-heavy; keep it from crowding out normal requests.
+    if (this.previews >= 2)
+      throw new HttpException('Another invoice is being read. Try again in a moment.', 429);
+    this.previews += 1;
+    try {
+      const text = (await localTextExtractor(bytes, mime, 30_000)).slice(0, 50_000);
+      return { fields: extractInvoiceFields(text) };
+    } catch (error) {
+      throw new UnprocessableEntityException(
+        error instanceof ExtractionError ? error.message : 'The invoice could not be read',
+      );
+    } finally {
+      this.previews -= 1;
+    }
+  }
+
+  async upload(req: AuthRequest, assetId: string, body: unknown) {
+    id(assetId);
+    const { bytes, mime, fileName } = await this.readUpload(body);
     const sha256 = createHash('sha256').update(bytes).digest('hex');
-    const name = (input.fileName ?? 'invoice').replace(/[^\w.\- ()]/g, '_').slice(0, 200);
+    const name = (fileName ?? 'invoice').replace(/[^\w.\- ()]/g, '_').slice(0, 200);
     return this.db.tx(async (c) => {
       const asset = found(
         (
@@ -358,6 +395,10 @@ export class FinanceController {
   @Get('assets/:id/invoices')
   list(@Req() req: AuthRequest, @Param('id') assetId: string) {
     return this.service.listForAsset(req, assetId);
+  }
+  @Post('invoices/preview')
+  preview(@Req() req: AuthRequest, @Body() body: unknown) {
+    return this.service.preview(req, body);
   }
   @Get('invoices/:id')
   get(@Req() req: AuthRequest, @Param('id') invoiceId: string) {

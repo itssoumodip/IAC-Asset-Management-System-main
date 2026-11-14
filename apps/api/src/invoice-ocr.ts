@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import type { Db } from './db';
 import { extractInvoiceFields } from './invoice-extract';
@@ -8,12 +9,23 @@ export type TextExtractor = (bytes: Buffer, mime: string) => Promise<string>;
 
 export class ExtractionError extends Error {}
 
-export const SCANNED_PDF_MESSAGE = 'Scanned PDF: upload a photo/JPEG of the invoice for OCR';
+export const SCANNED_PDF_MESSAGE = 'No readable text was found in this PDF';
 const TESSDATA = path.resolve(__dirname, '..', 'assets', 'tessdata');
 
 export const MAX_ATTEMPTS = 3;
 export const EXTRACTION_TIMEOUT_MS = 60_000;
 export const OCR_MAX_SIDE = 2500;
+/** Scanned PDFs: only the first pages are drawn and read; invoice totals sit there. */
+export const OCR_MAX_PDF_PAGES = 2;
+/** Optional PDF drawing modules; without them a scanned PDF is reported as unreadable. */
+function optionalModule(name: string, asUrl = false): string | null {
+  try {
+    const resolved = require.resolve(name);
+    return asUrl ? pathToFileURL(resolved).href : resolved;
+  } catch {
+    return null;
+  }
+}
 const TIMEOUT_MESSAGE = 'Reading this invoice took too long';
 const GENERIC_MESSAGE = 'The invoice could not be read';
 const GIVE_UP_MESSAGE = 'The invoice could not be read after several attempts';
@@ -22,13 +34,54 @@ const GIVE_UP_MESSAGE = 'The invoice could not be read after several attempts';
 const WORKER_SOURCE = `
 const { parentPort, workerData } = require('node:worker_threads');
 (async () => {
-  const { bytes, mime, tessdata, maxSide, modules } = workerData;
+  const { bytes, mime, tessdata, maxSide, maxPages, modules } = workerData;
   const input = Buffer.from(bytes);
+  const dense = (t) => t.replace(/\\s/g, '').length >= 20;
+  const ocr = async (images) => {
+    const { createWorker } = require(modules.tesseract);
+    const worker = await createWorker('eng', 1, { langPath: tessdata, gzip: false, cacheMethod: 'none' });
+    try {
+      let out = '';
+      for (const image of images) out += (await worker.recognize(image)).data.text + '\\n';
+      return out;
+    } finally { await worker.terminate(); }
+  };
   if (mime === 'application/pdf') {
-    const pdfParse = require(modules.pdfParse);
     let text = '';
-    try { text = (await pdfParse(input)).text || ''; } catch { return parentPort.postMessage({ scanned: true }); }
-    return parentPort.postMessage(text.replace(/\s/g, '').length < 20 ? { scanned: true } : { text });
+    try { text = (await require(modules.pdfParse)(input)).text || ''; } catch {}
+    if (dense(text)) return parentPort.postMessage({ text });
+    // The quick reader found no text: either a newer PDF it cannot parse, or a scan. Try the
+    // full reader, then draw the first pages and OCR them like a photo.
+    if (!modules.pdfjs || !modules.canvas) return parentPort.postMessage({ scanned: true });
+    try {
+      const pdfjs = await import(modules.pdfjs);
+      const { createCanvas } = require(modules.canvas);
+      const doc = await pdfjs.getDocument({
+        data: new Uint8Array(input), isEvalSupported: false, disableFontFace: true, verbosity: 0,
+      }).promise;
+      const count = Math.min(doc.numPages, maxPages);
+      text = '';
+      for (let n = 1; n <= count; n++) {
+        const content = await (await doc.getPage(n)).getTextContent();
+        for (const item of content.items) text += (item.str || '') + (item.hasEOL ? '\\n' : ' ');
+        text += '\\n';
+      }
+      if (dense(text)) return parentPort.postMessage({ text });
+      const images = [];
+      for (let n = 1; n <= count; n++) {
+        const page = await doc.getPage(n);
+        const base = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale: Math.min(3, maxSide / Math.max(base.width, base.height)) });
+        const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: context, viewport }).promise;
+        images.push(canvas.toBuffer('image/png'));
+      }
+      text = await ocr(images);
+      return parentPort.postMessage(dense(text) ? { text } : { scanned: true });
+    } catch { return parentPort.postMessage({ scanned: true }); }
   }
   const sharp = require(modules.sharp);
   const small = await sharp(input, { limitInputPixels: 40000000 })
@@ -36,10 +89,7 @@ const { parentPort, workerData } = require('node:worker_threads');
     .resize({ width: maxSide, height: maxSide, fit: 'inside', withoutEnlargement: true })
     .png()
     .toBuffer();
-  const { createWorker } = require(modules.tesseract);
-  const worker = await createWorker('eng', 1, { langPath: tessdata, gzip: false, cacheMethod: 'none' });
-  try { parentPort.postMessage({ text: (await worker.recognize(small)).data.text }); }
-  finally { await worker.terminate(); }
+  parentPort.postMessage({ text: await ocr([small]) });
 })().catch(() => parentPort.postMessage({ failed: true }));
 `;
 
@@ -62,7 +112,10 @@ export function localTextExtractor(
         mime,
         tessdata: TESSDATA,
         maxSide: OCR_MAX_SIDE,
+        maxPages: OCR_MAX_PDF_PAGES,
         modules: {
+          pdfjs: optionalModule('pdfjs-dist/legacy/build/pdf.mjs', true),
+          canvas: optionalModule('canvas'),
           pdfParse: require.resolve('pdf-parse/lib/pdf-parse.js'),
           sharp: require.resolve('sharp'),
           tesseract: require.resolve('tesseract.js'),

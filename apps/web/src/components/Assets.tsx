@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../api';
 import { useAction, usePages } from '../hooks';
 import { can, useSession } from '../session';
-import type { Asset, AssignablePerson } from '../types';
+import type { Asset, AssignablePerson, InvoiceMeta } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
 import { AssetTags } from './AssetTags';
@@ -14,7 +14,12 @@ import { ColumnFilter, FilterChips, FiltersButton, fromList, toList, type Filter
 import { StoreReceiving } from './StoreReceiving';
 import { AssetDetailTabs } from './AssetDetailTabs';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
-import { FinanceStatusPanel } from './FinanceReview';
+import {
+  FinanceStatusPanel,
+  INVOICE_ACCEPT,
+  INVOICE_MAX_BYTES,
+  readDataUrl,
+} from './FinanceReview';
 import {
   useReferences,
   ReferenceSelect,
@@ -48,6 +53,7 @@ import {
   tableClass,
   formStackClass,
   PersonChip,
+  fileInputClass,
 } from './ui';
 const assetExportColumns = [
   'assetCode',
@@ -1266,6 +1272,19 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   });
   const [amc, setAmc] = useState(asset?.amcApplies ?? false);
   const [validation, setValidation] = useState('');
+  // Invoice chosen on the Create form: read now to fill the finance values, attached after saving.
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceReading, setInvoiceReading] = useState(false);
+  const [invoiceNote, setInvoiceNote] = useState<{ tone: 'info' | 'warning'; text: string } | null>(
+    null,
+  );
+  const [savedWithoutInvoice, setSavedWithoutInvoice] = useState<Asset | null>(null);
+  // An invoice billed in another currency: the register is kept in INR, so the amount is
+  // converted with a rate the person enters rather than copied across as if it were rupees.
+  const [foreignTotal, setForeignTotal] = useState<{ currency: string; amount: string } | null>(
+    null,
+  );
+  const [exchangeRate, setExchangeRate] = useState('');
   const set = (name: string, value: string) =>
     setValues((previous) => ({ ...previous, [name]: value }));
   const teams = refs.data?.teams ?? [];
@@ -1286,6 +1305,69 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   const blocked = !financeOnly && ((!baseline && !teamId) || (roomHeld && !values.locationId));
   const editableFields = assetEditableFields.filter((key) => canFinance || !financeKeys.has(key));
   const lockFinance = (name: string) => !canFinance && financeKeys.has(name);
+  const mayAttachInvoice =
+    !baseline && (canFinance || (!!teamId && can(user, 'asset.edit', teamId)));
+  async function chooseInvoice(file: File | undefined) {
+    setInvoiceNote(null);
+    setInvoiceFile(null);
+    setForeignTotal(null);
+    setExchangeRate('');
+    if (!file) return;
+    if (file.size > INVOICE_MAX_BYTES) {
+      setInvoiceNote({ tone: 'warning', text: 'Choose a file up to 10 MB.' });
+      return;
+    }
+    setInvoiceFile(file);
+    if (!canFinance) {
+      setInvoiceNote({
+        tone: 'info',
+        text: 'The invoice will be attached when you create the asset. Finance fills in the values from it.',
+      });
+      return;
+    }
+    setInvoiceReading(true);
+    try {
+      const { fields } = await api<{ fields: InvoiceMeta['fields'] }>('/invoices/preview', {
+        method: 'POST',
+        body: { dataUrl: await readDataUrl(file), fileName: file.name },
+      });
+      const currency = fields.currency?.value;
+      const foreign = !!currency && currency !== 'INR' && !!fields.totalAmount;
+      if (foreign) setForeignTotal({ currency, amount: fields.totalAmount!.value });
+      const proposals: [string, string, string | undefined][] = [
+        ['purchaseCost', 'purchase cost', foreign ? undefined : fields.totalAmount?.value],
+        ['invoiceNumber', 'invoice number', fields.invoiceNumber?.value],
+        ['supplier', 'supplier', fields.supplier?.value],
+        ['purchaseDate', 'purchase date', fields.invoiceDate?.value],
+      ];
+      // Never overwrite something the person already typed.
+      const fill = proposals.filter(([name, , value]) => value && !values[name]?.trim());
+      setValues((current) => ({
+        ...current,
+        ...Object.fromEntries(fill.map(([name, , value]) => [name, value as string])),
+      }));
+      setInvoiceNote(
+        fill.length || foreign
+          ? fill.length
+            ? {
+                tone: 'info',
+                text: `Filled from the invoice: ${fill.map(([, label]) => label).join(', ')}. Check each value before saving.`,
+              }
+            : null
+          : {
+              tone: 'warning',
+              text: 'No new values could be read from this invoice. Enter them by hand; the file will still be attached.',
+            },
+      );
+    } catch (error) {
+      setInvoiceNote({
+        tone: 'warning',
+        text: `${error instanceof Error ? error.message : 'The invoice could not be read'}. Enter the values by hand; the file will still be attached.`,
+      });
+    } finally {
+      setInvoiceReading(false);
+    }
+  }
   function fillDemo() {
     const firstCode = (kind: string) => referenceOptions(refs.data, kind)[0]?.code ?? '';
     const demo: Record<string, string> = {
@@ -1439,8 +1521,35 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
         idempotent: !baseline,
       })
       .catch(() => undefined);
-    if (result) navigate(`/assets/${result.id}`);
+    if (!result) return;
+    if (!baseline && invoiceFile) {
+      try {
+        await api(`/assets/${result.id}/invoices`, {
+          method: 'POST',
+          body: { dataUrl: await readDataUrl(invoiceFile), fileName: invoiceFile.name },
+        });
+      } catch {
+        // The asset exists now; do not let a second save create a duplicate.
+        setSavedWithoutInvoice(result);
+        return;
+      }
+    }
+    navigate(`/assets/${result.id}`);
   }
+  if (savedWithoutInvoice)
+    return (
+      <Panel title="Asset created">
+        <div className={noticeClass('warning')} role="alert">
+          {savedWithoutInvoice.assetCode} was created, but the invoice could not be attached. Open
+          the asset and upload the invoice again from its Finance &amp; invoices section.
+        </div>
+        <p className="mt-4">
+          <Link className={buttonClass()} to={`/assets/${savedWithoutInvoice.id}`}>
+            Open {savedWithoutInvoice.assetCode}
+          </Link>
+        </p>
+      </Panel>
+    );
   return (
     <>
       <Link className={backLinkClass} to={baseline ? `/assets/${baseline.id}` : '/assets'}>
@@ -1533,7 +1642,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
           </div>
         ) : null}
         <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
-          <Panel title="Identity & configuration">
+          <Panel title="Identity & configuration" className="col-span-full">
             {roomHeld ? (
               <p className={noticeClass()} role="note">
                 A location is required because this asset type is held in a room.
@@ -1770,9 +1879,71 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
         <Panel title="Financial metadata">
           <p className="muted">
             {canFinance
-              ? 'Leave unknown values blank. Depreciation is not calculated in this release.'
+              ? 'Leave unknown values blank. Upload the invoice to fill what it can.'
               : 'Finance fills in these values. They are shown read-only.'}
           </p>
+          {mayAttachInvoice ? (
+            <div className="mb-4 grid gap-2">
+              <Field
+                label="Invoice (PDF, JPEG or PNG, up to 10 MB)"
+                htmlFor="create-invoice"
+                hint={
+                  canFinance
+                    ? 'Cost, invoice number, supplier and purchase date are read from the file. Only empty fields are filled.'
+                    : undefined
+                }
+              >
+                <input
+                  id="create-invoice"
+                  type="file"
+                  accept={INVOICE_ACCEPT}
+                  className={fileInputClass}
+                  disabled={invoiceReading || action.isPending}
+                  onChange={(event) => void chooseInvoice(event.target.files?.[0])}
+                />
+              </Field>
+              {invoiceReading ? (
+                <div className={noticeClass()} role="status">
+                  Reading invoice…
+                </div>
+              ) : invoiceNote ? (
+                <div className={noticeClass(invoiceNote.tone)} role="status">
+                  {invoiceNote.text}
+                </div>
+              ) : null}
+              {foreignTotal && !invoiceReading ? (
+                <div className={noticeClass('warning')} role="status">
+                  <p>
+                    This invoice is in {foreignTotal.currency}: the total is{' '}
+                    <strong>
+                      {foreignTotal.currency} {foreignTotal.amount}
+                    </strong>
+                    . The register is kept in INR, so the amount was not copied into Purchase cost.
+                    Enter the exchange rate that was paid and the INR cost is worked out for you.
+                  </p>
+                  <div className="mt-3 max-w-xs">
+                    <Field
+                      label={`Exchange rate (INR for 1 ${foreignTotal.currency})`}
+                      htmlFor="invoice-exchange-rate"
+                    >
+                      <input
+                        id="invoice-exchange-rate"
+                        inputMode="decimal"
+                        value={exchangeRate}
+                        onChange={(event) => {
+                          const raw = event.target.value;
+                          setExchangeRate(raw);
+                          const rate = Number(raw);
+                          if (raw.trim() && Number.isFinite(rate) && rate > 0)
+                            set('purchaseCost', (Number(foreignTotal.amount) * rate).toFixed(2));
+                        }}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <fieldset disabled={!canFinance} className="form-grid" data-testid="finance-fields">
             <Field label="Depreciation method" htmlFor="depreciationMethod">
               <ReferenceSelect

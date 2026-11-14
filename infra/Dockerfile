@@ -14,6 +14,9 @@ COPY --from=build /app/package*.json ./
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/web/package.json apps/web/package.json
 RUN npm ci --omit=dev --ignore-scripts
+# canvas ships a native binary that its install script fetches; scripts are skipped above,
+# so take the one the build stage already installed (same Debian base) for scanned-PDF OCR.
+COPY --from=build /app/node_modules/canvas node_modules/canvas
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY apps/api/db apps/api/db
 COPY apps/api/assets/tessdata apps/api/assets/tessdata

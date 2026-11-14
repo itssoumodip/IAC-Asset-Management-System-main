@@ -464,7 +464,8 @@ function Shell() {
             )}
           </NavGroup>
           <NavGroup label="Inventory & store" ariaLabel="Inventory navigation">
-            {can(user, 'system.admin') && (
+            {/* Stock levels are daily work for Store; the page itself is view-only for them. */}
+            {(can(user, 'system.admin') || can(user, 'store.operations')) && (
               <SideLink to="/inventory" icon="inventory">
                 Inventory
               </SideLink>
@@ -474,7 +475,10 @@ function Shell() {
                 Store
               </SideLink>
             )}
-            {can(user, 'system.admin') && (
+            {/* Store and Auditors work location by location; only admins can edit the tree. */}
+            {(can(user, 'system.admin') ||
+              can(user, 'store.operations') ||
+              can(user, 'verification.perform')) && (
               <SideLink to="/locations" icon="locations">
                 Locations
               </SideLink>

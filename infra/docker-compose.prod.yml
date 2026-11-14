@@ -14,6 +14,9 @@ x-app-env: &app-env
   ADDITIONAL_APP_ORIGINS: ${ADDITIONAL_APP_ORIGINS:-}
   DATABASE_URL: postgresql://iac_app:${POSTGRES_APP_PASSWORD:?}@db:5432/iac
   DATABASE_SSL: 'false'
+  # Per process (api and worker each). Keep the total under Postgres max_connections (100 by default).
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-30}
+  DASHBOARD_CACHE_SECONDS: ${DASHBOARD_CACHE_SECONDS:-30}
   TRUST_PROXY_HOPS: '1'
   PORTAL_NOTICE_VERSION: ${PORTAL_NOTICE_VERSION:-1}
   TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?}

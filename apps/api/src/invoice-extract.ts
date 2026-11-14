@@ -7,6 +7,8 @@ export interface InvoiceFields {
   invoiceNumber?: Proposal;
   invoiceDate?: Proposal;
   totalAmount?: Proposal;
+  /** ISO code of the currency the total is in, when the invoice shows one. */
+  currency?: Proposal;
   gstin?: Proposal;
 }
 
@@ -32,6 +34,12 @@ export function parseDate(raw: string): string | null {
     const mi = MONTHS.indexOf((m[2] ?? "").toLowerCase());
     if (mi >= 0) return isoDate(Number(m[3]), mi + 1, Number(m[1]));
   }
+  // Month first, as on many foreign invoices: November 3, 2026.
+  m = raw.match(/\b([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/);
+  if (m) {
+    const mi = MONTHS.indexOf((m[1] ?? '').toLowerCase());
+    if (mi >= 0) return isoDate(Number(m[3]), mi + 1, Number(m[2]));
+  }
   return null;
 }
 
@@ -42,12 +50,27 @@ function amount(raw: string): string | null {
   return Number.isFinite(n) && n > 0 && n < 1e12 ? n.toFixed(2) : null;
 }
 
+const CURRENCIES: [string, RegExp][] = [
+  ['INR', /₹|\bINR\b|\bRs\.?(?=\s|\d)|\brupees\b/i],
+  ['USD', /\bUSD\b|US\$|(?<![A-Za-z])\$\s?\d/i],
+  ['EUR', /€|\bEUR\b/i],
+  ['GBP', /£|\bGBP\b/i],
+  ['AED', /\bAED\b/i],
+  ['SGD', /\bSGD\b|S\$/i],
+];
+/** The currency named on a piece of text, or null when none or several are named. */
+function currencyIn(text: string): string | null {
+  const found = CURRENCIES.filter(([, re]) => re.test(text)).map(([code]) => code);
+  return found.length === 1 ? found[0]! : null;
+}
+
 /** Rule-based proposals from invoice text. Pure; every field is optional. */
 export function extractInvoiceFields(text: string): InvoiceFields {
   const out: InvoiceFields = {};
   const lines = text
     .split(/\r?\n/)
-    .map((l) => l.replace(/\s+/g, ' ').trim())
+    // PDFs often use typographic dashes; treat them as a plain hyphen so codes stay whole.
+    .map((l) => l.replace(/[\u2010-\u2015\u2212]/g, '-').replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
   const gst = text.toUpperCase().match(GSTIN);
@@ -89,6 +112,10 @@ export function extractInvoiceFields(text: string): InvoiceFields {
       const value = amount(tail);
       if (value) {
         out.totalAmount = { value, confidence };
+        // The total line itself is the best evidence; otherwise the whole invoice.
+        const onLine = currencyIn(line);
+        const code = onLine ?? currencyIn(text) ?? (out.gstin ? 'INR' : null);
+        if (code) out.currency = { value: code, confidence: onLine ? 0.9 : 0.7 };
         break outer;
       }
     }

@@ -709,6 +709,7 @@ export class AuthService {
               u.pending_email AS "pendingEmail",u.state,u.version,
               u.created_at AS "createdAt",u.email_verified_at AS "emailVerifiedAt",
               u.portal_accepted_at AS "portalAcceptedAt",(u.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolled",EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id=u.id) AS "hasPhoto",
+              (SELECT count(*)::int FROM assignments s WHERE s.user_id=u.id AND s.ended_at IS NULL) AS "assetsHeld",
               coalesce(array_agg(ur.role_code) FILTER(WHERE ur.role_code IS NOT NULL),'{}') AS roles,
               (SELECT coalesce(json_agg(json_build_object('teamId',tm.team_id,'teamCode',t.code,'level',tm.level) ORDER BY t.code),'[]'::json)
                  FROM team_memberships tm JOIN teams t ON t.id=tm.team_id WHERE tm.user_id=u.id) AS teams
