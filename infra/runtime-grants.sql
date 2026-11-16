@@ -23,6 +23,8 @@ GRANT DELETE ON user_photos TO iac_runtime;
 GRANT INSERT,UPDATE ON ticket_category_teams TO iac_runtime;
 GRANT INSERT,UPDATE ON invoices TO iac_runtime;
 GRANT INSERT ON invoice_assets TO iac_runtime;
+-- Finance discussion is append-only: runtime users may read (granted above) and add entries.
+GRANT INSERT ON finance_comments TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON team_memberships TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON team_view_grants TO iac_runtime;
 -- No DELETE on assets/custody/tickets; no UPDATE/DELETE on immutable evidence.
