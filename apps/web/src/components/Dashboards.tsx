@@ -455,8 +455,11 @@ function EmployeeDashboard() {
   const { user } = useSession();
   const summary = useSummary();
   const assets = useQuery({
-    queryKey: ['my-assets'],
-    queryFn: ({ signal }) => api<{ items: Asset[] }>('/assets?limit=100', { signal }),
+    // Exactly what this person holds (not the first page of everything they can see).
+    queryKey: ['my-assets', user?.id],
+    queryFn: ({ signal }) =>
+      api<{ items: Asset[] }>(`/assets?holderId=${encodeURIComponent(user?.id ?? '')}&limit=100`, { signal }),
+    enabled: !!user?.id,
   });
   const tickets = useQuery({
     queryKey: ['dashboard', 'my-tickets'],

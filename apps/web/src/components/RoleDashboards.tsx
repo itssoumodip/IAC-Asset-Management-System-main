@@ -52,8 +52,11 @@ function Shell({
 function MyItemsStrip() {
   const { user } = useSession();
   const assets = useQuery({
-    queryKey: ['my-assets'],
-    queryFn: ({ signal }) => api<{ items: Asset[] }>('/assets?limit=100', { signal }),
+    // Exactly what this person holds (not the first page of everything they can see).
+    queryKey: ['my-assets', user?.id],
+    queryFn: ({ signal }) =>
+      api<{ items: Asset[] }>(`/assets?holderId=${encodeURIComponent(user?.id ?? '')}&limit=100`, { signal }),
+    enabled: !!user?.id,
   });
   const mine = (assets.data?.items ?? []).filter((a) => a.currentAssignment?.userId === user?.id);
   const toConfirm = mine.filter((a) => a.currentAssignment?.acknowledgement === 'PENDING').length;

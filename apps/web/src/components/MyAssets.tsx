@@ -20,9 +20,13 @@ import {
 /** The signed-in person's equipment: confirm receipt, report a discrepancy, or raise a problem. */
 export function MyAssets() {
   const { user } = useSession();
+  // Ask the server for exactly what this person holds. (Filtering the first page of the whole
+  // catalog missed items for people who can see many assets, such as admins.)
   const query = useQuery<{ items: Asset[] }>({
-    queryKey: ['my-assets'],
-    queryFn: ({ signal }) => api<{ items: Asset[] }>('/assets?limit=100', { signal }),
+    queryKey: ['my-assets', user?.id],
+    queryFn: ({ signal }) =>
+      api<{ items: Asset[] }>(`/assets?holderId=${encodeURIComponent(user?.id ?? '')}&limit=100`, { signal }),
+    enabled: !!user?.id,
   });
   const action = useAction();
   const items = (query.data?.items ?? []).filter((a) => a.currentAssignment?.userId === user?.id);
