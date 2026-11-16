@@ -10,7 +10,14 @@ import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
 import { AssetTags } from './AssetTags';
 import { useBrands, useHolders } from './Insights';
-import { ColumnFilter, FilterChips, FiltersButton, fromList, toList, type FilterGroup } from './ColumnFilter';
+import {
+  ColumnFilter,
+  FilterChips,
+  FiltersButton,
+  fromList,
+  toList,
+  type FilterGroup,
+} from './ColumnFilter';
 import { StoreReceiving } from './StoreReceiving';
 import { AssetDetailTabs } from './AssetDetailTabs';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
@@ -167,14 +174,34 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
   const sel = (key: string) => toList(params.get(key));
   const filterGroups: FilterGroup[] = [
     ...(!assignmentMode
-      ? [{ key: 'status', title: 'Status', options: refOptions('STATUS', sel('status')), selected: sel('status') }]
+      ? [
+          {
+            key: 'status',
+            title: 'Status',
+            options: refOptions('STATUS', sel('status')),
+            selected: sel('status'),
+          },
+        ]
       : []),
-    { key: 'category', title: 'Category', options: refOptions('CATEGORY', sel('category')), selected: sel('category') },
-    { key: 'assetType', title: 'Subcategory', options: refOptions('ASSET_TYPE', sel('assetType')), selected: sel('assetType') },
+    {
+      key: 'category',
+      title: 'Category',
+      options: refOptions('CATEGORY', sel('category')),
+      selected: sel('category'),
+    },
+    {
+      key: 'assetType',
+      title: 'Subcategory',
+      options: refOptions('ASSET_TYPE', sel('assetType')),
+      selected: sel('assetType'),
+    },
     {
       key: 'manufacturer',
       title: 'Brand',
-      options: (brands.data?.items ?? []).map((b) => ({ value: b.name, label: `${b.name} (${b.count})` })),
+      options: (brands.data?.items ?? []).map((b) => ({
+        value: b.name,
+        label: `${b.name} (${b.count})`,
+      })),
       selected: sel('manufacturer'),
     },
     {
@@ -212,7 +239,10 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
           {
             key: 'owningTeamId',
             title: 'Team',
-            options: (refs.data?.teams ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.code})` })),
+            options: (refs.data?.teams ?? []).map((t) => ({
+              value: t.id,
+              label: `${t.name} (${t.code})`,
+            })),
             selected: sel('owningTeamId'),
           },
         ]
@@ -340,7 +370,12 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
         </div>
         <FilterChips
           groups={filterGroups}
-          onRemove={(key, value) => setFilter(key, toList(params.get(key)).filter((v) => v !== value))}
+          onRemove={(key, value) =>
+            setFilter(
+              key,
+              toList(params.get(key)).filter((v) => v !== value),
+            )
+          }
           onClearAll={() => applyFilters(Object.fromEntries(filterGroups.map((g) => [g.key, []])))}
         />
         <ErrorNotice
@@ -467,7 +502,11 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                           designation={asset.currentAssignment.employeeDesignation}
                           department={asset.currentAssignment.employeeDepartment}
                           email={asset.currentAssignment.employeeEmail}
-                          holdingsHref={asset.currentAssignment.userId ? `/assets?holderId=${asset.currentAssignment.userId}` : undefined}
+                          holdingsHref={
+                            asset.currentAssignment.userId
+                              ? `/assets?holderId=${asset.currentAssignment.userId}`
+                              : undefined
+                          }
                         />
                       ) : (
                         <span className="text-gray-500">
@@ -1293,6 +1332,12 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   const teamId =
     values.owningTeamId || (!baseline && createTeams.length === 1 ? createTeams[0].id : '');
   const selectedTeam = teams.find((item) => item.id === teamId);
+  const allowedCategories = (refs.data?.categoryPolicies ?? []).filter(
+    (policy) =>
+      (!!selectedTeam && policy.teamIds.includes(teamId)) ||
+      (selectedTeam?.code === 'PRJ' &&
+        policy.teamIds.includes(teams.find((t) => t.code === 'ADM')?.id ?? '')),
+  );
   const canFinance = can(user, 'asset.finance_edit', teamId || undefined);
   const canChangeTeam = !!baseline && can(user, 'asset.change_team');
   // Finance without asset.edit for this team may change only the finance fields.
@@ -1641,7 +1686,11 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
             {validation}
           </div>
         ) : null}
-        <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
+        <fieldset
+          disabled={financeOnly}
+          style={lockedStyle}
+          className="m-0 grid min-w-0 gap-6 border-0 p-0"
+        >
           <Panel title="Identity & configuration" className="col-span-full">
             {roomHeld ? (
               <p className={noticeClass()} role="note">
@@ -1653,7 +1702,14 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 label="Owning team"
                 htmlFor="owningTeamId"
                 value={teamId}
-                onChange={(value) => set('owningTeamId', value)}
+                onChange={(value) => {
+                  setValues((current) => ({
+                    ...current,
+                    owningTeamId: value,
+                    category: '',
+                    assetType: '',
+                  }));
+                }}
                 disabled={!!baseline && !canChangeTeam}
                 required
                 hint={
@@ -1682,7 +1738,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   />
                 </Field>
               ))}
-              {['category', 'ownershipType', 'status', 'condition', 'riskLevel'].map((name) => (
+              {['ownershipType', 'status', 'condition', 'riskLevel'].map((name) => (
                 <Field
                   key={name}
                   label={
@@ -1706,6 +1762,47 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   />
                 </Field>
               ))}
+              <Field label="Category" htmlFor="category">
+                <Select
+                  label=""
+                  htmlFor="category"
+                  value={values.category ?? ''}
+                  onChange={(value) =>
+                    setValues((current) => ({ ...current, category: value, assetType: '' }))
+                  }
+                  required
+                  options={[
+                    { value: '', label: 'Select category' },
+                    ...allowedCategories
+                      .filter((policy) =>
+                        refs.data?.values.some(
+                          (v) =>
+                            v.kind === 'CATEGORY' && v.code === policy.categoryCode && v.active,
+                        ),
+                      )
+                      .map((policy) => ({
+                        value: policy.categoryCode,
+                        label:
+                          refs.data?.values.find(
+                            (v) => v.kind === 'CATEGORY' && v.code === policy.categoryCode,
+                          )?.label ?? policy.categoryCode,
+                      })),
+                    ...(baseline &&
+                    values.category &&
+                    !allowedCategories.some((p) => p.categoryCode === values.category)
+                      ? [
+                          {
+                            value: values.category,
+                            label:
+                              refs.data?.values.find(
+                                (v) => v.kind === 'CATEGORY' && v.code === values.category,
+                              )?.label ?? values.category,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </Field>
               {/* Asset type is filtered by the chosen owning team's type→team mapping. */}
               <Field key="assetType" label="Asset type" htmlFor="assetType">
                 <Select
@@ -1718,7 +1815,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                     { value: '', label: 'Select asset type' },
                     ...(refs.data?.assetTypePolicies ?? [])
                       .filter((policy) => {
-                        if (can(user, 'asset.change_team')) return true;
+                        if (policy.categoryCode !== values.category) return false;
                         if (!selectedTeam) return false;
                         if (policy.owningTeamId === selectedTeam.id) return true;
                         // Projects may use Admin's facility types for grant purchases.
@@ -1816,7 +1913,11 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 />
               </Field>
             ))}
-            <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
+            <fieldset
+              disabled={financeOnly}
+              style={lockedStyle}
+              className="m-0 grid min-w-0 gap-6 border-0 p-0"
+            >
               <Field label="Disposal method" htmlFor="disposalMethod">
                 <ReferenceSelect
                   refs={refs.data}
@@ -1982,7 +2083,11 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
           </fieldset>
         </Panel>
         <Panel title="Notes & accountability">
-          <fieldset disabled={financeOnly} style={lockedStyle} className="m-0 grid min-w-0 gap-6 border-0 p-0">
+          <fieldset
+            disabled={financeOnly}
+            style={lockedStyle}
+            className="m-0 grid min-w-0 gap-6 border-0 p-0"
+          >
             <Field label="Comment type" htmlFor="commentType">
               <ReferenceSelect
                 refs={refs.data}

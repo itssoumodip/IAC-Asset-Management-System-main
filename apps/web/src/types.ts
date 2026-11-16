@@ -217,6 +217,7 @@ export interface TeamReference {
 }
 export interface AssetTypePolicy {
   assetTypeCode: string;
+  categoryCode?: string;
   requiresCustodian: boolean;
   owningTeamId?: string | null;
   handlingTeamId?: string | null;
@@ -227,6 +228,7 @@ export interface References {
   locations: LocationReference[];
   teams?: TeamReference[];
   assetTypePolicies?: AssetTypePolicy[];
+  categoryPolicies?: { categoryCode: string; handlingTeamId: string; teamIds: string[] }[];
   ticketCategoryTeams?: { categoryCode: string; teamId: string }[];
 }
 export interface MasterKind {
