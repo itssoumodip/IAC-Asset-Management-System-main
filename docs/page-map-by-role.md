@@ -32,7 +32,7 @@ A person can hold several roles (e.g. Team Lead + Employee). They see the union 
 | 4 | Asset page | `/assets/:id` | Tabs: Summary, Details, Work orders, Maintenance, Users, History | ✅ partly |
 | 5 | Add / edit asset | `/assets/new`, `/assets/:id/edit` | Create and edit | ✅ |
 | 6 | Assign / transfer | `/assets/:id/assign` | Hand over custody | ✅ |
-| 7 | Scan | `/a/:assetCode` + scan button | QR / barcode / NFC lookup | ✅ |
+| 7 | Scan | `/a/:assetCode` + scan button | QR code lookup | ✅ |
 | 8 | Print labels | `/assets/labels` | QR labels | ✅ |
 | 9 | Support desk (work orders) | `/tickets` | Raise and work on problems | ✅ |
 | 10 | My work | `/my-work` | Technician's assigned work orders | 🆕 |

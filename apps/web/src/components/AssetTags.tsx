@@ -1,20 +1,19 @@
 import { useState, type FormEvent } from 'react';
 import { useAction } from '../hooks';
-import type { Asset, AssetIdentifier } from '../types';
-import { ErrorNotice, Field, Panel, Select } from './ui';
+import type { Asset } from '../types';
+import { ErrorNotice, Field, Panel } from './ui';
 
 export function AssetTags({ asset, canEdit }: { asset: Asset; canEdit: boolean }) {
   const action = useAction();
-  const [kind, setKind] = useState<AssetIdentifier['kind']>('QR');
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
   const [open, setOpen] = useState(false);
-  const identifiers = asset.identifiers ?? [];
+  const identifiers = (asset.identifiers ?? []).filter((identifier) => identifier.kind === 'QR');
   const add = async (event: FormEvent) => {
     event.preventDefault();
     await action.mutateAsync({
       path: `/assets/${asset.id}/identifiers`,
-      body: { kind, value: value.trim(), reason: reason.trim() },
+      body: { kind: 'QR', value: value.trim(), reason: reason.trim() },
     });
     setValue('');
     setReason('');
@@ -26,7 +25,7 @@ export function AssetTags({ asset, canEdit }: { asset: Asset; canEdit: boolean }
       action={
         canEdit ? (
           <button type="button" className="button secondary small" onClick={() => setOpen(!open)}>
-            {open ? 'Cancel' : 'Add tag'}
+          {open ? 'Cancel' : 'Add QR code'}
           </button>
         ) : undefined
       }
@@ -61,17 +60,10 @@ export function AssetTags({ asset, canEdit }: { asset: Asset; canEdit: boolean }
           ))}
         </div>
       ) : (
-        <p className="muted">No extra tags have been added.</p>
+        <p className="muted">No QR code has been added.</p>
       )}
       {open ? (
         <form className="form-grid subsection" onSubmit={add}>
-          <Select
-            label="Tag type"
-            htmlFor={`tag-kind-${asset.id}`}
-            value={kind}
-            onChange={(next) => setKind(next as AssetIdentifier['kind'])}
-            options={['QR', 'BARCODE', 'NFC', 'RFID'].map((item) => ({ value: item, label: item }))}
-          />
           <Field label="Value" htmlFor={`tag-value-${asset.id}`}>
             <input id={`tag-value-${asset.id}`} value={value} onChange={(event) => setValue(event.target.value)} required maxLength={200} />
           </Field>
@@ -79,7 +71,7 @@ export function AssetTags({ asset, canEdit }: { asset: Asset; canEdit: boolean }
             <input id={`tag-reason-${asset.id}`} value={reason} onChange={(event) => setReason(event.target.value)} required maxLength={1000} />
           </Field>
           <button className="button small" disabled={action.isPending || !value.trim() || !reason.trim()}>
-            Save tag
+            Save QR code
           </button>
         </form>
       ) : null}

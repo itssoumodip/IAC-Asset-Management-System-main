@@ -16,7 +16,7 @@ import { assertCan } from './policy';
 import { AuthRequest, SessionGuard } from './security';
 
 const input = z.object({
-  kind: z.enum(['QR', 'BARCODE', 'NFC', 'RFID']),
+  kind: z.literal('QR'),
   value: text(200),
   reason: text(1000),
 }).strict();

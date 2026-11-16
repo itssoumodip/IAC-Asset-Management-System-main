@@ -1,11 +1,11 @@
 import { formatInr } from '../admin-insights';
-import { lazy, Suspense, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction, usePages } from '../hooks';
 import { can, useSession } from '../session';
-import type { Asset, FinanceQueueItem, InvoiceMeta, ProposedField } from '../types';
+import type { Asset, FinanceComment, FinanceQueueItem, InvoiceMeta, ProposedField } from '../types';
 import { useReferences } from './References';
 import {
   Badge,
@@ -44,14 +44,16 @@ export function readDataUrl(file: File): Promise<string> {
   });
 }
 
-const useInvoices = (assetId: string) =>
+const useInvoices = (assetId: string, watchForUpdates = false) =>
   useQuery({
     queryKey: ['asset-invoices', assetId],
     queryFn: ({ signal }) =>
       api<{ items: InvoiceMeta[] }>(`/assets/${assetId}/invoices`, { signal }),
     // Keep checking while the worker is still reading the newest invoice.
     refetchInterval: (query) =>
-      query.state.data?.items.some((i) => i.extractionState === 'PENDING') ? 3000 : false,
+      watchForUpdates || query.state.data?.items.some((i) => i.extractionState === 'PENDING')
+        ? 3000
+        : false,
   });
 
 // The PDF viewer (PDF.js) is large, so it loads only when an invoice is opened.
@@ -97,7 +99,7 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  if (!asset.financeStatus || !can(user, 'asset.view_private')) return null;
+  if (!asset.financeStatus || (!can(user, 'asset.view_private') && !mayUpload)) return null;
   const refresh = () => void queryClient.invalidateQueries();
   async function upload(file: File | undefined) {
     if (!file) return;
@@ -124,6 +126,9 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
         <div className={noticeClass('danger')} role="status">
           <strong>Finance sent this back</strong>
           <p>{asset.financeRejectionReason}</p>
+          <p className="mt-2 text-sm">
+            Uploading a corrected invoice automatically resubmits this asset to Finance.
+          </p>
           {mayUpload ? (
             <button
               type="button"
@@ -182,7 +187,115 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
           </button>
         </div>
       ) : null}
+      <FinanceConversation assetId={asset.id} teamId={team} />
     </Panel>
+  );
+}
+
+export function FinanceConversation({
+  assetId,
+  teamId,
+}: {
+  assetId: string;
+  teamId?: string;
+}) {
+  const { user } = useSession();
+  const comments = useQuery({
+    queryKey: ['finance-comments', assetId],
+    queryFn: ({ signal }) =>
+      api<{ items: FinanceComment[] }>(`/assets/${assetId}/finance-comments`, { signal }),
+    refetchInterval: 5000,
+  });
+  const action = useAction();
+  const [body, setBody] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const mayComment = can(user, 'asset.finance_edit') || can(user, 'asset.edit', teamId);
+  const entries = comments.data?.items ?? [];
+  const visibleEntries = showAll ? entries : entries.slice(-4);
+
+  async function addComment(event: FormEvent) {
+    event.preventDefault();
+    const message = body.trim();
+    if (!message) return;
+    await action
+      .mutateAsync({
+        path: `/assets/${assetId}/finance-comments`,
+        body: { body: message },
+      })
+      .then(() => setBody(''))
+      .catch(() => undefined);
+  }
+
+  return (
+    <section className="mt-5 border-t border-gray-200 pt-4" aria-label="Finance discussion">
+      <h3 className="font-medium text-gray-900">Finance discussion</h3>
+      <ErrorNotice error={comments.error ?? action.error} />
+      {comments.isPending ? (
+        <Loading label="Loading discussion…" />
+      ) : comments.error ? null : comments.data?.items.length ? (
+        <>
+          {entries.length > 4 ? (
+            <button
+              type="button"
+              className={buttonClass('ghost', 'sm')}
+              onClick={() => setShowAll((current) => !current)}
+            >
+              {showAll ? 'Show recent updates' : `Show all ${entries.length} updates`}
+            </button>
+          ) : null}
+          <ol className="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
+            {visibleEntries.map((entry) =>
+              entry.entryType === 'EVENT' ? (
+                <li key={entry.id} className="flex gap-3 px-1 py-1.5">
+                  <span className="mt-1.5 size-2 shrink-0 rounded-full bg-gray-400" />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                      <span className="font-medium">Workflow update</span>
+                      <time dateTime={entry.createdAt}>{displayDate(entry.createdAt, true)}</time>
+                    </div>
+                    <p className="text-sm text-gray-700">{entry.body}</p>
+                  </div>
+                </li>
+              ) : (
+                <li key={entry.id} className="rounded-lg bg-blue-50 p-3">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                    <strong className="font-medium text-gray-800">{entry.authorName}</strong>
+                    <time dateTime={entry.createdAt}>{displayDate(entry.createdAt, true)}</time>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm text-gray-700">{entry.body}</p>
+                </li>
+              ),
+            )}
+          </ol>
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-gray-500">No discussion yet.</p>
+      )}
+      {mayComment ? (
+        <form className="mt-3 grid gap-2" onSubmit={addComment}>
+          <label className="text-sm text-gray-700" htmlFor={`finance-comment-${assetId}`}>
+            Add a comment
+          </label>
+          <textarea
+            id={`finance-comment-${assetId}`}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="Ask a question or explain what changed…"
+          />
+          <div>
+            <button
+              type="submit"
+              className={buttonClass('secondary', 'sm')}
+              disabled={action.isPending || !body.trim()}
+            >
+              {action.isPending ? 'Sending…' : 'Send comment'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </section>
   );
 }
 
@@ -366,14 +479,39 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
   const asset = useQuery({
     queryKey: ['asset', item.id],
     queryFn: ({ signal }) => api<Asset>(`/assets/${item.id}`, { signal }),
+    refetchInterval: 3000,
   });
-  const invoices = useInvoices(item.id);
+  const invoices = useInvoices(item.id, true);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+  const newestInvoiceId = invoices.data?.items[0]?.id;
+  useEffect(() => setSelectedInvoiceId(''), [newestInvoiceId]);
   if (asset.isPending || invoices.isPending) return <Loading />;
   if (asset.error || invoices.error) return <ErrorNotice error={asset.error ?? invoices.error} />;
-  const invoice = invoices.data.items[0];
+  const invoice =
+    invoices.data.items.find((file) => file.id === selectedInvoiceId) ?? invoices.data.items[0];
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="min-w-0">
+        {invoices.data.items.length > 1 ? (
+          <div className="mb-3 rounded-xl border border-gray-200 bg-white p-3">
+            <p className="mb-2 text-sm font-medium text-gray-800">
+              Invoice attachments ({invoices.data.items.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {invoices.data.items.map((file) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  className={buttonClass(file.id === invoice?.id ? 'primary' : 'secondary', 'sm')}
+                  aria-pressed={file.id === invoice?.id}
+                  onClick={() => setSelectedInvoiceId(file.id)}
+                >
+                  {file.originalName} · {displayDate(file.uploadedAt)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {invoice ? (
           <InvoicePreview invoice={invoice} height="calc(100vh - 15rem)" />
         ) : (
@@ -386,9 +524,14 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
         title={`${asset.data.assetCode} · ${asset.data.description}`}
         className="xl:sticky xl:top-20"
       >
+        <FinanceConversation assetId={asset.data.id} teamId={asset.data.owningTeamId} />
         {asset.data.financeStatus === 'REJECTED' ? (
           <div className={noticeClass('warning')}>
-            Rejected: {asset.data.financeRejectionReason}
+            <p>Rejected: {asset.data.financeRejectionReason}</p>
+            <p className="mt-2 text-sm">
+              When the team uploads a corrected invoice, this asset returns to Pending Finance and
+              the newest attachment appears here.
+            </p>
           </div>
         ) : null}
         {asset.data.financeStatus === 'APPROVED' ? (
@@ -443,7 +586,7 @@ export function FinanceReview() {
     status,
     teamId: teamId || undefined,
     q: q.trim() || undefined,
-  });
+  }, true, 5000);
   const items = queue.data?.pages.flatMap((p) => p.items) ?? [];
   return (
     <>

@@ -36,9 +36,9 @@ New file `apps/web/src/components/Locations.tsx`, route `/admin/locations`, link
 
 Add **Ready to Assign**, **In Use**, **Scrapped**, **Broken** (migration: extend `assets_status_check` and insert `reference_values` kind STATUS). Rules: assigning sets In Use; return sets In Store; Ready to Assign only from In Store (Lead/Super Admin); Scrapped is terminal like Retired (Lead only, reason); Broken cannot be assigned. Treat `Assigned` and `In Use` the same everywhere (`canAssign`, `canTransfer`, dashboards, filters). Do not rewrite old rows. Integration tests for each rule.
 
-# Part 4: Tags (QR / barcode / NFC / RFID-ready)
+# Part 4: QR tags only
 
-Table `asset_identifiers(asset_id, kind CHECK IN ('QR','BARCODE','NFC','RFID'), value, created_at, created_by)`, unique `(kind,value)`, backfill QR = asset code and BARCODE = existing `barcode`. `apps/api/src/scan.ts` looks up any kind and still accepts plain codes. Asset detail gets a small "Tags" section (add/remove, reason, audited) in a NEW component file imported into `Assets.tsx`. Scan page: "Scan NFC tag" button only when `'NDEFReader' in window`.
+Use QR identifiers only in the asset tag UI and API. Backfill QR = asset code, keep the existing `barcode` asset field for legacy data, and do not add barcode, NFC, or RFID tag types. Asset detail gets a small QR section (add/remove, reason, audited). Scan remains QR-camera based; do not add NFC scanning.
 
 # Part 5: Store receiving
 

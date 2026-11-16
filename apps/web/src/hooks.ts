@@ -7,11 +7,13 @@ export function usePages<T>(
   path: string,
   filters: Record<string, string | undefined> = {},
   enabled = true,
+  refetchInterval: number | false = false,
 ) {
   return useInfiniteQuery({
     queryKey: [path, filters],
     placeholderData: keepPreviousData,
     enabled,
+    refetchInterval,
     initialPageParam: '',
     queryFn: ({ pageParam, signal }) =>
       api<Page<T>>(

@@ -238,16 +238,24 @@ export class AssetDomain extends MasterDomain {
     const row = found(
       (
         await this.db.query(
-          `SELECT ${assetColumns(req.user)} FROM assets a WHERE a.id=$1 AND ${scope}`,
+          `SELECT ${assetColumns(req.user)}${can(req.user, 'asset.view_private') ? '' : ',a.finance_status AS finance_status,a.finance_rejection_reason AS finance_rejection_reason'} FROM assets a WHERE a.id=$1 AND ${scope}`,
           values,
           client,
         )
       )[0],
     );
     const result = camel(row);
+    if (
+      !can(req.user, 'asset.view_private') &&
+      !can(req.user, 'asset.edit', result.owningTeamId) &&
+      !can(req.user, 'asset.finance_edit')
+    ) {
+      delete result.financeStatus;
+      delete result.financeRejectionReason;
+    }
     result.identifiers = (
       await this.db.query(
-        'SELECT id,kind,value,created_at,created_by FROM asset_identifiers WHERE asset_id=$1 ORDER BY kind,value',
+        "SELECT id,kind,value,created_at,created_by FROM asset_identifiers WHERE asset_id=$1 AND kind='QR' ORDER BY value",
         [assetId],
         client,
       )

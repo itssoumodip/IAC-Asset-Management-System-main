@@ -9,7 +9,7 @@ Source: client spec (Zoho "Asset Management 2.0" demo comparison). Checked again
 | # | Requirement | Status | What we have today |
 |---|---|---|---|
 | 1 | Barcode/QR scan shows asset, assigned user, expected location | **Exists** | Scan page, QR/barcode labels, asset detail with holder and location |
-| 2 | NFC; RFID-ready identifiers | **Missing** | One `barcode` field per asset. Needs an identifiers table (type + value) |
+| 2 | NFC; RFID-ready identifiers | **Out of scope** | Current deployment uses QR codes only; NFC and RFID are not being added |
 | 3 | Location hierarchy (Zone/Building/Floor/Unit/Store/Rack) + per-location summaries | **Partial** | Flat locations: site, building, floor, room. No zones, stores, racks, or tree |
 | 4 | Field-level permissions, configurable per role (incl. Insurer) | **Partial** | Finance fields hidden from non-finance (server-side). Fixed in code, not configurable. No Insurer, Store, Auditor, Technician or Procurement roles |
 | 5 | Approval workflow for overwriting another role's data | **Missing** | Edits are audited with a reason, but not approved |
@@ -41,7 +41,7 @@ Each phase ends with tests passing and a demo.
 1. **Location hierarchy.** Tree table (parent, level type, code, name). Admin configures levels: Site, Zone, Building, Floor, Unit/Room, Store, Rack. Migrate current flat locations into the tree.
 2. **Statuses.** Add Ready to Assign, In Use, Scrapped, Broken. Map old ones.
 3. **Categories and subcategories.** Already admin-configurable; add the five client groups as seed data.
-4. **Identifiers.** Table of identifiers per asset (QR, Barcode, NFC, RFID later). Scan looks up any type.
+4. **Identifiers.** QR code per asset. NFC and RFID are excluded from the current scope.
 5. **Store receiving.** Store person receives an asset and records its rack/store location; scan shows where it is in the store.
 
 ### Phase 2: Roles and field-level permissions (about 2 weeks)
@@ -80,7 +80,7 @@ Each phase ends with tests passing and a demo.
 3. Native branded app at launch, or is the installable web app enough?
 4. Is invoice OCR needed at launch? (We already have it.)
 5. Any procurement/PO feature needed, or keep Zoho for that?
-6. Tags at launch: QR/barcode only, or NFC too?
+6. Tag decision: QR codes only; NFC and RFID are excluded from the current scope.
 7. Escalation rule when a user does not confirm: who, after how many days?
 
 ## 4. Notes
@@ -94,7 +94,7 @@ One opencode prompt at a time; check each result before starting the next.
 
 | # | Work | Client input needed | Status |
 |---|---|---|---|
-| 1 | Phase 1: location tree, new statuses, tags (QR/barcode/NFC, RFID-ready), store receiving. Prompt: `docs/superpowers/opencode-prompt-phase1.md` | No | In progress (location tree API done: migration 028, `apps/api/src/locations.ts`) |
+| 1 | Phase 1: location tree, new statuses, QR tags, store receiving. Prompt: `docs/superpowers/opencode-prompt-phase1.md` | No | In progress (location tree API done: migration 028, `apps/api/src/locations.ts`) |
 | 2 | Asset page with tabs: Summary, Details, Tickets, Users, History (new file, not inside `Assets.tsx`) | No | Prompt to be rewritten |
 | 3 | Phase 2: roles (Store, Auditor, Technician, Insurer), field visibility per role, approval for overwriting another role's data | Insurer fields | Waiting |
 | 4 | Phase 4: periodic user verification with escalation, auditor scan mode, user-vs-auditor gap report | Escalation rule | Waiting |

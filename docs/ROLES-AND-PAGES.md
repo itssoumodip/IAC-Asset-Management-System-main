@@ -51,7 +51,7 @@ Legend: ✅ exists at 46d3a74 · 🔧 exists, redesign/changes · 🆕 new. "Spe
 |---|---|---|---|---|---|
 | P1 | **Dashboard** | `/dashboard` | Role dashboard(s) with tabs (section 4); location filter Zone/Building/Store | 🔧 | §12 |
 | P2 | **My assets** | `/my-assets` | Cards: photo, name, code, since date, warranty end; **Confirm received**; **Report a problem**; **Verify my assets** when a verification cycle is open | 🆕 | §7, §9 |
-| P3 | **Scan** | top-bar button → `/a/:code` | Camera scan QR / barcode / NFC → asset name, photo, **assigned user**, **expected location (full path)**, status; actions allowed for the role (report problem, receive, verify, open) | 🔧 (add NFC, path) | §4 |
+| P3 | **Scan** | top-bar button → `/a/:code` | Camera scan QR code → asset name, photo, **assigned user**, **expected location (full path)**, status; actions allowed for the role (report problem, receive, verify, open) | 🔧 (path) | §4 |
 | P4 | **Requests** | `/requests`, `/requests/new` | Catalog cards (image, name, model, In/Out of stock, +) → quantity → **cart** with expected date, remarks → **Create request**; list of my requests with status | 🆕 | §10 |
 | P5 | **Support / Work orders** | `/tickets`, `/tickets/new`, `/tickets/:id` | Raise a complaint from an item or a place; follow status; reply; confirm fixed. Team/technician side in P12 | 🔧 | §10 |
 | P6 | Notifications | `/notifications` | Inbox | ✅ | |
@@ -124,7 +124,7 @@ Legend: ✅ exists at 46d3a74 · 🔧 exists, redesign/changes · 🆕 new. "Spe
 5. **Asset users:** everyone who held it (name, from, to, how it ended).
 6. **History:** every event: created, assigned, transferred, returned, received into store, moved (old → new location), repaired, verified (by user / by auditor), status changes, scrapped.
 
-**Right panel:** barcode / QR with the code under it; Serial number, Product, Model, Category, Subcategory, **Location path**, Tags (QR/NFC/RFID); **Current user** card (photo, name, role/department) or "In store at Rack 3" or "In Flat 3B".
+**Right panel:** QR code; Serial number, Product, Model, Category, Subcategory, **Location path**, Tags (QR only); **Current user** card (photo, name, role/department) or "In store at Rack 3" or "In Flat 3B".
 
 ---
 
@@ -197,7 +197,7 @@ All dashboards: 4 headline numbers (clickable), "Needs your attention" (top 5 wi
 
 | Phase | Pages | Why first |
 |---|---|---|
-| 1 Foundation | P29 Categories, P18 Locations, P30 statuses, P31 roles & field permissions, P3 Scan (path, NFC) | Everything else depends on these |
+| 1 Foundation | P29 Categories, P18 Locations, P30 statuses, P31 roles & field permissions, P3 Scan (QR code, path) | Everything else depends on these |
 | 2 Daily asset work | P8 catalog, P9 asset page, P10–P11 add/edit with invoice step, P13 transfers with approval, P2 My assets, P15 Approvals | What users touch every day |
 | 3 Store & inventory | P16 Inventory, P17 Store, P4 Requests, P25 Procurement (basic) | Stock and requests |
 | 4 Work orders & maintenance | P5, P12, P19 | Complaints and preventive maintenance |

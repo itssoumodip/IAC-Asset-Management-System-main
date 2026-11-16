@@ -142,7 +142,7 @@ export interface Asset {
 }
 export interface AssetIdentifier {
   id: string;
-  kind: 'QR' | 'BARCODE' | 'NFC' | 'RFID';
+  kind: 'QR';
   value: string;
   createdAt?: string;
   createdBy?: string | null;
@@ -310,6 +310,15 @@ export interface InvoiceMeta {
     >
   >;
   assetIds: string[];
+}
+export interface FinanceComment {
+  id: string;
+  assetId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  entryType: 'COMMENT' | 'EVENT';
+  createdAt: string;
 }
 export interface FinanceQueueItem {
   id: string;

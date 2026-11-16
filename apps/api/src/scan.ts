@@ -55,7 +55,7 @@ export class ScanService {
              lower(a.asset_code)=lower(btrim($1))
              OR EXISTS (
                 SELECT 1 FROM asset_identifiers ai
-                WHERE ai.asset_id=a.id AND lower(ai.value)=lower(btrim($1))
+                WHERE ai.asset_id=a.id AND ai.kind='QR' AND lower(ai.value)=lower(btrim($1))
              )
            )
            AND (${lookupScope})`,

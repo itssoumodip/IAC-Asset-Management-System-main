@@ -368,7 +368,7 @@ export function AssetDetailZoho() {
               </div>
               <div className="sidebar-fact">
                 <span className="muted small-text">Tags</span>
-                <div>QR / NFC / RFID</div>
+                <div>QR code</div>
               </div>
             </div>
             <div className="sidebar-user">

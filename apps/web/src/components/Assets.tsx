@@ -842,7 +842,7 @@ export function AssetDetail() {
           void query.refetch();
         }}
       />
-      {manage ? <FinanceStatusPanel asset={asset} /> : null}
+      {manage || mayEdit ? <FinanceStatusPanel asset={asset} /> : null}
       {!manage ? (
         <div className={noticeClass()}>
           Asset details are read-only. Contact Admin or raise a support ticket to request a

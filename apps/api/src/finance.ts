@@ -67,6 +67,7 @@ const approveFields = assetInput
   .strict();
 const approveInput = z.object({ fields: approveFields.optional(), reason: text(1000) }).strict();
 const rejectInput = z.object({ reason: text(1000) }).strict();
+const financeCommentInput = z.object({ body: text(2000) }).strict();
 
 function sniff(bytes: Buffer): (typeof MIMES)[number] | null {
   if (bytes.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
@@ -179,7 +180,10 @@ export class FinanceService {
       if (!invoice)
         [invoice] = await this.db.query('SELECT * FROM invoices WHERE sha256=$1', [sha256], c);
       await this.db.query(
-        'INSERT INTO invoice_assets(invoice_id,asset_id,linked_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
+        `INSERT INTO invoice_assets(invoice_id,asset_id,linked_by,linked_at)
+         VALUES($1,$2,$3,now())
+         ON CONFLICT(invoice_id,asset_id) DO UPDATE
+           SET linked_by=excluded.linked_by,linked_at=excluded.linked_at`,
         [invoice.id, assetId, req.user.id],
         c,
       );
@@ -188,6 +192,12 @@ export class FinanceService {
         sha256,
         byteSize: bytes.length,
       });
+      await this.db.query(
+        `INSERT INTO finance_comments(asset_id,author_id,body,entry_type)
+         VALUES($1,$2,$3,'EVENT')`,
+        [assetId, req.user.id, `Invoice attached: ${name}`],
+        c,
+      );
       // New evidence on a rejected asset is a resubmission.
       if (asset.finance_status === 'REJECTED') await this.backToPending(req, assetId, c, 'invoice');
       return meta(invoice, [assetId]);
@@ -197,6 +207,12 @@ export class FinanceService {
   private async backToPending(req: AuthRequest, assetId: string, c: any, via: string) {
     await patchObject(this.db, 'assets', assetId, { financeStatus: 'PENDING' }, c);
     await this.db.audit(c, req.user, 'asset', assetId, 'FINANCE_RESUBMITTED', { via });
+    await this.db.query(
+      `INSERT INTO finance_comments(asset_id,author_id,body,entry_type)
+       VALUES($1,$2,$3,'EVENT')`,
+      [assetId, req.user.id, 'Resubmitted to Finance for review.'],
+      c,
+    );
     // Tell Finance it is back in their queue (in-app notice and email).
     const [asset] = await this.db.query(
       'SELECT id,asset_code,description,purchase_cost FROM assets WHERE id=$1',
@@ -208,19 +224,57 @@ export class FinanceService {
 
   async listForAsset(req: AuthRequest, assetId: string) {
     id(assetId);
-    assertCan(req.user, 'asset.view_private');
-    await this.domain.asset(req, assetId); // enforces asset visibility
+    const asset = await this.domain.asset(req, assetId); // enforces asset visibility
+    if (!can(req.user, 'asset.view_private') && !this.canUpload(req, asset.owningTeamId))
+      throw new ForbiddenException('Insufficient permission');
     const rows = await this.db.query(
-      `SELECT i.id,i.mime,i.size,i.sha256,i.original_name,i.uploaded_by,i.uploaded_at,i.extraction_state,i.extraction_error,i.extracted_fields
-       FROM invoice_assets ia JOIN invoices i ON i.id=ia.invoice_id WHERE ia.asset_id=$1 ORDER BY i.uploaded_at DESC`,
+      `SELECT i.id,i.mime,i.size,i.sha256,i.original_name,i.uploaded_by,ia.linked_at AS uploaded_at,i.extraction_state,i.extraction_error,i.extracted_fields
+       FROM invoice_assets ia JOIN invoices i ON i.id=ia.invoice_id
+       WHERE ia.asset_id=$1 ORDER BY ia.linked_at DESC,i.uploaded_at DESC,i.id DESC`,
       [assetId],
     );
     return { items: rows.map((r) => meta(r, [assetId])) };
   }
 
+  async financeComments(req: AuthRequest, assetId: string) {
+    id(assetId);
+    const asset = await this.domain.asset(req, assetId);
+    if (!can(req.user, 'asset.view_private') && !this.canUpload(req, asset.owningTeamId))
+      throw new ForbiddenException('Insufficient permission');
+    const rows = await this.db.query(
+      `SELECT * FROM (
+         SELECT c.id,c.asset_id,c.author_id,u.display_name AS author_name,c.body,c.entry_type,c.created_at
+         FROM finance_comments c JOIN users u ON u.id=c.author_id
+         WHERE c.asset_id=$1 ORDER BY c.created_at DESC,c.id DESC LIMIT 200
+       ) recent ORDER BY created_at,id`,
+      [assetId],
+    );
+    return { items: rows.map(camel) };
+  }
+
+  async addFinanceComment(req: AuthRequest, assetId: string, body: unknown) {
+    id(assetId);
+    const asset = await this.domain.asset(req, assetId);
+    if (!this.canUpload(req, asset.owningTeamId))
+      throw new ForbiddenException('Insufficient permission');
+    const input = parse(financeCommentInput, body);
+    return this.db.tx(async (c) => {
+      const [row] = await this.db.query(
+        `INSERT INTO finance_comments(asset_id,author_id,body)
+         VALUES($1,$2,$3)
+         RETURNING id,asset_id,author_id,body,entry_type,created_at`,
+        [assetId, req.user.id, input.body],
+        c,
+      );
+      await this.db.audit(c, req.user, 'asset', assetId, 'FINANCE_COMMENT_ADDED', {
+        commentId: row.id,
+      });
+      return { ...camel(row), authorName: req.user.displayName };
+    });
+  }
+
   private async invoiceRow(req: AuthRequest, invoiceId: string, withFile: boolean) {
     id(invoiceId);
-    assertCan(req.user, 'asset.view_private');
     const row = found(
       (
         await this.db.query(
@@ -231,6 +285,14 @@ export class FinanceService {
         )
       )[0],
     );
+    if (!can(req.user, 'asset.view_private')) {
+      const linkedTeams = await this.db.query(
+        'SELECT owning_team_id FROM assets WHERE id=ANY($1::uuid[])',
+        [row.asset_ids],
+      );
+      if (!linkedTeams.some((asset) => this.canUpload(req, asset.owning_team_id)))
+        throw new ForbiddenException('Insufficient permission');
+    }
     return row;
   }
 
@@ -274,7 +336,7 @@ export class FinanceService {
               inv.id AS invoice_id,inv.extraction_state AS invoice_state
        FROM assets a JOIN teams tm ON tm.id=a.owning_team_id
        LEFT JOIN LATERAL (SELECT i.id,i.extraction_state FROM invoice_assets ia JOIN invoices i ON i.id=ia.invoice_id
-                          WHERE ia.asset_id=a.id ORDER BY i.uploaded_at DESC LIMIT 1) inv ON true
+                          WHERE ia.asset_id=a.id ORDER BY ia.linked_at DESC,i.uploaded_at DESC,i.id DESC LIMIT 1) inv ON true
        WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
       values,
     );
@@ -338,6 +400,12 @@ export class FinanceService {
         c,
       );
       await this.db.audit(c, req.user, 'asset', assetId, 'FINANCE_REJECTED', { reason });
+      await this.db.query(
+        `INSERT INTO finance_comments(asset_id,author_id,body,entry_type)
+         VALUES($1,$2,$3,'EVENT')`,
+        [assetId, req.user.id, `Finance sent this back: ${reason}`],
+        c,
+      );
       const recipients = (
         await this.db.query(
           `SELECT DISTINCT u.email FROM users u JOIN team_memberships m ON m.user_id=u.id
@@ -395,6 +463,14 @@ export class FinanceController {
   @Get('assets/:id/invoices')
   list(@Req() req: AuthRequest, @Param('id') assetId: string) {
     return this.service.listForAsset(req, assetId);
+  }
+  @Get('assets/:id/finance-comments')
+  comments(@Req() req: AuthRequest, @Param('id') assetId: string) {
+    return this.service.financeComments(req, assetId);
+  }
+  @Post('assets/:id/finance-comments')
+  addComment(@Req() req: AuthRequest, @Param('id') assetId: string, @Body() body: unknown) {
+    return this.service.addFinanceComment(req, assetId, body);
   }
   @Post('invoices/preview')
   preview(@Req() req: AuthRequest, @Body() body: unknown) {
