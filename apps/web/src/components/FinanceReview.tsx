@@ -27,7 +27,11 @@ import {
 export const INVOICE_MAX_BYTES = 10 * 1024 * 1024;
 export const INVOICE_ACCEPT = 'application/pdf,image/jpeg,image/png';
 
-export function financeBadge(asset: Pick<Asset, 'financeStatus' | 'financeRejectionReason'>) {
+export function FinanceBadge({
+  asset,
+}: {
+  asset: Pick<Asset, 'financeStatus' | 'financeRejectionReason'>;
+}) {
   if (asset.financeStatus === 'REJECTED')
     return <Badge value="REJECTED" label={`Rejected: ${asset.financeRejectionReason ?? ''}`} />;
   if (asset.financeStatus === 'PENDING') return <Badge value="PENDING" label="Pending Finance" />;
@@ -121,7 +125,9 @@ export function FinanceStatusPanel({ asset }: { asset: Asset }) {
   }
   return (
     <Panel title="Finance & invoices" className="finance-status-panel">
-      <p>{financeBadge(asset)}</p>
+      <p>
+        <FinanceBadge asset={asset} />
+      </p>
       {asset.financeStatus === 'REJECTED' ? (
         <div className={noticeClass('danger')} role="status">
           <strong>Finance sent this back</strong>
@@ -524,7 +530,10 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
         title={`${asset.data.assetCode} · ${asset.data.description}`}
         className="xl:sticky xl:top-20"
       >
-        <FinanceConversation assetId={asset.data.id} teamId={asset.data.owningTeamId} />
+        <FinanceConversation
+          assetId={asset.data.id}
+          teamId={asset.data.owningTeamId ?? undefined}
+        />
         {asset.data.financeStatus === 'REJECTED' ? (
           <div className={noticeClass('warning')}>
             <p>Rejected: {asset.data.financeRejectionReason}</p>
