@@ -153,6 +153,16 @@ export class TicketDomain extends AssetDomain {
             )
           )[0] || null;
       }
+      // An explicit choice by the reporter wins over automatic routing.
+      if (data.teamId) {
+        const [team] = await this.db.query(
+          'SELECT active FROM teams WHERE id=$1 FOR SHARE',
+          [data.teamId],
+          c,
+        );
+        if (!team?.active) throw new UnprocessableEntityException('Choose an active team');
+        teamId = data.teamId;
+      }
       if (!teamId)
         teamId =
           (

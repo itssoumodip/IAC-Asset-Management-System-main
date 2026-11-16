@@ -373,6 +373,8 @@ export function TicketForm() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('HARDWARE');
   const [priority, setPriority] = useState('MEDIUM');
+  // Empty = let the portal route it (asset's team, then the category's team, then IT).
+  const [sendTo, setSendTo] = useState('');
   const [validation, setValidation] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const scannedCode = params.get('asset') && params.get('assetId') ? params.get('asset') : null;
@@ -397,6 +399,7 @@ export function TicketForm() {
           description: description.trim(),
           category,
           priority,
+          ...(sendTo ? { teamId: sendTo } : {}),
           ...(photos.length ? { photos } : {}),
           ...(params.get('relatedTicketId')
             ? { relatedTicketId: params.get('relatedTicketId') }
@@ -539,6 +542,19 @@ export function TicketForm() {
                   preserveCurrent={false}
                 />
               </Field>
+              <Select
+                label="Send to"
+                htmlFor="ticket-send-to"
+                value={sendTo}
+                onChange={setSendTo}
+                hint="Leave on automatic and the ticket goes to the team that looks after the asset or category."
+                options={[
+                  { value: '', label: 'Choose for me (automatic)' },
+                  ...(refs.data?.teams ?? [])
+                    .filter((team) => team.active)
+                    .map((team) => ({ value: team.id, label: `${team.name} team` })),
+                ]}
+              />
             </div>
             <Field
               label="What happened?"

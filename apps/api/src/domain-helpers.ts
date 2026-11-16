@@ -104,6 +104,8 @@ export const ticketInput = z
   .object({
     assetId: uuid.optional(),
     relatedTicketId: uuid.optional(),
+    /** Team the reporter wants to handle it; omitted means route automatically. */
+    teamId: uuid.optional(),
     subject: text(160),
     description: text(),
     category: text(100),
