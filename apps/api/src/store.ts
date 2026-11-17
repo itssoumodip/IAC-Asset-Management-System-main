@@ -58,7 +58,7 @@ export class StoreService {
         COUNT(a.id)::int AS asset_count,
         COALESCE(SUM(a.purchase_cost)::float8, 0) AS purchase_value,
         COUNT(*) FILTER (WHERE a.status = 'In Store')::int AS in_store_count,
-        COUNT(*) FILTER (WHERE a.status = 'Assigned')::int AS assigned_count
+        COUNT(*) FILTER (WHERE a.status IN ('Assigned','In Use'))::int AS assigned_count
       FROM locations l
       LEFT JOIN assets a ON a.location_id = l.id
       WHERE l.level = 'STORE' OR l.level = 'RACK'

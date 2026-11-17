@@ -43,7 +43,8 @@ async function compute(db: Db, teamId: string | null): Promise<SummaryPayload> {
          AND a.purchase_date>=make_date(${fyStart},4,1) AND a.purchase_date<make_date(${fyStart}+1,4,1)),0)::float8 AS "fySpend",
        ${fyStart} AS "fyStart",
        count(*) FILTER(WHERE a.purchase_cost IS NULL)::int AS "missingCost",
-       count(*) FILTER(WHERE a.status='Assigned')::int AS assigned,
+       -- Assigned and In Use are the same held state (assignment now records In Use).
+       count(*) FILTER(WHERE a.status IN ('Assigned','In Use'))::int AS assigned,
        count(*) FILTER(WHERE a.warranty_expiry BETWEEN ${TODAY} AND ${TODAY}+30)::int AS "warrantyExpiring",
        count(*) FILTER(WHERE a.finance_status<>'APPROVED')::int AS "pendingFinance",
        count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry BETWEEN ${TODAY} AND ${TODAY}+30)::int AS "amcExpiring30"

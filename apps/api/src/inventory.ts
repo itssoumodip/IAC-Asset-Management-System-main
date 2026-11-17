@@ -92,7 +92,7 @@ export class InventoryService {
       `SELECT a.category, a.asset_type, a.owning_team_id, t.code AS team_code, t.name AS team_name,
         count(*)::int AS total_count,
         count(*) FILTER (WHERE a.status = 'In Store')::int AS in_store_count,
-        count(*) FILTER (WHERE a.status = 'Assigned')::int AS assigned_count,
+        count(*) FILTER (WHERE a.status IN ('Assigned','In Use'))::int AS assigned_count,
         count(*) FILTER (WHERE a.status = 'Ready to Assign')::int AS ready_count,
         count(*) FILTER (WHERE a.status NOT IN ('In Store', 'Assigned', 'Ready to Assign'))::int AS other_count,
         COALESCE(own.min_in_store, dflt.min_in_store, 0)::int AS min_in_store

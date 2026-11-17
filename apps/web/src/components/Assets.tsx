@@ -14,6 +14,7 @@ import {
   ColumnFilter,
   FilterChips,
   FiltersButton,
+  SortMenu,
   fromList,
   toList,
   type FilterGroup,
@@ -159,6 +160,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     holderId: params.get('holderId') || undefined,
     locationId: params.get('locationId') || undefined,
     owningTeamId: params.get('owningTeamId') || undefined,
+    sort: params.get('sort') || undefined,
   };
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
@@ -362,6 +364,17 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             <button className={buttonClass('secondary')} type="submit">
               Search
             </button>
+            {/* Inside the search row so it keeps its natural size (the filter bar stretches its children). */}
+            <SortMenu
+              value={filters.sort ?? 'code'}
+              onChange={(value) => update('sort', value === 'code' ? '' : value)}
+              options={[
+                { value: 'code', label: 'Asset ID (A–Z)' },
+                { value: 'code_desc', label: 'Newest Asset ID first' },
+                { value: 'added', label: 'Recently added' },
+                { value: 'updated', label: 'Recently updated' },
+              ]}
+            />
           </form>
           {/* Phones hide the table headers, so their filters live behind this button. */}
           <div className="flex-none md:hidden">

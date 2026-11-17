@@ -143,39 +143,43 @@ export function ScanPage() {
         </div>
         <ScanPhoto code={assetCode} scan={scan} />
         {scan.custodian ? (
-          <section className="scan-custodian" aria-labelledby="scan-custodian-title">
-            <h2 id="scan-custodian-title">Current custodian</h2>
-            <div className="mt-2 flex items-center gap-4">
+          <section
+            className="my-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"
+            aria-labelledby="scan-custodian-title"
+          >
+            <h2 id="scan-custodian-title" className="m-0 text-xs font-medium tracking-wide text-gray-500 uppercase">
+              Current custodian
+            </h2>
+            <div className="mt-2 flex items-center gap-3">
               {/* Zoho photo when the viewer may see it; initials otherwise. */}
               <Avatar
                 userId={scan.custodian.userId ?? ''}
                 name={scan.custodian.name}
                 hasPhoto={!!scan.custodian.userId && scan.custodian.hasPhoto}
-                size={64}
+                size={44}
               />
-              <div className="min-w-0">
-                <p className="scan-custodian-name">{scan.custodian.name}</p>
-                {scan.custodian.designation ? <p>{scan.custodian.designation}</p> : null}
-                {scan.custodian.department ? (
-                  <p className="muted">{scan.custodian.department}</p>
-                ) : null}
+              <div className="min-w-0 leading-tight">
+                <p className="m-0 truncate text-base font-semibold text-gray-900">{scan.custodian.name}</p>
+                <p className="m-0 mt-0.5 truncate text-sm text-gray-600">
+                  {[scan.custodian.designation, scan.custodian.department].filter(Boolean).join(' · ')}
+                </p>
               </div>
             </div>
-            <p className="muted small-text">
+            <p className="m-0 mt-2 text-xs text-gray-500">
               {scan.custodian.acknowledgement === 'ACCEPTED'
                 ? 'Assignment confirmed'
                 : scan.custodian.acknowledgement === 'DISPUTED'
                   ? 'Assignment needs review'
                   : 'Assignment awaiting confirmation'}
               {scan.custodian.assignedAt
-                ? ` · Assigned ${new Date(scan.custodian.assignedAt).toLocaleDateString()}`
+                ? ` · Assigned ${new Date(scan.custodian.assignedAt).toLocaleDateString('en-IN')}`
                 : ''}
             </p>
           </section>
         ) : (
-          <section className="scan-custodian scan-custodian-empty">
-            <h2>Current custodian</h2>
-            <p>No employee is currently assigned to this asset.</p>
+          <section className="my-4 rounded-xl border border-dashed border-gray-200 px-4 py-3">
+            <h2 className="m-0 text-xs font-medium tracking-wide text-gray-500 uppercase">Current custodian</h2>
+            <p className="m-0 mt-1 text-sm text-gray-600">No employee is currently assigned to this asset.</p>
           </section>
         )}
         <dl className="scan-details">

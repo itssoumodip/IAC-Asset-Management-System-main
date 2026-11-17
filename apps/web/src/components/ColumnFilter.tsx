@@ -149,6 +149,68 @@ function Footer({ onClear, onApply }: { onClear: () => void; onApply: () => void
 }
 
 /** Funnel icon for a table header; ticks several values. */
+/** Compact "Sort" button with a short menu of orders (same look as the column filters). */
+export function SortMenu({
+  options,
+  value,
+  onChange,
+}: {
+  options: FilterOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value) ?? options[0];
+  return (
+    <Popover
+      open={open}
+      setOpen={setOpen}
+      width={240}
+      trigger={({ onClick, ref }) => (
+        <button
+          ref={ref}
+          type="button"
+          onClick={onClick}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          className={cx(buttonClass('secondary'), 'gap-1.5 whitespace-nowrap')}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-4" aria-hidden="true">
+            <path d="M5 3v10M2.5 10.5 5 13l2.5-2.5M11 13V3M8.5 5.5 11 3l2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="hidden sm:inline">Sort:</span>
+          <span className="max-w-36 truncate">{current?.label}</span>
+        </button>
+      )}
+    >
+      <ul role="menu" className="-m-1 space-y-0.5">
+        {options.map((o) => (
+          <li key={o.value} role="none">
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={o.value === current?.value}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className={cx(
+                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                o.value === current?.value ? 'bg-navy-50 text-navy-800' : 'text-gray-700 hover:bg-gray-50',
+              )}
+            >
+              <span className="w-4 text-navy-700" aria-hidden="true">
+                {o.value === current?.value ? '✓' : ''}
+              </span>
+              {o.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Popover>
+  );
+}
+
 export function ColumnFilter({
   title,
   options,

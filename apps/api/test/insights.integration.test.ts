@@ -71,6 +71,33 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     await assert.rejects(domain.assets({ user: admin } as any, { holderId: 'not-an-id' }));
   });
 
+  it('sorts by newest Asset ID and recently added, paging without gaps or repeats', async () => {
+    const sorted = (items: any[], key: (a: any) => string, desc: boolean) =>
+      items.every((a, i) => i === 0 || (desc ? key(items[i - 1]) >= key(a) : key(items[i - 1]) <= key(a)));
+    for (const sort of ['code', 'code_desc', 'added', 'updated']) {
+      const seen: string[] = [];
+      let cursor: string | undefined;
+      for (let pageNo = 0; pageNo < 3; pageNo++) {
+        const r = await domain.assets({ user: admin } as any, { sort, limit: 5, ...(cursor ? { cursor } : {}) });
+        seen.push(...r.items.map((a: any) => a.id));
+        if (sort.startsWith('code')) assert.ok(sorted(r.items, (a) => a.assetCode, sort === 'code_desc'), sort);
+        assert.ok(r.items.every((a: any) => !('sortKey' in a)));
+        if (!r.nextCursor) break;
+        cursor = r.nextCursor;
+      }
+      assert.equal(new Set(seen).size, seen.length, `no repeats for ${sort}`);
+    }
+    const newest = await domain.assets({ user: admin } as any, { sort: 'added', limit: 1 });
+    const [latest] = await db.query('SELECT id FROM assets ORDER BY created_at DESC, id DESC LIMIT 1');
+    assert.equal(newest.items[0].id, latest.id);
+  });
+
+  it('background export accepts the catalog sort and location filters', async () => {
+    const { buildAssetCsv } = await import('../src/export-jobs');
+    const csv = await buildAssetCsv(db, admin, { holderId: holder, sort: 'added' } as any);
+    assert.equal(csv.rowCount, 2);
+  });
+
   it('filters by brand ignoring case, and lists brands', async () => {
     await db.query(
       `UPDATE assets SET manufacturer = CASE WHEN description LIKE '%0' THEN 'HP' ELSE 'hp' END WHERE description LIKE $1`,

@@ -201,6 +201,8 @@ export function requestPage(query: any, fields: string[]) {
         owningTeamId: uuidList.optional(),
         locationId: uuidList.optional(),
         holderId: uuidList.optional(),
+        // Asset list order: Asset ID A-Z (default), Z-A, recently added, recently updated.
+        sort: z.enum(['code', 'code_desc', 'added', 'updated']).optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
         teamId: uuid.optional(),

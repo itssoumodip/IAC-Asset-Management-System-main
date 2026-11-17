@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import QrScanner from 'qr-scanner';
 import { assetPathFromScan } from '../scan-url';
@@ -79,7 +80,9 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
     navigate(`/a/${encodeURIComponent(code)}`);
   }
 
-  return (
+  // Rendered on <body>: the top bar uses backdrop-blur, which would otherwise trap this
+  // full-screen layer inside the bar and leave the camera view 0px tall.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -125,7 +128,8 @@ export function ScannerDialog({ open, onClose }: { open: boolean; onClose(): voi
           Go
         </button>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

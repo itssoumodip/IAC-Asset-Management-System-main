@@ -195,16 +195,27 @@ export class AssetDomain extends MasterDomain {
         `(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length} OR a.serial_number ILIKE $${values.length})`,
       );
     }
+    // Sort order. The page cursor is (sort key, id); dates are compared as full-precision
+    // text so paging never skips or repeats rows that share a timestamp.
+    const at = (col: string) => `to_char(${col} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US')`;
+    const sort = {
+      code: { key: 'a.asset_code', desc: false },
+      code_desc: { key: 'a.asset_code', desc: true },
+      added: { key: at('a.created_at'), desc: true },
+      updated: { key: at('a.updated_at'), desc: true },
+    }[p.sort ?? 'code'];
     if (p.after) {
       values.push(...p.after);
-      where.push(`(a.asset_code,a.id)>($${values.length - 1},$${values.length}::uuid)`);
+      where.push(`(${sort.key},a.id)${sort.desc ? '<' : '>'}($${values.length - 1},$${values.length}::uuid)`);
     }
     values.push(p.limit + 1);
+    const dir = sort.desc ? 'DESC' : 'ASC';
     const rows = await this.db.query(
-      `SELECT ${assetColumns(req.user)},EXISTS(SELECT 1 FROM asset_photos ph WHERE ph.asset_id=a.id) AS has_photo${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY a.asset_code,a.id LIMIT $${values.length}`,
+      `SELECT ${assetColumns(req.user)},${sort.key} AS sort_key,EXISTS(SELECT 1 FROM asset_photos ph WHERE ph.asset_id=a.id) AS has_photo${canSomewhere(req.user, 'asset.label') ? `,(SELECT max(lp.printed_at) FROM asset_label_prints lp WHERE lp.asset_id=a.id) AS last_label_printed_at` : ''} FROM assets a WHERE ${where.join(' AND ')} ORDER BY ${sort.key} ${dir},a.id ${dir} LIMIT $${values.length}`,
       values,
     );
-    const result = page(rows, p.limit, ['asset_code', 'id']);
+    const result = page(rows, p.limit, ['sort_key', 'id']);
+    for (const item of result.items) delete (item as { sortKey?: unknown }).sortKey;
     await this.attachCurrentAssignments(req.user, result.items);
     // Field permissions page: drop fields every one of this user's roles may not see.
     stripHiddenFields(result.items, (await assetFieldRestrictions(this.db, req.user)).hidden);

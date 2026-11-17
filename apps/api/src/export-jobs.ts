@@ -35,11 +35,14 @@ const filtersInput = z
     departmentId: z.string().max(3800).optional(),
     owningTeamId: z.string().max(3800).optional(),
     holderId: z.string().max(3800).optional(),
+    locationId: z.string().max(3800).optional(),
+    // The catalog sends its sort too; exports are always in Asset ID order.
+    sort: z.enum(['code', 'code_desc', 'added', 'updated']).optional(),
   })
   .strict()
   .refine(
     (f) =>
-      [f.departmentId, f.owningTeamId, f.holderId].every((v) =>
+      [f.departmentId, f.owningTeamId, f.holderId, f.locationId].every((v) =>
         filterList(v).every((id) => uuid.safeParse(id).success),
       ),
     'Invalid id list',
@@ -123,6 +126,15 @@ export async function buildAssetCsv(
     if (statuses.some((s) => s === 'Assigned' || s === 'In Use')) statuses.push('Assigned', 'In Use');
     values.push([...new Set(statuses)]);
     where.push(`a.status=ANY($${values.length}::text[])`);
+  }
+  const places = filterList(filters.locationId);
+  if (places.length) {
+    // The chosen locations and everything inside them, like the catalog.
+    values.push(places);
+    where.push(
+      `a.location_id IN (WITH RECURSIVE sub AS (SELECT id FROM locations WHERE id=ANY($${values.length}::uuid[])
+         UNION ALL SELECT c.id FROM locations c JOIN sub ON c.parent_id=sub.id) SELECT id FROM sub)`,
+    );
   }
   const holders = filterList(filters.holderId);
   if (holders.length) {

@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api';
 
@@ -232,7 +232,6 @@ export function ErrorNotice({ error, retry }: { error: unknown; retry?: () => vo
 }
 export function Loading({ label = 'Loading…' }: { label?: string }) {
   const [visible, setVisible] = useState(false);
-  const [logoFailed, setLogoFailed] = useState(false);
   useEffect(() => {
     const timer = window.setTimeout(() => setVisible(true), 180);
     return () => window.clearTimeout(timer);
@@ -247,27 +246,40 @@ export function Loading({ label = 'Loading…' }: { label?: string }) {
     >
       {visible ? (
         <>
-          <span
-            className="grid size-12 place-items-center rounded-xl bg-white ring-1 ring-gray-200 motion-safe:animate-pulse"
-            aria-hidden="true"
-          >
-            {logoFailed ? (
-              <span className="size-3 rounded-full bg-navy-700" />
-            ) : (
-              <img
-                src="/loading-logo.png"
-                alt=""
-                className="size-8"
-                onError={() => setLogoFailed(true)}
-              />
-            )}
-          </span>
+          <GooLoader size={140} />
           <span role="status" aria-live="polite">
             {label}
           </span>
         </>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Three dots in the IAC logo colours that merge and split (SVG "goo" filter). Built on a
+ * 200px stage and scaled to `size`; still for people who prefer reduced motion.
+ */
+export function GooLoader({ size = 88 }: { size?: number }) {
+  const filterId = `goo-${useId().replace(/:/g, '')}`;
+  return (
+    <span className="goo-loader" style={{ width: size, height: size }} aria-hidden="true">
+      <span className="goo-loader-stage" style={{ transform: `translate(-50%, -50%) scale(${size / 200})` }}>
+        <span className="goo-loader-spin" style={{ filter: `url("#${filterId}")` }}>
+          <span className="goo-dot goo-dot-1" />
+          <span className="goo-dot goo-dot-2" />
+          <span className="goo-dot goo-dot-3" />
+        </span>
+      </span>
+      <svg className="absolute size-0" focusable="false">
+        <defs>
+          <filter id={filterId}>
+            <feGaussianBlur result="blur" stdDeviation={10} in="SourceGraphic" />
+            <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 21 -7" mode="matrix" in="blur" />
+          </filter>
+        </defs>
+      </svg>
+    </span>
   );
 }
 export function Empty({
