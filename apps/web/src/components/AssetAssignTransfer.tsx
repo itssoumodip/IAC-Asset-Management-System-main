@@ -14,7 +14,6 @@ import {
   Loading,
   PageTitle,
   Panel,
-  Select,
   backLinkClass,
   noticeClass,
   actionsClass,
@@ -22,6 +21,7 @@ import {
 } from './ui';
 import { useReferences, ReferenceBadge } from './References';
 import { FormTransfer } from './DataTransfer';
+import { PersonPicker } from './PersonPicker';
 
 export function AssetAssignTransfer() {
   const refs = useReferences();
@@ -163,32 +163,16 @@ export function AssetAssignTransfer() {
               }}
             />
             <form className="form-stack subsection" onSubmit={submit}>
-              <Field label="Search people" htmlFor="assignment-search">
-                <input
-                  id="assignment-search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Name, email or employee code"
-                  maxLength={100}
-                  autoComplete="off"
-                />
-              </Field>
-              <Select
-                label="Approved employee"
-                htmlFor="assignment-user"
-                value={selectedEmployee ? userId : ''}
-                onChange={choose}
+              <PersonPicker
+                label={transfer ? 'Transfer to' : 'Assign to'}
+                people={listed}
+                loading={employees.isFetching}
+                search={search}
+                onSearch={setSearch}
+                selected={selectedEmployee}
+                onSelect={(person) => choose(person?.id ?? '')}
                 disabled={action.isPending || !custodyAvailable}
-                ariaDescribedBy="assignment-eligibility"
-                required
-                options={[
-                  { value: '', label: 'Choose an employee' },
-                  ...items.map((user) => ({
-                    value: user.id,
-                    label: `${user.displayName}${user.employeeCode ? ` (${user.employeeCode})` : ''} · ${user.email}${user.state === 'DIRECTORY' ? ' · No login' : ''}`,
-                  })),
-                ]}
+                describedBy="assignment-eligibility"
               />
               {selectedEmployee?.state === 'DIRECTORY' ? (
                 <p className="muted">
@@ -198,7 +182,7 @@ export function AssetAssignTransfer() {
               ) : null}
               <p id="assignment-eligibility" className="muted">
                 Recipients are active employees with portal access, or people synced from the staff
-                directory who have not left. Search above.
+                directory who have not left.
               </p>
               {!items.length ? (
                 <p className="muted">

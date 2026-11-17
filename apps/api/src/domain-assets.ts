@@ -139,6 +139,8 @@ export class AssetDomain extends MasterDomain {
     const p = requestPage(query, ['asset_code', 'id']);
     const values: any[] = [];
     const where = [assetScope(req.user, values)];
+    // Removed assets only when a Super Admin asks for them; otherwise they are left out.
+    where.push(p.removed === 'only' && req.user.roles.includes('SUPER_ADMIN') ? 'a.removed_at IS NOT NULL' : 'a.removed_at IS NULL');
     // Each filter takes one value or several (comma-separated): any of them matches.
     for (const [key, column, cast] of [
       ['category', 'category', 'text'],
@@ -631,6 +633,54 @@ export class AssetDomain extends MasterDomain {
         };
       },
     );
+  }
+  /** Super Admin: take an asset off the register (hidden everywhere; record and history kept). */
+  async removeFromRegister(req: AuthRequest, assetId: string, body: unknown) {
+    if (!req.user.roles.includes('SUPER_ADMIN')) throw new ForbiddenException('Only a Super Admin can remove assets');
+    id(assetId);
+    const { reason } = parse(z.object({ reason: text(1000) }).strict(), body);
+    return this.db.tx(async (c) => {
+      const asset = found((await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0]);
+      assertVersion(req, asset.version);
+      if (asset.removed_at) throw new ConflictException('This asset is already removed from the register');
+      const [held] = await this.db.query('SELECT 1 FROM assignments WHERE asset_id=$1 AND ended_at IS NULL', [assetId], c);
+      if (held) throw new ConflictException('Someone holds this asset. Record its return first, then remove it.');
+      await this.db.query(
+        'UPDATE assets SET removed_at=now(),removed_by=$2,removed_reason=$3,version=version+1,updated_at=now() WHERE id=$1',
+        [assetId, req.user.id, reason],
+        c,
+      );
+      await this.db.query(
+        "INSERT INTO asset_movements(asset_id,kind,reason,actor_id) VALUES($1,'STATUS_CHANGE',$2,$3)",
+        [assetId, `Removed from the register: ${reason}`, req.user.id],
+        c,
+      );
+      await this.db.audit(c, req.user, 'asset', assetId, 'ASSET_REMOVED', { reason, assetCode: asset.asset_code });
+      return this.asset(req, assetId, c);
+    });
+  }
+  /** Super Admin: bring a removed asset back onto the register. */
+  async restoreToRegister(req: AuthRequest, assetId: string, body: unknown) {
+    if (!req.user.roles.includes('SUPER_ADMIN')) throw new ForbiddenException('Only a Super Admin can restore assets');
+    id(assetId);
+    const { reason } = parse(z.object({ reason: text(1000) }).strict(), body);
+    return this.db.tx(async (c) => {
+      const asset = found((await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0]);
+      assertVersion(req, asset.version);
+      if (!asset.removed_at) throw new ConflictException('This asset is on the register');
+      await this.db.query(
+        'UPDATE assets SET removed_at=NULL,removed_by=NULL,removed_reason=NULL,version=version+1,updated_at=now() WHERE id=$1',
+        [assetId],
+        c,
+      );
+      await this.db.query(
+        "INSERT INTO asset_movements(asset_id,kind,reason,actor_id) VALUES($1,'STATUS_CHANGE',$2,$3)",
+        [assetId, `Restored to the register: ${reason}`, req.user.id],
+        c,
+      );
+      await this.db.audit(c, req.user, 'asset', assetId, 'ASSET_RESTORED', { reason, assetCode: asset.asset_code });
+      return this.asset(req, assetId, c);
+    });
   }
   async receiveIntoStore(req: AuthRequest, assetId: string, body: unknown) {
     assertCanSomewhere(req.user, 'asset.custody');

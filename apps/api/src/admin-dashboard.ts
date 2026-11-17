@@ -66,7 +66,7 @@ export class AdminDashboardService {
 
   private async compute(filters: z.infer<typeof filterInput>) {
     const values: any[] = [];
-    const where = ['TRUE'];
+    const where = ['a.removed_at IS NULL'];
     if (filters.departmentId) {
       values.push(filters.departmentId);
       where.push(`a.department_id=$${values.length}`);

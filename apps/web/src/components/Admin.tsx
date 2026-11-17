@@ -178,6 +178,32 @@ export function UserAdmin() {
       setMessage(result);
     }
   }
+  async function resetAuthenticator() {
+    if (!selected || !reason.trim() || action.isPending) return;
+    if (!window.confirm(`Reset ${selected.displayName}'s authenticator? They are signed out and set up a new authenticator at their next sign-in.`))
+      return;
+    const result = await action
+      .mutateAsync({ path: `/users/${selected.id}/mfa-reset`, body: { reason: reason.trim() }, idempotent: true })
+      .then((value) => value.message ?? 'Authenticator reset.')
+      .catch(() => '');
+    if (result) {
+      setSelected(undefined);
+      setMessage(result);
+    }
+  }
+  async function deleteUser() {
+    if (!selected || !reason.trim() || action.isPending) return;
+    if (!window.confirm(`Permanently delete ${selected.displayName}? This cannot be undone. People with any history cannot be deleted; disable them instead.`))
+      return;
+    const result = await action
+      .mutateAsync({ path: `/users/${selected.id}`, method: 'DELETE', body: { reason: reason.trim() }, idempotent: true })
+      .then((value) => value.message ?? 'User deleted.')
+      .catch(() => '');
+    if (result) {
+      setSelected(undefined);
+      setMessage(result);
+    }
+  }
   async function addToTeam() {
     if (!selected || !teamToAdd || !teamReason.trim() || teamAction.isPending) return;
     setTeamMessage('');
@@ -633,11 +659,32 @@ export function UserAdmin() {
               <button
                 className={buttonClass('secondary')}
                 type="button"
+                disabled={action.isPending || !reason.trim()}
+                title="For a lost or new phone: they set up a new authenticator at next sign-in"
+                onClick={() => void resetAuthenticator()}
+              >
+                Reset authenticator
+              </button>
+              <button
+                className={buttonClass('secondary')}
+                type="button"
                 onClick={() => setSelected(undefined)}
               >
                 Cancel
               </button>
+              <button
+                className={cx(buttonClass('ghost'), 'ml-auto text-red-700 hover:bg-red-50')}
+                type="button"
+                disabled={action.isPending || !reason.trim()}
+                onClick={() => void deleteUser()}
+              >
+                Delete user
+              </button>
             </div>
+            <p className="m-0 text-xs text-gray-500">
+              Reset authenticator, Delete user and Send password reset link use the reason above. Delete
+              only works for people with no history; for anyone else set Account status to Disabled.
+            </p>
           </form>
         </Panel>
       ) : null}

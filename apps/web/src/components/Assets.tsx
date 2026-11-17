@@ -161,6 +161,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     locationId: params.get('locationId') || undefined,
     owningTeamId: params.get('owningTeamId') || undefined,
     sort: params.get('sort') || undefined,
+    removed: params.get('removed') === 'only' ? 'only' : undefined,
   };
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
@@ -316,13 +317,17 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ExportRecords
             name="assets"
-            // Background export supports these list filters (not locationId yet).
+            // The background export applies the same list filters as this page.
             backgroundFilters={Object.fromEntries(
               Object.entries({
                 q: filters.q,
                 status: filters.status,
                 category: filters.category,
                 assetType: filters.assetType,
+                manufacturer: filters.manufacturer,
+                departmentId: filters.departmentId,
+                holderId: filters.holderId,
+                locationId: filters.locationId,
                 owningTeamId: filters.owningTeamId,
               }).filter(([, value]) => value),
             )}
@@ -331,6 +336,16 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               (await fetchAllPages('/assets', filters)).map((item) => assetExportRow(item, manage))
             }
           />
+          {user?.roles.includes('SUPER_ADMIN') && !assignmentMode ? (
+            <button
+              type="button"
+              className={cx(buttonClass(filters.removed ? 'primary' : 'ghost', 'sm'))}
+              aria-pressed={!!filters.removed}
+              onClick={() => update('removed', filters.removed ? '' : 'only')}
+            >
+              {filters.removed ? 'Showing removed assets ✕' : 'Show removed assets'}
+            </button>
+          ) : null}
           {IMPORT_TOOLS_ENABLED && can(user, 'system.admin') && !assignmentMode ? (
             <p className="text-xs text-gray-500">
               Importing an original register with permanent Asset IDs?{' '}

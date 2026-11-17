@@ -103,7 +103,7 @@ export async function buildAssetCsv(
     .map((c) => c.replace(/^a\./, ''))
     .filter((c) => !hidden.has(c.replace(/_([a-z0-9])/g, (_m, ch: string) => ch.toUpperCase())));
   const values: any[] = [];
-  const where = [assetScope(actor, values)];
+  const where = [assetScope(actor, values), 'a.removed_at IS NULL'];
   for (const [key, column, cast] of [
     ['category', 'category', 'text'],
     ['assetType', 'asset_type', 'text'],

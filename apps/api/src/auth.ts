@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
   HttpException,
   Inject,
   Injectable,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -955,6 +957,105 @@ export class AuthService {
     });
     return { message: 'Password reset instructions were sent to the user’s current email address.' };
   }
+  /**
+   * Lost authenticator: clear the user's MFA so they enrol a new authenticator at their next
+   * sign-in. Their recovery codes and every open session end. Audited; no email is sent.
+   */
+  async adminMfaReset(req: AuthRequest, id: string, body: unknown) {
+    requireRole(req, 'SUPER_ADMIN');
+    z.string().uuid().parse(id);
+    const data = z.object({ reason: z.string().trim().min(1).max(5000) }).strict().parse(body);
+    if (id === req.user.id)
+      throw new HttpException('Ask another Super Admin to reset your own authenticator', 409);
+    await this.db.tx(async (client) => {
+      const [user] = await this.db.query(
+        'SELECT id,mfa_enrolled_at FROM users WHERE id=$1 FOR UPDATE',
+        [id],
+        client,
+      );
+      if (!user) throw new NotFoundException('User not found');
+      await this.db.query(
+        'UPDATE users SET mfa_secret_ciphertext=NULL,mfa_enrolled_at=NULL,mfa_last_counter=NULL,version=version+1,updated_at=now() WHERE id=$1',
+        [id],
+        client,
+      );
+      await this.db.query('DELETE FROM mfa_recovery_codes WHERE user_id=$1', [id], client);
+      await this.db.query('DELETE FROM mfa_enrollments WHERE user_id=$1', [id], client);
+      await this.db.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [id], client);
+      await this.db.audit(client, req.user, 'USER', id, 'ADMIN_MFA_RESET', {
+        reason: data.reason,
+        hadAuthenticator: !!user.mfa_enrolled_at,
+      });
+    });
+    return { message: 'Authenticator reset. They will set up a new one the next time they sign in.' };
+  }
+  /**
+   * Permanently delete a person who has no history. Anyone referenced by records (custody,
+   * tickets, approvals, audit trail…) is refused so history stays intact: disable them instead.
+   */
+  async adminDeleteUser(req: AuthRequest, id: string, body: unknown) {
+    requireRole(req, 'SUPER_ADMIN');
+    z.string().uuid().parse(id);
+    const data = z.object({ reason: z.string().trim().min(1).max(5000) }).strict().parse(body);
+    if (id === req.user.id) throw new HttpException('You cannot delete your own account', 409);
+    // Personal records that go with the person; everything else referencing them is history.
+    const personal = new Set([
+      'users', 'sessions', 'user_roles', 'auth_tokens', 'mfa_enrollments', 'mfa_recovery_codes',
+      'web_push_subscriptions', 'user_photos', 'in_app_announcement_reads', 'idempotency_keys',
+      'team_memberships', 'approved_emails',
+    ]);
+    return this.db.tx(async (client) => {
+      const [user] = await this.db.query(
+        'SELECT id,email,display_name FROM users WHERE id=$1 FOR UPDATE',
+        [id],
+        client,
+      );
+      if (!user) throw new NotFoundException('User not found');
+      const [{ admins }] = await this.db.query(
+        "SELECT count(*)::int AS admins FROM user_roles ur JOIN users u ON u.id=ur.user_id WHERE ur.role_code='SUPER_ADMIN' AND u.state='ACTIVE' AND u.id<>$1",
+        [id],
+        client,
+      );
+      const isAdmin = (
+        await this.db.query("SELECT 1 FROM user_roles WHERE user_id=$1 AND role_code='SUPER_ADMIN'", [id], client)
+      ).length;
+      if (isAdmin && admins === 0) throw new HttpException('This is the last active Super Admin', 409);
+      const refs = await this.db.query(
+        `SELECT c.conrelid::regclass::text AS tbl, a.attname AS col
+         FROM pg_constraint c JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=ANY(c.conkey)
+         WHERE c.contype='f' AND c.confrelid='users'::regclass`,
+        [],
+        client,
+      );
+      const history: string[] = [];
+      for (const { tbl, col } of refs) {
+        if (personal.has(tbl)) continue;
+        const [hit] = await this.db.query(
+          `SELECT 1 FROM ${tbl} WHERE ${col}=$1 LIMIT 1`,
+          [id],
+          client,
+        );
+        if (hit) history.push(tbl.replace(/_/g, ' '));
+      }
+      if (history.length)
+        throw new HttpException(
+          `${user.display_name} has history (${[...new Set(history)].slice(0, 4).join(', ')}${history.length > 4 ? '…' : ''}), so they cannot be deleted. Set Account status to Disabled instead: they lose access and the records stay intact.`,
+          409,
+        );
+      for (const tbl of ['sessions', 'user_roles', 'auth_tokens', 'mfa_enrollments', 'mfa_recovery_codes',
+        'web_push_subscriptions', 'user_photos', 'in_app_announcement_reads', 'idempotency_keys', 'team_memberships'])
+        await this.db.query(`DELETE FROM ${tbl} WHERE user_id=$1`, [id], client);
+      // Emails this person approved for others stay approved; only the approver link is cleared.
+      await this.db.query('UPDATE approved_emails SET approved_by=NULL WHERE approved_by=$1', [id], client);
+      await this.db.query('DELETE FROM users WHERE id=$1', [id], client);
+      await this.db.audit(client, req.user, 'USER', id, 'ADMIN_USER_DELETED', {
+        reason: data.reason,
+        email: user.email,
+        name: user.display_name,
+      });
+      return { message: `${user.display_name} was deleted.` };
+    });
+  }
 }
 @Controller()
 export class AuthController {
@@ -1097,5 +1198,19 @@ export class AuthController {
     @Body() body: unknown,
   ) {
     return this.auth.adminPasswordReset(req, id, body);
+  }
+  @Post('users/:id/mfa-reset') @UseGuards(SessionGuard) mfaReset(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.auth.adminMfaReset(req, id, body);
+  }
+  @Delete('users/:id') @UseGuards(SessionGuard) deleteUser(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.auth.adminDeleteUser(req, id, body);
   }
 }

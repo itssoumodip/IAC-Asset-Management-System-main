@@ -41,7 +41,7 @@ export class DomainService extends ImportDomain {
   }
   async dashboard(req: AuthRequest) {
     const assetValues: any[] = [];
-    const assetWhere = assetScope(req.user, assetValues);
+    const assetWhere = `${assetScope(req.user, assetValues)} AND a.removed_at IS NULL`;
     const [assets] = await this.db.query(
       `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status IN ('Assigned','In Use'))::int AS assigned,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${can(req.user, 'asset.view_private') ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
       assetValues,
@@ -273,6 +273,22 @@ export class DomainController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return etag(res, await this.service.assign(req, id, body, true));
+  }
+  @Post('assets/:id/remove') async removeFromRegister(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return etag(res, await this.service.removeFromRegister(req, id, body));
+  }
+  @Post('assets/:id/restore') async restoreToRegister(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return etag(res, await this.service.restoreToRegister(req, id, body));
   }
   @Post('assets/:id/receive') async receiveIntoStore(
     @Req() req: AuthRequest,

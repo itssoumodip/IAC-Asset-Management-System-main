@@ -134,6 +134,9 @@ export interface Asset {
   financePending?: boolean;
   financeStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   financeRejectionReason?: string | null;
+  /** Set when a Super Admin removed the asset from the register (record and history kept). */
+  removedAt?: string | null;
+  removedReason?: string | null;
   currentAssignment?: Assignment | null;
   kitParts?: { id: string; assetCode: string; description: string; assetType?: string }[];
   kitParent?: { id: string; assetCode: string } | null;

@@ -46,6 +46,10 @@ GRANT INSERT ON maintenance_records TO iac_runtime;
 -- Item requests: people create and cancel requests; teams decide and fulfil each line.
 GRANT INSERT,UPDATE ON asset_requests TO iac_runtime;
 GRANT INSERT,UPDATE ON asset_request_items TO iac_runtime;
+-- People & access "Delete user": only people with no history (the API checks every reference
+-- first), together with their own read receipts. Everyone else is disabled, never deleted.
+GRANT DELETE ON users TO iac_runtime;
+GRANT DELETE ON in_app_announcement_reads TO iac_runtime;
 -- Verification, depreciation and procurement pages write these (migrations 037-039).
 GRANT INSERT,UPDATE ON verification_cycles,verification_items TO iac_runtime;
 GRANT INSERT,UPDATE ON depreciation_schedules TO iac_runtime;

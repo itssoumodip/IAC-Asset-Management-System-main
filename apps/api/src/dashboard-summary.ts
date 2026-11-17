@@ -34,7 +34,7 @@ export interface StoredSummary {
 /** Heavy aggregates for one scope. `teamId` null means the whole organisation. */
 async function compute(db: Db, teamId: string | null): Promise<SummaryPayload> {
   const values: any[] = teamId ? [teamId] : [];
-  const scope = teamId ? 'a.owning_team_id=$1' : 'TRUE';
+  const scope = teamId ? 'a.owning_team_id=$1 AND a.removed_at IS NULL' : 'a.removed_at IS NULL';
   const fyStart = `extract(year FROM ${TODAY} - interval '3 months')::int`;
   const [kpis] = await db.query(
     `SELECT count(*)::int AS "totalAssets",

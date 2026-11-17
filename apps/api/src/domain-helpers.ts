@@ -203,6 +203,7 @@ export function requestPage(query: any, fields: string[]) {
         holderId: uuidList.optional(),
         // Asset list order: Asset ID A-Z (default), Z-A, recently added, recently updated.
         sort: z.enum(['code', 'code_desc', 'added', 'updated']).optional(),
+        removed: z.enum(['only']).optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
         teamId: uuid.optional(),
@@ -301,11 +302,15 @@ export function assetScope(actor: Actor, values: any[]) {
   }
   return clauses.length ? `(${clauses.join(' OR ')})` : 'FALSE';
 }
+/** Lists, dashboards and exports leave out assets removed from the register. */
+export const LIVE_ASSET = 'a.removed_at IS NULL';
 export const employeeAssetColumns = [
   'id',
   'asset_code',
   'owning_team_id',
   'version',
+  'removed_at',
+  'removed_reason',
   'category',
   'asset_type',
   'description',

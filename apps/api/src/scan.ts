@@ -12,8 +12,8 @@ export class ScanService {
 
   async view(req: AuthRequest, assetCode: string) {
     const values: any[] = [parse(codeInput, assetCode)];
-    const scope = assetScope(req.user, values);
-    const lookupScope = req.user.roles.includes('TECHNICIAN') ? scope : 'TRUE';
+    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
+    const lookupScope = req.user.roles.includes('TECHNICIAN') ? scope : 'a.removed_at IS NULL';
     const row = found(
       (
         await this.db.query(

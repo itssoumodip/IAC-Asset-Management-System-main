@@ -15,7 +15,7 @@ export class InsightsService {
 
   async insights(req: AuthRequest) {
     const values: unknown[] = [];
-    const scope = assetScope(req.user, values);
+    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
     const money = can(req.user, 'asset.view_private');
     const [row] = await this.db.query(
       `WITH scoped AS (
@@ -94,7 +94,7 @@ export class InsightsService {
 
   async brands(req: AuthRequest) {
     const values: unknown[] = [];
-    const scope = assetScope(req.user, values);
+    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
     const rows = await this.db.query(
       `SELECT min(btrim(a.manufacturer)) AS name, count(*)::int AS count
        FROM assets a
@@ -110,7 +110,7 @@ export class InsightsService {
   /** People who currently hold assets the viewer may see, most first (for charts and the filter). */
   async holders(req: AuthRequest) {
     const values: unknown[] = [];
-    const scope = assetScope(req.user, values);
+    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
     const rows = await this.db.query(
       `SELECT u.id AS "userId", u.display_name AS name, d.name AS department, count(*)::int AS count
        FROM assets a

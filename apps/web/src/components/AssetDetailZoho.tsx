@@ -22,6 +22,7 @@ import {
   noticeClass,
   actionsClass,
   PersonChip,
+  cx,
 } from './ui';
 import {
   useReferences,
@@ -117,6 +118,21 @@ export function AssetDetailZoho() {
       })
       .catch(() => undefined);
   }
+  const superAdmin = user?.roles.includes('SUPER_ADMIN') ?? false;
+  const removedAt = asset.removedAt as string | null | undefined;
+  /** Remove from / restore to the register (Super Admin). History is kept either way. */
+  async function changeRegister(kind: 'remove' | 'restore') {
+    const why = window.prompt(
+      kind === 'remove'
+        ? `Remove ${asset!.assetCode} from the register?\nIt is hidden from lists, dashboards and exports; its record and history stay and it can be restored.\n\nReason:`
+        : `Restore ${asset!.assetCode} to the register?\n\nReason:`,
+    );
+    if (!why?.trim()) return;
+    await action
+      .mutateAsync({ path: `/assets/${asset!.id}/${kind}`, body: { reason: why.trim() }, version: asset!.version, idempotent: true })
+      .then(() => query.refetch())
+      .catch(() => undefined);
+  }
   async function returnAsset(event: FormEvent) {
     event.preventDefault();
     if (!custodySnapshot) return;
@@ -182,8 +198,38 @@ export function AssetDetailZoho() {
               Raise a ticket
             </Link>
           ) : null}
+          {superAdmin && !removedAt ? (
+            <button
+              type="button"
+              className={cx(buttonClass('ghost'), 'text-red-700 hover:bg-red-50')}
+              disabled={action.isPending || !!asset.currentAssignment}
+              title={asset.currentAssignment ? 'Record its return first' : 'Hide this asset; history is kept'}
+              onClick={() => void changeRegister('remove')}
+            >
+              Remove from register
+            </button>
+          ) : null}
         </div>
       </header>
+      {removedAt ? (
+        <div className={cx(noticeClass('warning'), 'flex flex-wrap items-center gap-3')} role="status">
+          <span className="min-w-0 flex-1">
+            <strong>Removed from the register</strong> on {displayDate(removedAt)}
+            {asset.removedReason ? ` — ${String(asset.removedReason)}` : ''}. It is hidden from lists,
+            dashboards and exports; its record and history are kept.
+          </span>
+          {superAdmin ? (
+            <button
+              type="button"
+              className={buttonClass('secondary', 'sm')}
+              disabled={action.isPending}
+              onClick={() => void changeRegister('restore')}
+            >
+              Restore
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <ErrorNotice
         error={action.error}
         retry={() => {

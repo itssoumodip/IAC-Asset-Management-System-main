@@ -98,6 +98,40 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     assert.equal(csv.rowCount, 2);
   });
 
+  it('removes an asset from the register (hidden everywhere, history kept) and restores it', async () => {
+    const withVersion = (who: any, version: number) =>
+      ({ user: who, get: (h: string) => (h.toLowerCase() === 'if-match' ? `"${version}"` : undefined) }) as any;
+    const [free] = await db.tx(async (c) => {
+      const code = await allocateAssetCode(db, IT_TEAM_ID, c);
+      return db.query(
+        `INSERT INTO assets(asset_code,category,asset_type,description,ownership_type,status,condition,risk_level,owning_team_id)
+         VALUES($1,'IT Hardware','Laptop',$2,'Owned','In Store','Good','Low',$3) RETURNING id,version`,
+        [code, `${tag} spare`, IT_TEAM_ID],
+        c,
+      );
+    });
+    const inList = async (extra: any = {}) =>
+      (await domain.assets({ user: admin } as any, { q: `${tag} spare`, limit: 10, ...extra })).items.some((a: any) => a.id === free.id);
+    assert.equal(await inList(), true);
+    // Only a Super Admin, with a reason; someone holding it blocks removal.
+    await assert.rejects(domain.removeFromRegister(withVersion(actor(['FINANCE']), free.version), free.id, { reason: 'x' }));
+    const [held] = await db.query("SELECT a.id,a.version FROM assets a JOIN assignments s ON s.asset_id=a.id AND s.ended_at IS NULL WHERE a.description LIKE $1 LIMIT 1", [`${tag} laptop %`]);
+    await assert.rejects(domain.removeFromRegister(withVersion(admin, held.version), held.id, { reason: 'x' }), (e: any) => e.status === 409);
+
+    const removed = await domain.removeFromRegister(withVersion(admin, free.version), free.id, { reason: 'Duplicate entry' });
+    assert.ok(removed.removedAt);
+    assert.equal(await inList(), false);
+    assert.equal(await inList({ removed: 'only' }), true);
+    const [moved] = await db.query("SELECT reason FROM asset_movements WHERE asset_id=$1 ORDER BY occurred_at DESC LIMIT 1", [free.id]);
+    assert.match(moved.reason, /Removed from the register: Duplicate entry/);
+    // Still openable by id (to see why, or restore).
+    assert.equal((await domain.asset({ user: admin } as any, free.id)).id, free.id);
+
+    const restored = await domain.restoreToRegister(withVersion(admin, removed.version), free.id, { reason: 'Found it' });
+    assert.equal(restored.removedAt ?? null, null);
+    assert.equal(await inList(), true);
+  });
+
   it('filters by brand ignoring case, and lists brands', async () => {
     await db.query(
       `UPDATE assets SET manufacturer = CASE WHEN description LIKE '%0' THEN 'HP' ELSE 'hp' END WHERE description LIKE $1`,

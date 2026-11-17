@@ -56,7 +56,7 @@ export class MaintenanceService {
     assertCan(req.user, 'ticket.work');
     const { view } = parse(listQuery, raw ?? {});
     const values: any[] = [];
-    const where = [assetScope(req.user, values), 's.active'];
+    const where = [assetScope(req.user, values), 'a.removed_at IS NULL', 's.active'];
     if (view === 'upcoming') where.push(`s.next_due <= ${TODAY} + 30`);
     if (view === 'overdue') where.push(`s.next_due < ${TODAY}`);
     const rows = await this.db.query(
@@ -78,8 +78,8 @@ export class MaintenanceService {
     );
     // Fresh parameter list: assetScope appends its own parameters.
     const countValues: any[] = [];
-    const scopeA = assetScope(req.user, countValues);
-    const scopeB = assetScope(req.user, countValues);
+    const scopeA = `${assetScope(req.user, countValues)} AND a.removed_at IS NULL`;
+    const scopeB = `${assetScope(req.user, countValues)} AND a.removed_at IS NULL`;
     const [counts] = await this.db.query(
       `SELECT count(*) FILTER (WHERE s.next_due < ${TODAY})::int AS overdue,
               count(*) FILTER (WHERE s.next_due BETWEEN ${TODAY} AND ${TODAY} + 7)::int AS due_this_week,
