@@ -28,7 +28,31 @@ export function UpdatePrompt() {
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    // Look for a new release when the app is opened again and every hour, so installed
+    // apps on phones do not keep running an old version after a deploy.
+    onRegisteredSW(_url, registration) {
+      if (!registration) return;
+      const check = () => void registration.update().catch(() => undefined);
+      window.setInterval(check, 60 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check();
+      });
+    },
+  });
+  useEffect(() => {
+    // The service worker activates new releases immediately (skipWaiting). When it takes
+    // over a page that was already running, reload once so the page uses the new code.
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    let reloaded = false;
+    const onChange = () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', onChange);
+    return () => navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+  }, []);
   if (!needRefresh) return null;
   return (
     <button

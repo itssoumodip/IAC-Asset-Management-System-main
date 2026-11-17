@@ -22,6 +22,7 @@ import {
   PairedColumnChart,
   StatTile,
 } from './charts';
+import { IMPORT_TOOLS_ENABLED } from './DataTransfer';
 
 interface Summary {
   assets?: {
@@ -365,7 +366,7 @@ export function OverviewDashboard() {
       to: '/assets',
       tone: 'neutral',
     },
-    ...(isAdmin
+    ...(isAdmin && IMPORT_TOOLS_ENABLED
       ? [
           {
             label: 'Import rows to review',

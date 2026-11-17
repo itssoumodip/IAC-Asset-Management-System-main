@@ -279,6 +279,8 @@ export interface ScanView {
   model: string | null;
   department: string | null;
   custodian: {
+    userId?: string;
+    hasPhoto?: boolean;
     name: string;
     designation: string | null;
     department: string | null;

@@ -42,6 +42,7 @@ import { Procurement } from './components/Procurement';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
 import { ChangeRequests } from './components/ChangeRequests';
 import { useAction } from './hooks';
+import { IMPORT_TOOLS_ENABLED } from './components/DataTransfer';
 import { greeting, todayLabel } from './executive';
 import type { Action } from './types';
 function Guard({ action, anyOf }: { action?: Action; anyOf?: Action[] }) {
@@ -540,9 +541,11 @@ function Shell() {
               <SideLink to="/admin/roles" icon="roles">
                 Field permissions
               </SideLink>
-              <SideLink to="/admin/imports" icon="imports">
-                Import review
-              </SideLink>
+              {IMPORT_TOOLS_ENABLED && (
+                <SideLink to="/admin/imports" icon="imports">
+                  Import review
+                </SideLink>
+              )}
               {can(user, 'announcement.send') && (
                 <SideLink to="/admin/announcements" icon="announcements">
                   Announcements
@@ -941,7 +944,7 @@ export function App() {
             {/* TeamMembers checks team.manage_members for the team in the URL itself. */}
             <Route path="/team/:teamId" element={<TeamMembers />} />
             <Route element={<Guard action="system.admin" />}>
-              <Route path="/admin/imports" element={<ImportsView />} />
+              {IMPORT_TOOLS_ENABLED ? <Route path="/admin/imports" element={<ImportsView />} /> : null}
             </Route>
             <Route element={<Guard action="store.operations" />}>
               <Route path="/store" element={<Store />} />

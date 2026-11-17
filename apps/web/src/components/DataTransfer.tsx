@@ -54,7 +54,7 @@ function ActionButtons({
     </div>
   );
 }
-export function FormTransfer({
+function FormTransferPanel({
   formId,
   fields,
   values,
@@ -411,7 +411,7 @@ interface Preview {
   rows: { rowNumber: number; valid: boolean; errors: string[]; summary: string }[];
   warnings: string[];
 }
-export function BulkTransfer({ module, disabled = false }: { module: string; disabled?: boolean }) {
+function BulkTransferPanel({ module, disabled = false }: { module: string; disabled?: boolean }) {
   const query = useQuery({
     queryKey: ['transfer-definitions'],
     queryFn: ({ signal }) => api<{ items: Definition[] }>('/transfers/definitions', { signal }),
@@ -743,4 +743,20 @@ export function BulkTransfer({ module, disabled = false }: { module: string; dis
       ) : null}
     </details>
   );
+}
+
+/**
+ * Upload tools (bulk import, form import, Import review) are for setting data up, not for
+ * day-to-day use: they appear in development builds only, unless a build sets
+ * VITE_SHOW_IMPORT_TOOLS=true. Exports (downloads) are always available.
+ */
+export const IMPORT_TOOLS_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_SHOW_IMPORT_TOOLS === 'true';
+
+export function FormTransfer(props: Parameters<typeof FormTransferPanel>[0]) {
+  return IMPORT_TOOLS_ENABLED ? <FormTransferPanel {...props} /> : null;
+}
+
+export function BulkTransfer(props: Parameters<typeof BulkTransferPanel>[0]) {
+  return IMPORT_TOOLS_ENABLED ? <BulkTransferPanel {...props} /> : null;
 }

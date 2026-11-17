@@ -188,9 +188,13 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
       const json = JSON.stringify((await scan(user)).body);
       assert.equal(json.includes(holder.displayName), true);
       assert.equal(json.includes('Speech Therapist'), true);
-      for (const secret of [serial, barcode, holder.email, holder.id])
+      for (const secret of [serial, barcode, holder.email])
         assert.equal(json.includes(secret), false);
     }
+    // The account id (used only to load the photo) is never given to an unrelated scanner.
+    assert.equal(JSON.stringify((await scan(other)).body).includes(holder.id), false);
+    // People already allowed to see staff photos get it, so the photo can show.
+    assert.equal((await scan(admin)).body.custodian.userId, holder.id);
   });
 
   it('holder and admin canViewFull', async () => {
@@ -226,7 +230,8 @@ describe('scan API integration', { skip: !connection, concurrency: false }, () =
     const add = await fetch(`${base}/assets/${asset.id}/identifiers`, {
       method: 'POST',
       headers: { ...headers(admin), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'NFC', value: `NFC-${tag}`, reason: 'Attach NFC tag' }),
+      // Tags are QR only now (NFC/RFID were removed).
+      body: JSON.stringify({ kind: 'QR', value: `QR2-${tag}`, reason: 'Attach replacement QR label' }),
     });
     assert.equal(add.status, 201);
     const added = await add.json();

@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Injectable, Param, Req, UseGuards } from '@nes
 import { Db } from './db';
 import { NON_REPORTABLE_STATUSES, assetScope, found, parse, text } from './domain-helpers';
 import { AuthRequest, SessionGuard } from './security';
+import { can } from './policy';
 
 const codeInput = text(200);
 
@@ -18,6 +19,7 @@ export class ScanService {
         await this.db.query(
           `SELECT a.id,a.asset_code,a.category,a.asset_type,a.manufacturer,a.model,a.status,
                   d.name AS department,l.code AS location_code,l.site,l.floor,l.room,
+                  custody.employee_id,custody.employee_has_photo,
                   custody.employee_name,custody.employee_designation,custody.employee_department,
                   custody.acknowledgement AS custody_acknowledgement,custody.assigned_at,
                   EXISTS(SELECT 1 FROM asset_photos p WHERE p.asset_id=a.id) AS has_photo,
@@ -43,7 +45,9 @@ export class ScanService {
              FROM loc_tree
            ) loc_path ON true
            LEFT JOIN LATERAL (
-             SELECT u.display_name AS employee_name,u.designation AS employee_designation,
+             SELECT u.id AS employee_id,
+                    EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id=u.id) AS employee_has_photo,
+                    u.display_name AS employee_name,u.designation AS employee_designation,
                     ud.name AS employee_department,s.acknowledgement,s.assigned_at
              FROM assignments s
              JOIN users u ON u.id=s.user_id
@@ -63,6 +67,11 @@ export class ScanService {
         )
       )[0],
     );
+    // Anyone can scan a label, so the holder's account id (needed for the photo) goes only to
+    // people already allowed to see staff photos: the holder, support staff, catalog users.
+    const photoOk =
+      !!row.employee_id &&
+      (req.user.id === row.employee_id || can(req.user, 'ticket.work') || can(req.user, 'asset.view_all'));
     return {
       id: row.id as string,
       assetCode: row.asset_code as string,
@@ -73,6 +82,7 @@ export class ScanService {
       department: (row.department ?? null) as string | null,
       custodian: row.employee_name
         ? {
+            ...(photoOk ? { userId: row.employee_id as string, hasPhoto: Boolean(row.employee_has_photo) } : {}),
             name: row.employee_name as string,
             designation: (row.employee_designation ?? null) as string | null,
             department: (row.employee_department ?? null) as string | null,

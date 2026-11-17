@@ -20,7 +20,7 @@ import {
 } from './ColumnFilter';
 import { StoreReceiving } from './StoreReceiving';
 import { AssetDetailTabs } from './AssetDetailTabs';
-import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
+import { BulkTransfer, ExportRecords, FormTransfer, IMPORT_TOOLS_ENABLED } from './DataTransfer';
 import {
   FinanceStatusPanel,
   INVOICE_ACCEPT,
@@ -329,7 +329,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               (await fetchAllPages('/assets', filters)).map((item) => assetExportRow(item, manage))
             }
           />
-          {can(user, 'system.admin') && !assignmentMode ? (
+          {IMPORT_TOOLS_ENABLED && can(user, 'system.admin') && !assignmentMode ? (
             <p className="text-xs text-gray-500">
               Importing an original register with permanent Asset IDs?{' '}
               <Link to="/admin/imports" className={linkClass}>
@@ -338,7 +338,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             </p>
           ) : null}
         </div>
-        {can(user, 'asset.import') && !assignmentMode ? (
+        {IMPORT_TOOLS_ENABLED && can(user, 'asset.import') && !assignmentMode ? (
           <div className="grid gap-3 lg:grid-cols-2">
             <BulkTransfer module="assets" />
             <BulkTransfer module="assignments" />
@@ -573,7 +573,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                       Create asset
                     </Link>
                   ) : null}
-                  {can(user, 'system.admin') ? (
+                  {IMPORT_TOOLS_ENABLED && can(user, 'system.admin') ? (
                     <Link className={buttonClass('secondary')} to="/admin/imports">
                       Import review
                     </Link>
@@ -587,7 +587,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             }
           >
             {assignmentMode
-              ? 'Only In Store assets without current custody can be assigned. Adjust the search filters, create an asset, or review and explicitly promote eligible register rows in Import review first.'
+              ? 'Only In Store assets without current custody can be assigned. Adjust the search filters or create an asset first.'
               : manage
                 ? 'Add an asset or stage a reviewed import to begin.'
                 : 'Assigned equipment will appear here. Adjust your filters if needed.'}

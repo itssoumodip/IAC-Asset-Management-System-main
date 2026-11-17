@@ -4,7 +4,7 @@ import { api, ApiError } from '../api';
 import { useSession } from '../session';
 import type { ScanView } from '../types';
 import { GenericLaptop } from './AssetPhoto';
-import { Badge, Empty, ErrorNotice, Loading, Panel, buttonClass, noticeClass, cx } from './ui';
+import { Avatar, Badge, Empty, ErrorNotice, Loading, Panel, buttonClass, noticeClass, cx } from './ui';
 
 const NOT_FOUND = 'Asset not found. Check the sticker or contact IT.';
 const RETIRED = 'This asset is no longer in service.';
@@ -145,11 +145,22 @@ export function ScanPage() {
         {scan.custodian ? (
           <section className="scan-custodian" aria-labelledby="scan-custodian-title">
             <h2 id="scan-custodian-title">Current custodian</h2>
-            <p className="scan-custodian-name">{scan.custodian.name}</p>
-            {scan.custodian.designation ? <p>{scan.custodian.designation}</p> : null}
-            {scan.custodian.department ? (
-              <p className="muted">{scan.custodian.department}</p>
-            ) : null}
+            <div className="mt-2 flex items-center gap-4">
+              {/* Zoho photo when the viewer may see it; initials otherwise. */}
+              <Avatar
+                userId={scan.custodian.userId ?? ''}
+                name={scan.custodian.name}
+                hasPhoto={!!scan.custodian.userId && scan.custodian.hasPhoto}
+                size={64}
+              />
+              <div className="min-w-0">
+                <p className="scan-custodian-name">{scan.custodian.name}</p>
+                {scan.custodian.designation ? <p>{scan.custodian.designation}</p> : null}
+                {scan.custodian.department ? (
+                  <p className="muted">{scan.custodian.department}</p>
+                ) : null}
+              </div>
+            </div>
             <p className="muted small-text">
               {scan.custodian.acknowledgement === 'ACCEPTED'
                 ? 'Assignment confirmed'
