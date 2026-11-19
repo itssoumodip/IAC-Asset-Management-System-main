@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Db } from './db';
-import { id as asUuid, parse, text } from './domain-helpers';
+import { id as asUuid, parse } from './domain-helpers';
 import { assertCan } from './policy';
 import { AuthRequest, SessionGuard } from './security';
 import { RequestsService } from './requests';
@@ -27,9 +27,13 @@ const approvalDecision = z
     decision: z
       .enum(['APPROVE', 'REJECT', 'APPROVED', 'REJECTED'])
       .transform((d) => (d.startsWith('APPROVE') ? 'APPROVE' : 'REJECT') as 'APPROVE' | 'REJECT'),
-    reason: text(1000),
+    reason: z.string().trim().max(1000).optional().default(''),
   })
-  .strict();
+  .strict()
+  .superRefine((decision, context) => {
+    if (decision.decision === 'REJECT' && !decision.reason)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'A reason is required to reject' });
+  });
 
 @Injectable()
 export class ApprovalsService {
@@ -225,7 +229,7 @@ export class ApprovalsService {
     ]);
     if (transfer)
       return input.decision === 'APPROVE'
-        ? this.transfers.accept(req, idUuid, { note: input.reason })
+        ? this.transfers.accept(req, idUuid, { ...(input.reason ? { note: input.reason } : {}) })
         : this.transfers.decline(req, idUuid, { note: input.reason });
 
     const [existing] = await this.db.query(

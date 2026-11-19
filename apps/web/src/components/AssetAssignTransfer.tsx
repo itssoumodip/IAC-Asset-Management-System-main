@@ -4,7 +4,6 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
-import { useSession } from '../session';
 import type { Asset } from '../types';
 import type { AssignablePerson } from '../types';
 import {
@@ -27,7 +26,6 @@ export function AssetAssignTransfer() {
   const refs = useReferences();
   const { id } = useParams();
   const [params] = useSearchParams();
-  const { user } = useSession();
   const transfer = params.get('transfer') === '1';
   const navigate = useNavigate();
   const asset = useQuery({
@@ -61,7 +59,6 @@ export function AssetAssignTransfer() {
   const selectedEmployee = items.find((employee) => employee.id === userId);
   const data = asset.data;
   const custodyAvailable = !!data && (transfer ? canTransfer(data) : canAssign(data));
-  const isLead = Boolean(user?.teams?.some((t) => t.level === 'LEAD'));
   const ready =
     custodyAvailable &&
     !!selectedEmployee &&
@@ -81,12 +78,6 @@ export function AssetAssignTransfer() {
       ? { userId, reason: note.trim() }
       : { userId, ...(note.trim() ? { note: note.trim() } : {}) };
 
-    // Non-Lead transfers require Team Lead approval (P13 → P15).
-    if (transfer && !isLead) {
-      body.approvalRequired = true;
-      body.approverRole = 'TEAM_LEAD';
-    }
-
     const result = await action
       .mutateAsync({
         path: transfer ? `/assets/${id}/reassign` : `/assets/${id}/assignments`,
@@ -97,11 +88,7 @@ export function AssetAssignTransfer() {
       .then(() => true)
       .catch(() => false);
     if (result) {
-      if (transfer && !isLead) {
-        navigate(`/approvals?tab=transfers`);
-      } else {
-        navigate(`/assets/${id}`);
-      }
+      navigate(`/assets/${id}`);
     }
   }
 
@@ -114,7 +101,7 @@ export function AssetAssignTransfer() {
         title={transfer ? 'Transfer custody' : 'Assign an asset'}
         description={
           transfer
-            ? 'Record a custody transfer. Team Lead approval is required before the receiver confirms.'
+            ? 'Record a custody transfer. The previous assignment closes and the new recipient confirms receipt.'
             : 'Record a clear handover. The employee receives a notification and verifies the asset separately.'
         }
       />
@@ -203,19 +190,10 @@ export function AssetAssignTransfer() {
                   maxLength={5000}
                 />
               </Field>
-              {transfer && !isLead ? (
-                <div className={noticeClass('warning')}>
-                  <strong>Team Lead approval required.</strong> Your transfer request will appear in
-                  <strong>Approvals</strong> for a Team Lead to approve before the receiver
-                  confirms.
-                </div>
-              ) : null}
               <div className={noticeClass()}>
                 Effective immediately.{' '}
                 {transfer
-                  ? isLead
-                    ? 'Approved by Team Lead. Previous custody is closed and the new employee must confirm receipt.'
-                    : 'Pending Team Lead approval. Previous custody is closed once approved and the new employee must confirm receipt.'
+                  ? 'The previous custodian is notified, and the new employee must confirm receipt.'
                   : 'A new pending verification is created.'}
               </div>
               <div className={actionsClass}>
@@ -234,11 +212,9 @@ export function AssetAssignTransfer() {
                 >
                   {action.isPending
                     ? 'Saving…'
-                    : transfer && !isLead
-                      ? 'Request transfer approval'
-                      : transfer
-                        ? 'Approve & transfer'
-                        : 'Confirm assignment'}
+                    : transfer
+                      ? 'Confirm transfer'
+                      : 'Confirm assignment'}
                 </button>
               </div>
             </form>

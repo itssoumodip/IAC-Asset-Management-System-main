@@ -53,6 +53,7 @@ const uploadInput = z
 const approveFields = assetInput
   .pick({
     purchaseDate: true,
+    capitalisationDate: true,
     purchaseCost: true,
     currency: true,
     residualValue: true,

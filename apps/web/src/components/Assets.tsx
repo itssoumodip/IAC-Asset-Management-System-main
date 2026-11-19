@@ -15,6 +15,7 @@ import {
   FilterChips,
   FiltersButton,
   SortMenu,
+  TextColumnFilter,
   fromList,
   toList,
   type FilterGroup,
@@ -95,6 +96,8 @@ const assetAdminExportColumns = [
   'purchaseCost',
   'residualValue',
   'depreciationMethod',
+  'usefulLifeYears',
+  'capitalisationDate',
   'invoiceNumber',
   'supplier',
   'insurancePolicyNumber',
@@ -109,6 +112,27 @@ function assetExportRow(asset: Record<string, unknown>, manage: boolean) {
 }
 
 const terminalAssetStatuses = new Set(['Retired', 'Disposed', 'Sold', 'Scrapped']);
+const catalogColumns = [
+  { key: 'asset', label: 'Asset' },
+  { key: 'manufacturer', label: 'Brand' },
+  { key: 'category', label: 'Category' },
+  { key: 'assetType', label: 'Subcategory' },
+  { key: 'departmentId', label: 'Department' },
+  { key: 'holderId', label: 'Held by' },
+  { key: 'status', label: 'Status' },
+  { key: 'owningTeamId', label: 'Owning team' },
+  { key: 'ownershipType', label: 'Ownership' },
+  { key: 'model', label: 'Model' },
+  { key: 'serialNumber', label: 'Serial number' },
+  { key: 'barcode', label: 'Barcode' },
+  { key: 'locationId', label: 'Location' },
+  { key: 'condition', label: 'Condition' },
+  { key: 'riskLevel', label: 'Risk' },
+  { key: 'warrantyExpiry', label: 'Warranty expiry' },
+  { key: 'purchaseDate', label: 'Purchase date' },
+  { key: 'purchaseCost', label: 'Purchase cost' },
+] as const;
+const defaultCatalogColumns = ['asset', 'manufacturer', 'category', 'assetType', 'departmentId', 'holderId', 'status', 'model', 'serialNumber', 'locationId'];
 function canAssign(asset: Asset) {
   return ['In Store', 'Ready to Assign'].includes(asset.status) && !asset.currentAssignment;
 }
@@ -152,10 +176,20 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
   const refs = useReferences();
   const filters = {
     q: params.get('q') || undefined,
+    asset: params.get('asset') || undefined,
+    model: params.get('model') || undefined,
+    serialNumber: params.get('serialNumber') || undefined,
+    barcode: params.get('barcode') || undefined,
+    warrantyExpiry: params.get('warrantyExpiry') || undefined,
+    purchaseDate: params.get('purchaseDate') || undefined,
+    purchaseCost: params.get('purchaseCost') || undefined,
     status: assignmentMode ? 'In Store' : params.get('status') || undefined,
     category: params.get('category') || undefined,
     assetType: params.get('assetType') || undefined,
     manufacturer: params.get('manufacturer') || undefined,
+    condition: params.get('condition') || undefined,
+    riskLevel: params.get('riskLevel') || undefined,
+    ownershipType: params.get('ownershipType') || undefined,
     departmentId: params.get('departmentId') || undefined,
     holderId: params.get('holderId') || undefined,
     locationId: params.get('locationId') || undefined,
@@ -166,6 +200,24 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
   const query = usePages<Asset>('/assets', filters);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('asset-catalog-columns-v2');
+      const parsed: unknown = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed)
+        ? parsed.filter((key): key is string => typeof key === 'string' && catalogColumns.some((column) => column.key === key))
+        : defaultCatalogColumns;
+    } catch {
+      return defaultCatalogColumns;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('asset-catalog-columns-v2', JSON.stringify(visibleColumns));
+    } catch {
+      // The selected columns still work for this page view if storage is unavailable.
+    }
+  }, [visibleColumns]);
   const holders = useHolders();
   const brands = useBrands();
   // Column checkbox filters: every value is a comma-separated list in the URL.
@@ -191,6 +243,24 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
       title: 'Category',
       options: refOptions('CATEGORY', sel('category')),
       selected: sel('category'),
+    },
+    {
+      key: 'condition',
+      title: 'Condition',
+      options: refOptions('CONDITION', sel('condition')),
+      selected: sel('condition'),
+    },
+    {
+      key: 'riskLevel',
+      title: 'Risk',
+      options: refOptions('RISK', sel('riskLevel')),
+      selected: sel('riskLevel'),
+    },
+    {
+      key: 'ownershipType',
+      title: 'Ownership',
+      options: refOptions('OWNERSHIP', sel('ownershipType')),
+      selected: sel('ownershipType'),
     },
     {
       key: 'assetType',
@@ -267,7 +337,13 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     setParams(next);
   }
   const loadedItems = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const matchingCount = query.data?.pages[0]?.totalCount;
   const items = assignmentMode ? loadedItems.filter(canAssign) : loadedItems;
+  const allowedCatalogColumns = catalogColumns.filter(
+    (column) =>
+      (column.key !== 'purchaseCost' || can(user, 'asset.view_private')) &&
+      (column.key !== 'owningTeamId' || manage),
+  );
   const [search, setSearch] = useState(filters.q ?? '');
   function update(name: string, value: string) {
     const next = new URLSearchParams(params);
@@ -278,6 +354,78 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
   function searchSubmit(event: FormEvent) {
     event.preventDefault();
     update('q', search.trim());
+  }
+  function renderColumnFilter(column: (typeof catalogColumns)[number]) {
+    const group = groupFor(column.key);
+    if (group)
+      return (
+        <ColumnFilter
+          title={column.label}
+          options={group.options}
+          selected={group.selected}
+          onApply={(values) => setFilter(column.key, values)}
+        />
+      );
+    return (
+      <TextColumnFilter
+        title={column.label}
+        value={params.get(column.key) ?? ''}
+        placeholder={
+          column.key === 'purchaseDate' || column.key === 'warrantyExpiry'
+            ? 'YYYY-MM-DD'
+            : column.key === 'purchaseCost'
+              ? 'Exact amount'
+              : 'Contains…'
+        }
+        onApply={(value) => update(column.key, value)}
+      />
+    );
+  }
+  function renderColumnValue(asset: Asset, key: (typeof catalogColumns)[number]['key']) {
+    const location = refs.data?.locations.find((item) => item.id === asset.locationId);
+    switch (key) {
+      case 'asset':
+        return (
+          <Link
+            to={assignmentMode ? `/assets/${asset.id}/assign` : `/assets/${asset.id}`}
+            className="asset-list-link flex items-center gap-3"
+          >
+            <AssetThumb asset={asset} />
+            <span className="min-w-0">
+              <span className="block font-medium text-navy-700">{asset.assetCode}</span>
+              <span className="line-clamp-1 block max-w-72 text-xs text-gray-500">{asset.description}</span>
+            </span>
+          </Link>
+        );
+      case 'manufacturer': return asset.manufacturer || '—';
+      case 'category': return referenceLabel(refs.data, 'CATEGORY', asset.category);
+      case 'assetType': return referenceLabel(refs.data, 'ASSET_TYPE', asset.assetType);
+      case 'departmentId': return refs.data?.departments.find((item) => item.id === asset.departmentId)?.name ?? '—';
+      case 'holderId':
+        return asset.currentAssignment?.employeeName ? (
+          <PersonChip
+            userId={asset.currentAssignment.userId ?? ''}
+            name={asset.currentAssignment.employeeName}
+            hasPhoto={asset.currentAssignment.employeeHasPhoto}
+            designation={asset.currentAssignment.employeeDesignation}
+            department={asset.currentAssignment.employeeDepartment}
+            email={asset.currentAssignment.employeeEmail}
+            holdingsHref={asset.currentAssignment.userId ? `/assets?holderId=${asset.currentAssignment.userId}` : undefined}
+          />
+        ) : refs.data?.teams?.find((item) => item.id === asset.owningTeamId)?.name ?? '—';
+      case 'status': return <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />;
+      case 'owningTeamId': return refs.data?.teams?.find((item) => item.id === asset.owningTeamId)?.name ?? '—';
+      case 'ownershipType': return referenceLabel(refs.data, 'OWNERSHIP', asset.ownershipType);
+      case 'model': return asset.model || '—';
+      case 'serialNumber': return asset.serialNumber || '—';
+      case 'barcode': return asset.barcode || '—';
+      case 'locationId': return asset.locationId ? location ? locationLabel(location) : 'Location unavailable' : 'Not recorded';
+      case 'condition': return referenceLabel(refs.data, 'CONDITION', asset.condition);
+      case 'riskLevel': return referenceLabel(refs.data, 'RISK', asset.riskLevel);
+      case 'warrantyExpiry': return asset.warrantyExpiry ? displayDate(asset.warrantyExpiry) : '—';
+      case 'purchaseDate': return asset.purchaseDate ? displayDate(asset.purchaseDate) : '—';
+      case 'purchaseCost': return asset.purchaseCost == null ? '—' : `₹${Number(asset.purchaseCost).toLocaleString('en-IN')}`;
+    }
   }
   return (
     <>
@@ -321,10 +469,20 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             backgroundFilters={Object.fromEntries(
               Object.entries({
                 q: filters.q,
+                asset: filters.asset,
+                model: filters.model,
+                serialNumber: filters.serialNumber,
+                barcode: filters.barcode,
+                warrantyExpiry: filters.warrantyExpiry,
+                purchaseDate: filters.purchaseDate,
+                purchaseCost: filters.purchaseCost,
                 status: filters.status,
                 category: filters.category,
                 assetType: filters.assetType,
                 manufacturer: filters.manufacturer,
+                condition: filters.condition,
+                riskLevel: filters.riskLevel,
+                ownershipType: filters.ownershipType,
                 departmentId: filters.departmentId,
                 holderId: filters.holderId,
                 locationId: filters.locationId,
@@ -343,7 +501,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               aria-pressed={!!filters.removed}
               onClick={() => update('removed', filters.removed ? '' : 'only')}
             >
-              {filters.removed ? 'Showing removed assets ✕' : 'Show removed assets'}
+              {filters.removed ? 'Viewing removed assets only · Return to active assets' : 'Show removed assets'}
             </button>
           ) : null}
           {IMPORT_TOOLS_ENABLED && can(user, 'system.admin') && !assignmentMode ? (
@@ -363,6 +521,14 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
         ) : null}
       </div>
       <Panel>
+        {filters.removed ? (
+          <div className={cx(noticeClass('warning'), 'mb-4 flex flex-wrap items-center justify-between gap-3')} role="status">
+            <span>Active assets are hidden in this view. You are viewing removed asset records only.</span>
+            <button type="button" className={buttonClass('secondary', 'sm')} onClick={() => update('removed', '')}>
+              Return to active assets
+            </button>
+          </div>
+        ) : null}
         <div className={filterBarClass}>
           <form className={searchFormClass} onSubmit={searchSubmit}>
             <label htmlFor="asset-search" className="sr-only">
@@ -372,7 +538,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               id="asset-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search asset ID, description or serial"
+              placeholder="Search asset ID, description, model, brand, serial or barcode"
               className={inputClass}
               maxLength={100}
             />
@@ -391,6 +557,47 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               ]}
             />
           </form>
+          {!assignmentMode ? (
+            <details className="relative ml-auto !min-w-0 !flex-none">
+              <summary className={cx(buttonClass('secondary'), 'cursor-pointer list-none whitespace-nowrap')}>
+                Columns ({visibleColumns.filter((key) => allowedCatalogColumns.some((column) => column.key === key)).length})
+              </summary>
+              <div className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+                <div className="mb-2 flex justify-between border-b border-gray-100 pb-2 text-xs">
+                  <button
+                    type="button"
+                    className={linkClass}
+                    onClick={() => setVisibleColumns(allowedCatalogColumns.map((column) => column.key))}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    className={linkClass}
+                    onClick={() => setVisibleColumns(defaultCatalogColumns.filter((key) => allowedCatalogColumns.some((column) => column.key === key)))}
+                  >
+                    Reset
+                  </button>
+                </div>
+                {allowedCatalogColumns.map((column) => (
+                  <label key={column.key} className="flex cursor-pointer items-center gap-2 py-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns.includes(column.key)}
+                      onChange={(event) =>
+                        setVisibleColumns((current) =>
+                          event.target.checked
+                            ? [...current, column.key]
+                            : current.filter((key) => key !== column.key),
+                        )
+                      }
+                    />
+                    {column.label}
+                  </label>
+                ))}
+              </div>
+            </details>
+          ) : null}
           {/* Phones hide the table headers, so their filters live behind this button. */}
           <div className="flex-none md:hidden">
             <FiltersButton groups={filterGroups} onApply={applyFilters} />
@@ -404,8 +611,23 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               toList(params.get(key)).filter((v) => v !== value),
             )
           }
-          onClearAll={() => applyFilters(Object.fromEntries(filterGroups.map((g) => [g.key, []])))}
+        onClearAll={() => {
+          const next = new URLSearchParams(params);
+          [
+            'q', 'asset', 'model', 'serialNumber', 'barcode', 'warrantyExpiry',
+            'purchaseDate', 'purchaseCost', 'status', 'category', 'assetType',
+            'manufacturer', 'condition', 'riskLevel', 'ownershipType', 'departmentId',
+            'holderId', 'locationId', 'owningTeamId',
+          ].forEach((key) => next.delete(key));
+          setParams(next);
+        }}
         />
+        {!assignmentMode && !query.isPending && !query.error ? (
+          <p className="mb-3 text-sm text-gray-500" aria-live="polite">
+            Total matching assets: {matchingCount?.toLocaleString('en-IN') ?? 'unavailable'}
+            {' · '}Currently loaded: {loadedItems.length.toLocaleString('en-IN')}
+          </p>
+        ) : null}
         <ErrorNotice
           error={query.error}
           retry={() => {
@@ -419,166 +641,26 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             <table className={tableClass}>
               <thead>
                 <tr>
-                  <th>
-                    <span className="sr-only">Photo</span>
-                  </th>
-                  <th>Asset</th>
-                  <th>
-                    Brand
-                    {groupFor('manufacturer') ? (
-                      <ColumnFilter
-                        title="Brand"
-                        options={groupFor('manufacturer')!.options}
-                        selected={groupFor('manufacturer')!.selected}
-                        onApply={(values) => setFilter('manufacturer', values)}
-                      />
-                    ) : null}
-                  </th>
-                  <th>
-                    Category
-                    {groupFor('category') ? (
-                      <ColumnFilter
-                        title="Category"
-                        options={groupFor('category')!.options}
-                        selected={groupFor('category')!.selected}
-                        onApply={(values) => setFilter('category', values)}
-                      />
-                    ) : null}
-                  </th>
-                  <th>
-                    Subcategory
-                    {groupFor('assetType') ? (
-                      <ColumnFilter
-                        title="Subcategory"
-                        options={groupFor('assetType')!.options}
-                        selected={groupFor('assetType')!.selected}
-                        onApply={(values) => setFilter('assetType', values)}
-                      />
-                    ) : null}
-                  </th>
-                  <th>
-                    Department
-                    {groupFor('departmentId') ? (
-                      <ColumnFilter
-                        title="Department"
-                        options={groupFor('departmentId')!.options}
-                        selected={groupFor('departmentId')!.selected}
-                        onApply={(values) => setFilter('departmentId', values)}
-                      />
-                    ) : null}
-                  </th>
-                  <th>
-                    Held by
-                    {groupFor('holderId') ? (
-                      <ColumnFilter
-                        title="Held by"
-                        options={groupFor('holderId')!.options}
-                        selected={groupFor('holderId')!.selected}
-                        onApply={(values) => setFilter('holderId', values)}
-                      />
-                    ) : null}
-                  </th>
-                  <th>
-                    Status
-                    {groupFor('status') ? (
-                      <ColumnFilter
-                        title="Status"
-                        options={groupFor('status')!.options}
-                        selected={groupFor('status')!.selected}
-                        onApply={(values) => setFilter('status', values)}
-                      />
-                    ) : null}
-                  </th>
-                  <th>
-                    <span className="sr-only">View</span>
-                  </th>
+                  {allowedCatalogColumns
+                    .filter((column) => visibleColumns.includes(column.key))
+                    .map((column) => (
+                      <th key={column.key}>
+                        {column.label}
+                        {renderColumnFilter(column)}
+                      </th>
+                    ))}
                 </tr>
               </thead>
               <tbody>
                 {items.map((asset) => (
                   <tr key={asset.id} className="asset-list-row">
-                    <td data-label="Photo" className="asset-list-photo">
-                      <AssetThumb asset={asset} />
-                    </td>
-                    <td data-label="Asset" className="asset-list-main">
-                      <Link to={`/assets/${asset.id}`} className="asset-list-link">
-                        <div className="font-medium text-navy-700">{asset.assetCode}</div>
-                        <div className="line-clamp-1 max-w-72 text-xs text-gray-500">
-                          {asset.description}
-                          {asset.model ? ` · ${asset.model}` : ''}
-                        </div>
-                      </Link>
-                    </td>
-                    <td data-label="Brand">{asset.manufacturer ?? '-'}</td>
-                    <td data-label="Category">
-                      {asset.category ? referenceLabel(refs.data, 'CATEGORY', asset.category) : '-'}
-                    </td>
-                    <td data-label="Subcategory">
-                      {asset.assetType
-                        ? referenceLabel(refs.data, 'ASSET_TYPE', asset.assetType)
-                        : '-'}
-                    </td>
-                    <td data-label="Department">
-                      {refs.data?.departments.find((d) => d.id === asset.departmentId)?.name ?? '-'}
-                    </td>
-                    <td data-label="Owned by / Held by">
-                      {asset.currentAssignment?.employeeName ? (
-                        <PersonChip
-                          userId={asset.currentAssignment.userId ?? ''}
-                          name={asset.currentAssignment.employeeName}
-                          hasPhoto={asset.currentAssignment.employeeHasPhoto}
-                          designation={asset.currentAssignment.employeeDesignation}
-                          department={asset.currentAssignment.employeeDepartment}
-                          email={asset.currentAssignment.employeeEmail}
-                          holdingsHref={
-                            asset.currentAssignment.userId
-                              ? `/assets?holderId=${asset.currentAssignment.userId}`
-                              : undefined
-                          }
-                        />
-                      ) : (
-                        <span className="text-gray-500">
-                          {refs.data?.teams?.find((t) => t.id === asset.owningTeamId)?.name ?? '-'}
-                        </span>
-                      )}
-                    </td>
-                    <td data-label="Status" className="asset-list-status">
-                      <ReferenceBadge refs={refs.data} kind="STATUS" value={asset.status} />
-                    </td>
-                    <td data-label="Actions" className="asset-list-actions">
-                      <div className="flex items-center justify-end gap-3">
-                        {can(user, 'asset.custody', asset.owningTeamId ?? undefined) &&
-                        canAssign(asset) ? (
-                          <Link
-                            to={`/assets/${asset.id}/assign`}
-                            className={linkClass}
-                            aria-label={`Assign ${asset.assetCode}`}
-                          >
-                            Assign
-                          </Link>
-                        ) : can(user, 'asset.custody', asset.owningTeamId ?? undefined) &&
-                          !assignmentMode &&
-                          canTransfer(asset) ? (
-                          <Link
-                            to={`/assets/${asset.id}/assign?transfer=1`}
-                            className={linkClass}
-                            aria-label={`Transfer ${asset.assetCode}`}
-                          >
-                            Transfer
-                          </Link>
-                        ) : null}
-                        {can(user, 'asset.label', asset.owningTeamId ?? undefined) &&
-                        !assignmentMode ? (
-                          <Link
-                            to={`/assets/labels?ids=${asset.id}`}
-                            className={linkClass}
-                            aria-label={`Print label for ${asset.assetCode}`}
-                          >
-                            Print label
-                          </Link>
-                        ) : null}
-                      </div>
-                    </td>
+                    {allowedCatalogColumns
+                      .filter((column) => visibleColumns.includes(column.key))
+                      .map((column) => (
+                        <td key={column.key} data-label={column.label}>
+                          {renderColumnValue(asset, column.key)}
+                        </td>
+                      ))}
                   </tr>
                 ))}
               </tbody>
@@ -1246,6 +1328,7 @@ const textFields = [
 ] as const;
 const dateFields = [
   ['purchaseDate', 'Purchase date'],
+  ['capitalisationDate', 'Capitalisation date'],
   ['warrantyExpiry', 'Warranty expiry'],
   ['insuranceExpiry', 'Insurance expiry'],
   ['lastAuditDate', 'Last audit date'],
@@ -1268,6 +1351,7 @@ const assetEditableFields = [
   'amcExpiry',
   'purchaseCost',
   'residualValue',
+  'usefulLifeYears',
   'invoiceNumber',
   'supplier',
   'insurancePolicyNumber',
@@ -1303,6 +1387,7 @@ export function AssetEditor() {
 }
 const financeKeys = new Set([
   'purchaseDate',
+  'capitalisationDate',
   'purchaseCost',
   'currency',
   'residualValue',
@@ -1371,6 +1456,29 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
   // Finance without asset.edit for this team may change only the finance fields.
   const financeOnly =
     !!baseline && canFinance && !can(user, 'asset.edit', baseline.owningTeamId ?? undefined);
+  const depreciationMethods = useQuery({
+    queryKey: ['depreciation-methods'],
+    queryFn: ({ signal }) => api<{ items: Array<{
+      code: string; label: string; active: boolean; teamId: string | null; categoryCode: string | null;
+      teamName: string | null; categoryLabel: string | null;
+    }> }>('/depreciation/methods', { signal }),
+    enabled: canFinance,
+  });
+  const applicableDepreciationMethods = (depreciationMethods.data?.items ?? [])
+    .filter((method) => method.active && (!method.teamId || method.teamId === teamId) &&
+      (!method.categoryCode || method.categoryCode === values.category))
+    .sort((a, b) => {
+      const aSpecificity = Number(!!a.teamId) + 2 * Number(!!a.categoryCode);
+      const bSpecificity = Number(!!b.teamId) + 2 * Number(!!b.categoryCode);
+      return bSpecificity - aSpecificity || a.label.localeCompare(b.label);
+    });
+  const suggestedDepreciationMethod = applicableDepreciationMethods[0]?.code;
+  useEffect(() => {
+    if (!suggestedDepreciationMethod) return;
+    setValues((current) => current.depreciationMethod
+      ? current
+      : { ...current, depreciationMethod: suggestedDepreciationMethod });
+  }, [teamId, values.category, suggestedDepreciationMethod]);
   const lockedStyle = { display: 'contents' } as const;
   const roomHeld =
     refs.data?.assetTypePolicies?.find((item) => item.assetTypeCode === values.assetType)
@@ -1459,6 +1567,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       locationId: refs.data?.locations.find((item) => item.active)?.id ?? '',
       configuration: 'Intel Core i7-1355U · 16 GB RAM · 512 GB NVMe SSD · Windows 11 Pro',
       purchaseDate: '2024-04-15',
+      capitalisationDate: '2024-05-01',
       warrantyExpiry: '2027-04-15',
       insuranceExpiry: '2027-03-31',
       lastAuditDate: '2025-06-15',
@@ -1473,7 +1582,8 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       invoiceNumber: 'INV-DEMO-2024-0415',
       supplier: 'Demo Technologies Pvt Ltd',
       insurancePolicyNumber: 'POL-DEMO-88421',
-      depreciationMethod: firstCode('DEPRECIATION_METHOD'),
+      depreciationMethod: 'SLM',
+      usefulLifeYears: '5',
       commentType: firstCode('COMMENT_TYPE'),
       remarks: 'Sample record created with Fill demo values. Safe to edit or discard.',
     };
@@ -1511,8 +1621,10 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       'warrantyExpiry',
       'amcExpiry',
       'purchaseDate',
+      'capitalisationDate',
       'purchaseCost',
       'residualValue',
+      'usefulLifeYears',
       'invoiceNumber',
       'supplier',
       'insurancePolicyNumber',
@@ -1547,7 +1659,8 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 0,
                 name.endsWith('Date') || name.endsWith('Expiry') ? 10 : undefined,
               );
-        if (next !== before) body[name] = next || null;
+        if (next !== before)
+          body[name] = name === 'usefulLifeYears' ? (next ? Number(next) : null) : next || null;
       }
       body.reason = values.reason.trim();
       const sent = await action
@@ -1566,7 +1679,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     for (const name of allowed) {
       if (lockFinance(name)) continue;
       const value = values[name];
-      if (value?.trim()) body[name] = value.trim();
+      if (value?.trim()) body[name] = name === 'usefulLifeYears' ? Number(value) : value.trim();
       else if (
         baseline &&
         baseline[name] != null &&
@@ -1736,6 +1849,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                     owningTeamId: value,
                     category: '',
                     assetType: '',
+                    depreciationMethod: '',
                   }));
                 }}
                 disabled={!!baseline && !canChangeTeam}
@@ -1796,7 +1910,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   htmlFor="category"
                   value={values.category ?? ''}
                   onChange={(value) =>
-                    setValues((current) => ({ ...current, category: value, assetType: '' }))
+                    setValues((current) => ({ ...current, category: value, assetType: '', depreciationMethod: '' }))
                   }
                   required
                   options={[
@@ -2075,14 +2189,37 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
           ) : null}
           <fieldset disabled={!canFinance} className="form-grid" data-testid="finance-fields">
             <Field label="Depreciation method" htmlFor="depreciationMethod">
-              <ReferenceSelect
-                refs={refs.data}
-                kind="DEPRECIATION_METHOD"
-                id="depreciationMethod"
+              <Select
+                label=""
+                htmlFor="depreciationMethod"
                 value={values.depreciationMethod ?? ''}
                 onChange={(value) => set('depreciationMethod', value)}
-                required={false}
-                preserveCurrent={!!baseline}
+                disabled={depreciationMethods.isPending}
+                options={[
+                  { value: '', label: 'Not set' },
+                  ...(values.depreciationMethod && !applicableDepreciationMethods.some((method) => method.code === values.depreciationMethod)
+                    ? [{ value: values.depreciationMethod, label: `${values.depreciationMethod} (current)` }]
+                    : []),
+                  ...applicableDepreciationMethods.map((method) => ({
+                    value: method.code,
+                    label: `${method.label}${method.categoryLabel ? ` · ${method.categoryLabel}` : ''}${method.teamName ? ` · ${method.teamName}` : ''}`,
+                  })),
+                ]}
+              />
+              {depreciationMethods.error ? <p className="text-sm text-red-700">Could not load methods. Refresh and retry.</p> : null}
+              {can(user, 'depreciation.manage_methods') ? (
+                <Link className="muted small-text" to="/depreciation/settings">Manage depreciation methods</Link>
+              ) : null}
+            </Field>
+            <Field label="Useful life (years)" htmlFor="usefulLifeYears">
+              <input
+                id="usefulLifeYears"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                value={values.usefulLifeYears ?? ''}
+                onChange={(event) => set('usefulLifeYears', event.target.value)}
               />
             </Field>
             {[

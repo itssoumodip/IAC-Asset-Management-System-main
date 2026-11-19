@@ -10,7 +10,7 @@ const IT = '00000000-0000-4000-8000-000000000001';
 const ADM = '00000000-0000-4000-8000-000000000002';
 const ALL: Action[] = [
   'asset.view_all', 'asset.view_private', 'asset.create', 'asset.edit', 'asset.custody', 'asset.retire',
-  'asset.import', 'asset.label', 'asset.photo', 'asset.finance_edit', 'asset.change_team',
+  'asset.import', 'asset.label', 'asset.photo', 'asset.finance_edit', 'depreciation.manage_methods', 'asset.change_team',
   'team.manage_members', 'ticket.work', 'announcement.send', 'report.view', 'system.admin',
   'store.operations', 'verification.perform', 'insurer.view', 'procurement.view', 'approvals.act'
 ];
@@ -30,7 +30,7 @@ const grants: Array<[string, PolicyActor, Set<Action>, Set<Action>]> = [
   ['super admin', sa, new Set(ALL), new Set(ALL)],
   ['IT lead', itLead, new Set<Action>([...TEAM_ALL, ...ANY_TEAM, 'approvals.act']), new Set<Action>([...ANY_TEAM, 'approvals.act'])],
   ['IT member', itMember, new Set([...MEMBER_OWN, ...ANY_TEAM]), new Set(ANY_TEAM)],
-  ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'report.view'])],
+  ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'depreciation.manage_methods', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'depreciation.manage_methods', 'report.view'])],
   ['executive', exec, new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view'])],
   ['employee', employee, new Set<Action>(), new Set<Action>()]
 ];
@@ -108,12 +108,12 @@ test('capabilities is JSON-serialisable and splits global vs team', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(c)), c);
   assert.deepEqual(new Set(capabilities(sa).global), new Set(ALL));
   assert.deepEqual(capabilities(employee), { global: [], teams: {} });
-  assert.deepEqual(new Set(capabilities(finance).global), new Set(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'report.view']));
+  assert.deepEqual(new Set(capabilities(finance).global), new Set(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'depreciation.manage_methods', 'report.view']));
 });
 
 test('constants', () => {
   assert.deepEqual([...TEAM_SCOPED].sort(), [...TEAM_ALL].sort());
-  assert.equal(FINANCE_FIELDS.length, 11);
+  assert.equal(FINANCE_FIELDS.length, 12);
   assert.ok(FINANCE_FIELDS.includes('financePending'));
   assert.deepEqual([...WRITE_OFF_STATUSES].sort(), ['Disposed', 'Lost', 'Retired', 'Scrapped', 'Sold', 'Stolen']);
 });

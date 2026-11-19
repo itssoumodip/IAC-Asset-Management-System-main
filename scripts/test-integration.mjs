@@ -6,7 +6,18 @@ if (!connection || !new URL(connection).pathname.endsWith('_test'))
   throw new Error('TEST_DATABASE_URL must name an isolated _test database');
 const cli = process.env.npm_execpath;
 if (!cli) throw new Error('Run integration tests with npm run test:integration');
-const child = spawn(process.execPath, [cli, 'run', 'test:integration', '-w', '@iac/api'], {
+const requestedFiles = process.argv
+  .slice(2)
+  .filter((arg) => arg.endsWith('.integration.test.ts') && !arg.includes('..'));
+const script = requestedFiles.length ? 'test:integration:focused' : 'test:integration';
+const child = spawn(process.execPath, [
+  cli,
+  'run',
+  script,
+  '-w',
+  '@iac/api',
+  ...(requestedFiles.length ? ['--', ...requestedFiles] : []),
+], {
   stdio: 'inherit',
   env: {
     ...process.env,

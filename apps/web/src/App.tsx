@@ -29,6 +29,7 @@ import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { TeamMembers, TeamsAndProjects } from './components/TeamAdmin';
 import { Depreciation } from './components/Depreciation';
+import { DepreciationSettings } from './components/DepreciationSettings';
 import { Store } from './components/Store';
 import { TeamTransfers } from './components/TeamTransfers';
 import { Maintenance } from './components/Maintenance';
@@ -504,8 +505,13 @@ function Shell() {
               </SideLink>
             )}
             {can(user, 'asset.finance_edit') && (
-              <SideLink to="/depreciation" icon="depreciation">
+              <SideLink to="/depreciation" icon="depreciation" end>
                 Depreciation
+              </SideLink>
+            )}
+            {can(user, 'depreciation.manage_methods') && (
+              <SideLink to="/depreciation/settings" icon="master">
+                Depreciation settings
               </SideLink>
             )}
             {can(user, 'report.view') && (
@@ -931,6 +937,9 @@ export function App() {
             <Route element={<Guard action="asset.finance_edit" />}>
               <Route path="/finance" element={<FinanceReview />} />
               <Route path="/depreciation" element={<Depreciation />} />
+            </Route>
+            <Route element={<Guard action="depreciation.manage_methods" />}>
+              <Route path="/depreciation/settings" element={<DepreciationSettings />} />
             </Route>
             <Route element={<Guard action="report.view" />}>
               <Route path="/reports" element={<Reports />} />

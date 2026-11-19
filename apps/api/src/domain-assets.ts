@@ -147,6 +147,9 @@ export class AssetDomain extends MasterDomain {
       ['assetType', 'asset_type', 'text'],
       ['departmentId', 'department_id', 'uuid'],
       ['owningTeamId', 'owning_team_id', 'uuid'],
+      ['condition', 'condition', 'text'],
+      ['riskLevel', 'risk_level', 'text'],
+      ['ownershipType', 'ownership_type', 'text'],
     ] as const) {
       const list = filterList(p[key]);
       if (list.length) {
@@ -194,9 +197,41 @@ export class AssetDomain extends MasterDomain {
       // ILIKE so the pg_trgm indexes from migration 043 apply; escape LIKE wildcards in user text.
       values.push(`%${p.q.replace(/[\\%_]/g, '\\$&')}%`);
       where.push(
-        `(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length} OR a.serial_number ILIKE $${values.length})`,
+        `(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length} OR a.serial_number ILIKE $${values.length} OR a.model ILIKE $${values.length} OR a.manufacturer ILIKE $${values.length} OR a.barcode ILIKE $${values.length})`,
       );
     }
+    const ilike = (column: string, value: string) => {
+      values.push(`%${value.replace(/[\\%_]/g, '\\$&')}%`);
+      where.push(`${column} ILIKE $${values.length}`);
+    };
+    if (p.asset) {
+      values.push(`%${p.asset.replace(/[\\%_]/g, '\\$&')}%`);
+      where.push(`(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length})`);
+    }
+    if (p.model) ilike('a.model', p.model);
+    if (p.serialNumber) ilike('a.serial_number', p.serialNumber);
+    if (p.barcode) ilike('a.barcode', p.barcode);
+    if (p.warrantyExpiry) {
+      values.push(p.warrantyExpiry);
+      where.push(`a.warranty_expiry::text=$${values.length}`);
+    }
+    if (p.purchaseDate) {
+      values.push(p.purchaseDate);
+      where.push(`a.purchase_date::text=$${values.length}`);
+    }
+    if (p.purchaseCost && can(req.user, 'asset.view_private')) {
+      const amount = Number(p.purchaseCost);
+      if (!Number.isFinite(amount) || amount < 0)
+        throw new UnprocessableEntityException('Purchase cost filter must be a nonnegative amount');
+      values.push(amount);
+      where.push(`a.purchase_cost=$${values.length}`);
+    }
+    const totalCount = p.after
+      ? undefined
+      : Number(
+          (await this.db.query(`SELECT count(*)::int AS total FROM assets a WHERE ${where.join(' AND ')}`, values))[0]
+            ?.total ?? 0,
+        );
     // Sort order. The page cursor is (sort key, id); dates are compared as full-precision
     // text so paging never skips or repeats rows that share a timestamp.
     const at = (col: string) => `to_char(${col} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US')`;
@@ -217,6 +252,7 @@ export class AssetDomain extends MasterDomain {
       values,
     );
     const result = page(rows, p.limit, ['sort_key', 'id']);
+    if (totalCount !== undefined) result.totalCount = totalCount;
     for (const item of result.items) delete (item as { sortKey?: unknown }).sortKey;
     await this.attachCurrentAssignments(req.user, result.items);
     // Field permissions page: drop fields every one of this user's roles may not see.
@@ -446,7 +482,12 @@ export class AssetDomain extends MasterDomain {
   async reviewChangeRequest(req: AuthRequest, requestId: string, body: unknown) {
     id(requestId);
     const input = parse(
-      z.object({ decision: z.enum(['APPROVE', 'REJECT']), reason: text(1000) }).strict(),
+      z.object({ decision: z.enum(['APPROVE', 'REJECT']), reason: z.string().trim().max(1000).optional().default('') })
+        .strict()
+        .superRefine((decision, context) => {
+          if (decision.decision === 'REJECT' && !decision.reason)
+            context.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'A reason is required to reject' });
+        }),
       body,
     );
     return this.db.tx(async (c) => {

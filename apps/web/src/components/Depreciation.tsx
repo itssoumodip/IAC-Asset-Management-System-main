@@ -6,6 +6,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import { useSession } from '../session';
 import { can } from '../session';
+import { Link } from 'react-router-dom';
 import {
   Empty,
   ErrorNotice,
@@ -37,6 +38,15 @@ interface DepreciationRow {
   currentValue: number;
   depreciatedValue: number;
 }
+interface DepreciationMethodOption {
+  code: string;
+  label: string;
+  active: boolean;
+  calculationType: 'SLM' | 'WDV';
+  ratePercent: number | null;
+  teamName: string | null;
+  categoryLabel: string | null;
+}
 
 /** Depreciation page: per-asset purchase date, capitalisation date, method, rate,
  * current value, depreciated value. Run by period; Companies Act and Income Tax views. */
@@ -51,11 +61,15 @@ export function Depreciation() {
     );
 
   const [fyStart, setFyStart] = useState<number>(new Date().getFullYear());
-  const [method, setMethod] = useState<'SLM' | 'WDV'>('SLM');
+  const [method, setMethod] = useState('SLM');
 
   const query = useQuery({
     queryKey: ['depreciation'],
     queryFn: ({ signal }) => api<{ items: DepreciationRow[] }>('/depreciation', { signal }),
+  });
+  const methodsQuery = useQuery({
+    queryKey: ['depreciation-methods'],
+    queryFn: ({ signal }) => api<{ items: DepreciationMethodOption[] }>('/depreciation/methods', { signal }),
   });
   const action = useAction();
 
@@ -87,7 +101,11 @@ export function Depreciation() {
         title="Depreciation"
         description="Per-asset purchase date, capitalisation date, method, rate, current value and depreciated value. Run by period."
       />
-      <ErrorNotice error={action.error ?? query.error} />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="muted">Manage reusable calculation rules and rates.</p>
+        {can(user, 'depreciation.manage_methods') ? <Link className={buttonClass('secondary')} to="/depreciation/settings">Depreciation settings</Link> : null}
+      </div>
+      <ErrorNotice error={action.error ?? query.error ?? methodsQuery.error} />
 
       <div className="flex flex-col gap-6">
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -117,25 +135,27 @@ export function Depreciation() {
               label=""
               htmlFor="dep-method"
               value={method}
-              onChange={(v) => setMethod(v as 'SLM' | 'WDV')}
-              options={[
-                { value: 'SLM', label: 'Straight Line' },
-                { value: 'WDV', label: 'Written Down Value' },
-              ]}
+              onChange={setMethod}
+              options={(methodsQuery.data?.items ?? [])
+                .filter((item) => item.active)
+                .map((item) => ({
+                  value: item.code,
+                  label: `${item.label}${item.categoryLabel ? ` · ${item.categoryLabel}` : ''}${item.teamName ? ` · ${item.teamName}` : ''}`,
+                }))}
             />
           </div>
           <button
             className={buttonClass()}
             type="button"
-            disabled={action.isPending}
+            disabled={action.isPending || methodsQuery.isPending || !(methodsQuery.data?.items.some((item) => item.active))}
             onClick={runDepreciation}
           >
             {action.isPending ? 'Running…' : 'Run depreciation'}
           </button>
         </div>
         <p className="muted small-text">
-          Companies Act view: SLM depreciation over useful life. Income Tax view: WDV at prescribed
-          rate. Capitalisation date is set automatically at first assignment.
+          SLM uses the asset’s useful life and residual value. WDV applies the selected method’s
+          configured annual rate. Capitalisation date is set automatically at first assignment.
         </p>
         {query.isPending ? (
           <Loading />
@@ -187,9 +207,8 @@ export function Depreciation() {
           above to run for the selected year and method.
         </p>
         <div className="muted small-text">
-          Companies Act (SLM): Depreciation = (Purchase cost − Residual value) ÷ Useful life years,
-          charged each year until residual value is reached. Income Tax (WDV): Depreciation = Rate%
-          × Opening written-down value, reducing balance each year.
+          SLM: (Purchase cost − Residual value) ÷ Useful life years, capped at residual value.
+          WDV: configured rate × opening written-down value, reducing balance each year.
         </div>
       </Panel>
     </>

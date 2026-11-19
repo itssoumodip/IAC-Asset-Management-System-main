@@ -95,6 +95,11 @@ export function AssetDetailZoho() {
     !asset.kitParent &&
     (canTransfer(asset) || canAssign(asset));
   const assignment = asset.currentAssignment;
+  // The admin asset timeline includes closed assignments and register notes, including
+  // names that could not be linked to a portal user during import.
+  const previousHolderHistory = (asset.timeline ?? []).filter((item) =>
+    /previous holder|held by |handed on by /i.test(item.body ?? ''),
+  );
   const own = assignment?.userId === user?.id;
   const department = refs.data?.departments.find((value) => value.id === asset.departmentId)?.name;
   const loc = refs.data?.locations.find((value) => value.id === asset.locationId);
@@ -357,26 +362,40 @@ export function AssetDetailZoho() {
           )}
           {activeTab === 'users' && (
             <Panel title="Asset users">
-              {assignment && asset.currentAssignment ? (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <PersonChip
-                    userId={asset.currentAssignment.userId ?? ''}
-                    name={asset.currentAssignment.employeeName || 'Employee'}
-                    hasPhoto={asset.currentAssignment.employeeHasPhoto}
-                    detail={asset.currentAssignment.employeeDesignation}
-                    designation={asset.currentAssignment.employeeDesignation}
-                    department={asset.currentAssignment.employeeDepartment}
-                    email={asset.currentAssignment.employeeEmail}
-                    holdingsHref={asset.currentAssignment.userId ? `/assets?holderId=${asset.currentAssignment.userId}` : undefined}
-                    size={36}
-                  />
-                  <span className="text-sm text-gray-500">
-                    Since {displayDate(asset.currentAssignment.assignedAt)}
-                  </span>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="mb-3 text-sm font-medium text-gray-700">Current user</h3>
+                  {assignment && asset.currentAssignment ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <PersonChip
+                        userId={asset.currentAssignment.userId ?? ''}
+                        name={asset.currentAssignment.employeeName || 'Employee'}
+                        hasPhoto={asset.currentAssignment.employeeHasPhoto}
+                        detail={asset.currentAssignment.employeeDesignation}
+                        designation={asset.currentAssignment.employeeDesignation}
+                        department={asset.currentAssignment.employeeDepartment}
+                        email={asset.currentAssignment.employeeEmail}
+                        holdingsHref={asset.currentAssignment.userId ? `/assets?holderId=${asset.currentAssignment.userId}` : undefined}
+                        size={36}
+                      />
+                      <span className="text-sm text-gray-500">
+                        Since {displayDate(asset.currentAssignment.assignedAt)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="muted">No current user.</p>
+                  )}
                 </div>
-              ) : (
-                <p className="muted">No current user.</p>
-              )}
+                {manage && (
+                  <div>
+                    <h3 className="mb-3 text-sm font-medium text-gray-700">Previous holders</h3>
+                    <Timeline items={previousHolderHistory} />
+                    <p className="mt-3 text-xs text-gray-500">
+                      Some names may come from register notes and may not be linked to a portal account.
+                    </p>
+                  </div>
+                )}
+              </div>
             </Panel>
           )}
           {activeTab === 'history' && (

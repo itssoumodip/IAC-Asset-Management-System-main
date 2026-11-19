@@ -33,8 +33,12 @@ const createInput = z
   .strict();
 const fulfilInput = z.object({ assetIds: z.array(z.string().uuid()).max(50).optional() }).strict();
 export const requestDecisionInput = z
-  .object({ decision: z.enum(['APPROVE', 'REJECT']), reason: text(1000) })
-  .strict();
+  .object({ decision: z.enum(['APPROVE', 'REJECT']), reason: z.string().trim().max(1000).optional().default('') })
+  .strict()
+  .superRefine((decision, context) => {
+    if (decision.decision === 'REJECT' && !decision.reason)
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'A reason is required to reject' });
+  });
 
 const IN_STOCK = "('In Store','Ready to Assign')";
 const isSuper = (req: AuthRequest) => req.user.roles.includes('SUPER_ADMIN');

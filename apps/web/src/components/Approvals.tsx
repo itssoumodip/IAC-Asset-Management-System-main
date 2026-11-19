@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAction } from '../hooks';
 import { useSession } from '../session';
@@ -49,10 +49,16 @@ export function Approvals() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const action = useAction<{ approved: number }>();
 
-  const query = useQuery({
-    queryKey: ['approvals', tab],
-    queryFn: ({ signal }) => api<{ items: ApprovalItem[] }>(`/approvals?tab=${tab}`, { signal }),
+  const tabs = Object.keys(TAB_LABELS) as ApprovalTab[];
+  const queueQueries = useQueries({
+    queries: tabs.map((queueTab) => ({
+      queryKey: ['approvals', queueTab],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        api<{ items: ApprovalItem[] }>(`/approvals?tab=${queueTab}`, { signal }),
+    })),
   });
+  const activeIndex = tabs.indexOf(tab);
+  const query = queueQueries[activeIndex];
 
   const items = query.data?.items ?? [];
   const pending = items.filter((item) => item.status === 'PENDING');
@@ -100,14 +106,23 @@ export function Approvals() {
         description="Review and approve or reject pending requests, transfers, change requests and verification escalations."
       />
       <ErrorNotice error={query.error} />
+      {queueQueries.map((queueQuery, index) =>
+        index !== activeIndex && queueQuery.error ? (
+          <ErrorNotice
+            key={tabs[index]}
+            error={new Error(`${TAB_LABELS[tabs[index]]}: ${queueQuery.error.message}`)}
+          />
+        ) : null,
+      )}
       <ErrorNotice error={action.error} />
       <nav className="approval-tabs">
-        {Object.entries(TAB_LABELS).map(([key, label]) => {
-          const t = key as ApprovalTab;
-          const count = items.filter((item) => item.status === 'PENDING').length;
+        {tabs.map((t, index) => {
+          const label = TAB_LABELS[t];
+          const count =
+            queueQueries[index].data?.items.filter((item) => item.status === 'PENDING').length ?? 0;
           return (
             <button
-              key={key}
+              key={t}
               className={`tab ${tab === t ? 'active' : ''}${count > 0 ? ' has-pending' : ''}`}
               onClick={() => {
                 setTab(t);

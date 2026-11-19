@@ -265,6 +265,71 @@ export function ColumnFilter({
   );
 }
 
+/** Free text / exact value filter for a table column. */
+export function TextColumnFilter({
+  title,
+  value,
+  onApply,
+  placeholder = 'Filter value…',
+}: {
+  title: string;
+  value: string;
+  onApply: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => {
+    if (open) setDraft(value);
+  }, [open, value]);
+  return (
+    <Popover
+      open={open}
+      setOpen={setOpen}
+      width={260}
+      trigger={({ onClick, ref }) => (
+        <button
+          ref={ref}
+          type="button"
+          onClick={onClick}
+          aria-expanded={open}
+          aria-label={value ? `Filter ${title}: ${value}` : `Filter ${title}`}
+          className={cx('ml-1 inline-flex items-center rounded px-1 py-0.5 align-middle', value ? 'bg-navy-50 text-navy-700' : 'text-gray-400 hover:text-navy-700')}
+        >
+          <FunnelIcon className="size-3.5" />
+          {value ? <span className="ml-0.5 max-w-24 truncate text-[10px]">{value}</span> : null}
+        </button>
+      )}
+    >
+      <label className="mb-2 block text-xs font-medium tracking-wide text-gray-500 uppercase">{title}</label>
+      <input
+        autoFocus
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            onApply(draft.trim());
+            setOpen(false);
+          }
+        }}
+        placeholder={placeholder}
+        className="h-9 w-full rounded-md border border-gray-200 px-2 text-sm"
+      />
+      <Footer
+        onClear={() => {
+          setDraft('');
+          onApply('');
+          setOpen(false);
+        }}
+        onApply={() => {
+          onApply(draft.trim());
+          setOpen(false);
+        }}
+      />
+    </Popover>
+  );
+}
+
 export interface FilterGroup {
   key: string;
   title: string;

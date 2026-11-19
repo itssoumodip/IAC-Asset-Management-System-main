@@ -20,6 +20,7 @@ import {
   tableClass,
   cx,
   formStackClass,
+  PersonChip,
 } from './ui';
 import './locations.css';
 
@@ -455,6 +456,7 @@ export function Locations() {
                       <th>Type</th>
                       <th>Description</th>
                       <th>Status</th>
+                      <th>Custodian</th>
                       <th>Purchase cost</th>
                     </tr>
                   </thead>
@@ -466,6 +468,17 @@ export function Locations() {
                         <td>{asset.description}</td>
                         <td>
                           <Badge value={asset.status} />
+                        </td>
+                        <td>
+                          {asset.custodian ? (
+                            <PersonChip
+                              userId={asset.custodian.userId}
+                              name={asset.custodian.name}
+                              hasPhoto={asset.custodian.hasPhoto}
+                            />
+                          ) : (
+                            <span className="text-gray-500">Unassigned</span>
+                          )}
                         </td>
                         <td>{money(Number(asset.purchaseCost || 0))}</td>
                       </tr>

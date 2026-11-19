@@ -21,6 +21,7 @@ export type Action =
   | 'asset.label'
   | 'asset.photo'
   | 'asset.finance_edit'
+  | 'depreciation.manage_methods'
   | 'asset.change_team'
   | 'team.manage_members'
   | 'ticket.work'
@@ -121,8 +122,11 @@ export interface Asset {
   amcApplies?: boolean;
   amcExpiry?: string | null;
   purchaseDate?: string;
+  capitalisationDate?: string | null;
   purchaseCost?: string | null;
   residualValue?: string | null;
+  depreciationMethod?: string;
+  usefulLifeYears?: number | null;
   invoiceNumber?: string;
   supplier?: string;
   insurancePolicyNumber?: string;
@@ -372,6 +376,7 @@ export interface LocationAsset {
   amcExpiry: string | null;
   version: number;
   owningTeamId: string;
+  custodian: { userId: string; name: string; hasPhoto: boolean } | null;
 }
 export interface LocationAssetsResponse {
   location: LocationTreeNode;

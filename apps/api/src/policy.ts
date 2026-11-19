@@ -11,6 +11,7 @@ export interface PolicyActor {
 export type Action =
   | 'asset.view_all' | 'asset.view_private' | 'asset.create' | 'asset.edit' | 'asset.custody'
   | 'asset.retire' | 'asset.import' | 'asset.label' | 'asset.photo' | 'asset.finance_edit'
+  | 'depreciation.manage_methods'
   | 'asset.change_team' | 'team.manage_members' | 'ticket.work' | 'announcement.send'
   | 'report.view' | 'system.admin'
   | 'store.operations' | 'verification.perform' | 'insurer.view' | 'procurement.view' | 'approvals.act';
@@ -21,7 +22,7 @@ export const TEAM_SCOPED: ReadonlySet<Action> = new Set<Action>([
 ]);
 
 export const FINANCE_FIELDS: readonly string[] = [
-  'purchaseDate', 'purchaseCost', 'currency', 'residualValue', 'depreciationMethod',
+  'purchaseDate', 'capitalisationDate', 'purchaseCost', 'currency', 'residualValue', 'depreciationMethod',
   'usefulLifeYears', 'invoiceNumber', 'supplier', 'insurancePolicyNumber', 'insuranceExpiry', 'financePending'
 ];
 
@@ -95,6 +96,7 @@ const RULES: Record<Action, Rule> = {
   'asset.label': R(true, true, true),
   'asset.photo': R(true, true, true),
   'asset.finance_edit': R(true, false, false, ['FINANCE']),
+  'depreciation.manage_methods': R(true, false, false, ['FINANCE']),
   'asset.change_team': R(true, false, false),
   'team.manage_members': R(true, true, false),
   'ticket.work': R(true, true, true, ['TECHNICIAN']),

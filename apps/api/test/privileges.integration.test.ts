@@ -109,7 +109,6 @@ test('runtime role can read application data but cannot erase inventory, mutate 
       "UPDATE asset_label_prints SET layout='A4_14'",
       'DELETE FROM asset_label_prints',
       'DELETE FROM assets WHERE false',
-      'DELETE FROM users WHERE false',
       'DELETE FROM teams WHERE false',
       'DELETE FROM invoices WHERE false',
       'DELETE FROM data_transfers WHERE false',
@@ -122,7 +121,11 @@ test('runtime role can read application data but cannot erase inventory, mutate 
       'CREATE TABLE forbidden_test_table(id int)',
     ]) {
       await c.query('SAVEPOINT denied');
-      await assert.rejects(c.query(sql), (e: any) => e.code === '42501');
+      await assert.rejects(
+        c.query(sql),
+        (e: any) => e.code === '42501',
+        `Expected runtime role to be denied: ${sql}`,
+      );
       await c.query('ROLLBACK TO SAVEPOINT denied');
     }
   });

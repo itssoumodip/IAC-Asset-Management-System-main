@@ -77,6 +77,7 @@ export const assetInput = z
     amcApplies: z.boolean().optional(),
     amcExpiry: optionalDate,
     purchaseDate: optionalDate,
+    capitalisationDate: optionalDate,
     purchaseCost: money,
     currency: z.literal('INR').optional(),
     residualValue: money,
@@ -192,11 +193,21 @@ export function requestPage(query: any, fields: string[]) {
         limit: z.coerce.number().int().min(1).max(100).default(25),
         cursor: z.string().max(1000).optional(),
         q: z.string().trim().max(100).optional(),
+        asset: z.string().trim().max(100).optional(),
+        model: z.string().trim().max(100).optional(),
+        serialNumber: z.string().trim().max(100).optional(),
+        barcode: z.string().trim().max(100).optional(),
+        warrantyExpiry: z.string().trim().max(20).optional(),
+        purchaseDate: z.string().trim().max(20).optional(),
+        purchaseCost: z.string().trim().max(30).optional(),
         // Asset filters accept one value or several, comma-separated (column checkbox filters).
         status: z.string().max(2000).optional(),
         category: z.string().max(2000).optional(),
         assetType: z.string().max(4000).optional(),
         manufacturer: z.string().max(4000).optional(),
+        condition: z.string().max(2000).optional(),
+        riskLevel: z.string().max(2000).optional(),
+        ownershipType: z.string().max(2000).optional(),
         departmentId: uuidList.optional(),
         owningTeamId: uuidList.optional(),
         locationId: uuidList.optional(),
@@ -231,7 +242,11 @@ export function requestPage(query: any, fields: string[]) {
   }
   return { ...input, after };
 }
-export function page(rows: any[], limit: number, fields: string[]) {
+export function page(
+  rows: any[],
+  limit: number,
+  fields: string[],
+): { items: any[]; nextCursor: string | null; totalCount?: number } {
   const hasMore = rows.length > limit;
   const items = rows.slice(0, limit);
   const last = items.at(-1);
@@ -341,6 +356,7 @@ export const employeeAssetColumns = [
 export const privateAssetColumns = [
   'asset_owner',
   'purchase_cost',
+  'capitalisation_date',
   'residual_value',
   'depreciation_method',
   'useful_life_years',
@@ -511,6 +527,29 @@ export async function validateAsset(
       )[0]
     )
       throw new UnprocessableEntityException(`Invalid or inactive ${key}`);
+  }
+  if (
+    data.depreciationMethod &&
+    (!previous ||
+      previous.depreciationMethod !== data.depreciationMethod ||
+      previous.owningTeamId !== data.owningTeamId ||
+      previous.category !== data.category)
+  ) {
+    const [method] = await db.query(
+      `SELECT rv.code, rule.team_id, rule.category_code
+       FROM reference_values rv
+       LEFT JOIN depreciation_method_rules rule ON rule.method_code=rv.code
+       WHERE rv.kind='DEPRECIATION_METHOD' AND rv.code=$1 AND rv.active FOR SHARE OF rv`,
+      [data.depreciationMethod],
+      c,
+    );
+    if (!method) throw new UnprocessableEntityException('Choose an active depreciation method');
+    const teamId = data.owningTeamId ?? previous?.owningTeamId;
+    const categoryCode = data.category ?? previous?.category;
+    if (method.team_id && method.team_id !== teamId)
+      throw new UnprocessableEntityException('This depreciation method is only available for its assigned team');
+    if (method.category_code && method.category_code !== categoryCode)
+      throw new UnprocessableEntityException('This depreciation method is only available for its assigned asset category');
   }
   const parts = new Intl.DateTimeFormat('en', {
     timeZone: 'Asia/Kolkata',

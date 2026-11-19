@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
-import { usePages, useAction } from '../hooks';
+import { useAction, usePages } from '../hooks';
 import { can, hasRole, isStaff, useSession } from '../session';
 import type { Asset, Ticket, TimelineEvent } from '../types';
 import { fetchAllPages } from '../transfer-files';
@@ -367,7 +367,11 @@ export function TicketForm() {
   const { user } = useSession();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const assets = usePages<Asset>('/assets', {}, hasRole(user, 'EMPLOYEE'));
+  const assets = useQuery({
+    queryKey: ['/assets', 'current-holder', user?.id],
+    queryFn: () => fetchAllPages<Asset>('/assets', { holderId: user!.id }),
+    enabled: !!user && hasRole(user, 'EMPLOYEE'),
+  });
   const [assetId, setAssetId] = useState(params.get('assetId') ?? '');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -379,10 +383,7 @@ export function TicketForm() {
   const [photos, setPhotos] = useState<string[]>([]);
   const scannedCode = params.get('asset') && params.get('assetId') ? params.get('asset') : null;
   const action = useAction<Ticket>();
-  const eligible =
-    assets.data?.pages
-      .flatMap((page) => page.items)
-      .filter((asset) => asset.currentAssignment?.userId === user?.id) ?? [];
+  const eligible = assets.data ?? [];
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!subject.trim() || !description.trim()) {
@@ -500,13 +501,6 @@ export function TicketForm() {
                   error={assets.error}
                   retry={() => {
                     void assets.refetch();
-                  }}
-                />
-                <LoadMore
-                  available={assets.hasNextPage}
-                  loading={assets.isFetchingNextPage}
-                  onClick={() => {
-                    void assets.fetchNextPage();
                   }}
                 />
               </>

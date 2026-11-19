@@ -286,8 +286,12 @@ export class LocationsService {
     const rows = await this.db.query(
       `SELECT a.id,a.asset_code,a.asset_type,a.description,a.manufacturer,a.model,a.serial_number,
               a.barcode,a.status,a.condition,a.purchase_date,a.purchase_cost,a.currency,
-              a.warranty_expiry,a.amc_expiry,a.version,a.owning_team_id
+              a.warranty_expiry,a.amc_expiry,a.version,a.owning_team_id,
+              holder.id AS custodian_id,holder.display_name AS custodian_name,
+              EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id=holder.id) AS custodian_has_photo
        FROM assets a
+       LEFT JOIN assignments current_assignment ON current_assignment.asset_id=a.id AND current_assignment.ended_at IS NULL
+       LEFT JOIN users holder ON holder.id=current_assignment.user_id
        WHERE ${where.join(' AND ')}
        ORDER BY a.asset_code,a.id
        LIMIT $${values.length}`,
@@ -298,7 +302,19 @@ export class LocationsService {
     const last = items.at(-1);
     return {
       location: camel(location),
-      items: items.map(camel),
+      items: items.map((row: any) => {
+        const asset = camel(row);
+        return {
+          ...asset,
+          custodian: asset.custodianId
+            ? {
+                userId: asset.custodianId,
+                name: asset.custodianName,
+                hasPhoto: asset.custodianHasPhoto,
+              }
+            : null,
+        };
+      }),
       nextCursor: more
         ? Buffer.from(JSON.stringify([last.asset_code, last.id])).toString('base64url')
         : null,
