@@ -49,7 +49,7 @@ export function StatTile({
   const body = (
     <>
       <span className="text-xs font-medium text-gray-500">{label}</span>
-      <strong className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-navy-900 tabular-nums">
+      <strong data-count className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-navy-900 tabular-nums">
         {value}
       </strong>
       {detail ? <span className="mt-0.5 text-xs text-gray-500">{detail}</span> : null}
@@ -168,7 +168,8 @@ export function BarList({
               </span>
               <span className="block h-4 rounded-[4px] bg-gray-50">
                 <span
-                  className="block h-4 rounded-[4px] bg-chart-1 transition-colors group-hover:bg-navy-700"
+                  data-grow="x"
+                  className="block h-4 origin-left rounded-[4px] bg-chart-1 transition-colors group-hover:bg-navy-700"
                   style={{ width: `${Math.max(1.5, (item.value / max) * 100)}%` }}
                 />
               </span>
@@ -253,9 +254,10 @@ export function ColumnChart({
             </span>
             <span
               className={cx(
-                'w-full max-w-12 rounded-t-[4px] transition-colors',
+                'w-full max-w-12 origin-bottom rounded-t-[4px] transition-colors',
                 hover === index ? 'bg-navy-700' : 'bg-chart-1',
               )}
+              data-grow="y"
               style={{ height: `${Math.max(2, (item.value / max) * 100)}%` }}
             />
             {hover === index && item.detail ? (
@@ -346,7 +348,7 @@ export function DonutChart({
         <div className="relative size-36 shrink-0">
           <svg
             viewBox="0 0 120 120"
-            className="size-full"
+            data-grow="spin"            className="size-full"
             role="img"
             aria-label={shown.map((i) => `${i.label}: ${format(i.value)} (${pct(i.value)})`).join('; ')}
           >
@@ -497,11 +499,13 @@ export function PairedColumnChart({
                 onMouseEnter={() => setHover(i)}
               >
                 <span
-                  className="w-full max-w-3 rounded-t-[4px] bg-chart-1"
+                  data-grow="y"
+                  className="w-full max-w-3 origin-bottom rounded-t-[4px] bg-chart-1"
                   style={{ height: height(p.a) }}
                 />
                 <span
-                  className="w-full max-w-3 rounded-t-[4px] bg-chart-2"
+                  data-grow="y"
+                  className="w-full max-w-3 origin-bottom rounded-t-[4px] bg-chart-2"
                   style={{ height: height(p.b) }}
                 />
                 {hover === i ? (

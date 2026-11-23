@@ -38,7 +38,7 @@ GRANT INSERT,UPDATE ON dashboard_daily TO iac_runtime;
 GRANT INSERT,UPDATE,DELETE ON export_jobs TO iac_runtime;
 -- Field permissions page and Categories page (both save from the admin screens).
 GRANT INSERT,UPDATE ON role_field_permissions TO iac_runtime;
-GRANT INSERT,UPDATE ON category_policies TO iac_runtime;
+GRANT INSERT,UPDATE,DELETE ON category_policies TO iac_runtime;
 GRANT INSERT,DELETE ON category_teams TO iac_runtime;
 -- Preventive maintenance: schedules change; completed records are evidence (insert only).
 GRANT INSERT,UPDATE ON maintenance_schedules TO iac_runtime;

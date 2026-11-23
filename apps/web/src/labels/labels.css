@@ -39,6 +39,12 @@
   height: 100%;
   display: block;
 }
+/* Square, gap-free modules: without this the browser smooths the module edges, which shows
+   as thin seams and uneven rows at small sizes and can make scanning harder. */
+.label-qr-code svg,
+.label-qr-code svg path {
+  shape-rendering: crispEdges;
+}
 .label-qr-logo {
   position: absolute;
   left: 50%;
@@ -131,6 +137,56 @@
 .label-sheet[data-layout='A4_40'] .label-type {
   font-size: 5pt;
 }
+/* Larger stickers: the type grows with the bigger QR so the two read as one block */
+.label-sheet[data-layout='A4_24'] .label-type {
+  font-size: 7pt;
+}
+.label-sheet[data-layout='A4_14'] .label-text strong {
+  font-size: 14pt;
+}
+.label-sheet[data-layout='A4_14'] .label-brand,
+.label-sheet[data-layout='A4_14'] .label-hint {
+  font-size: 7pt;
+}
+.label-sheet[data-layout='A4_14'] .label-type {
+  font-size: 8.5pt;
+}
+/* Square labels: QR on top, text centred underneath */
+.label-cell[data-shape='square'] {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.8mm;
+  padding: 1.5mm 1.5mm 1.5mm 2.4mm;
+}
+.label-cell[data-shape='square'] .label-text {
+  align-items: center;
+  text-align: center;
+  gap: 0.3mm;
+  max-width: 100%;
+}
+.label-cell[data-shape='square'] .label-text strong {
+  font-size: 7.5pt;
+}
+.label-cell[data-shape='square'] .label-brand,
+.label-cell[data-shape='square'] .label-hint {
+  font-size: 4.6pt;
+  margin-top: 0;
+}
+.label-cell[data-shape='square'] .label-type {
+  font-size: 5pt;
+}
+.label-sheet[data-layout='A4_SQ_50'] .label-cell[data-shape='square'] .label-text strong,
+.label-sheet[data-layout='THERMAL_50x50'] .label-cell[data-shape='square'] .label-text strong {
+  font-size: 9pt;
+}
+/* Asset ID only: the ID is the whole message, so it can be larger */
+.label-cell[data-text='code'][data-shape='rect'] .label-text strong {
+  font-size: 11pt;
+}
+/* QR only: centre the code */
+.label-cell[data-text='none'] {
+  justify-content: center;
+}
 /* Keep the brand colours on paper */
 .label-sheet {
   -webkit-print-color-adjust: exact;
@@ -189,53 +245,45 @@
   cursor: pointer;
   accent-color: var(--navy);
 }
+/*
+ * Printing: the label page copies the sheets into a print-only root on <body> (see
+ * Labels.tsx) and nothing else prints, so no app frame, footer or blank pages. Paper size and
+ * zero margins come from an @page rule the page sets for the chosen stock.
+ */
+.label-print-root {
+  display: none;
+}
 @media print {
-  .sidebar,
-  .topbar,
-  .page-footer,
-  .skip-link,
-  .no-print {
+  body > *:not(.label-print-root) {
     display: none !important;
   }
   html,
-  body,
-  .app-shell,
-  .workspace,
-  main {
-    display: block !important;
+  body {
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
-    min-height: 0 !important;
-    height: auto !important;
-    overflow: visible !important;
   }
-  .label-sheet {
+  .label-print-root {
+    display: block;
+  }
+  .label-print-root .label-sheet {
     box-shadow: none;
     margin: 0;
+    break-after: page;
+  }
+  /* No page break after the last sheet, so no empty page at the end. */
+  .label-print-root .label-sheet:last-child {
+    break-after: auto;
   }
   .label-cell {
     outline: none;
   }
 }
 
-@page a4 {
-  size: 210mm 297mm;
-  margin: 0;
+/* Edge bar switched off: no blue strip, and the left padding matches the right */
+.label-cell[data-bar='off']::before {
+  display: none;
 }
-@page thermal {
-  size: 50mm 25mm;
-  margin: 0;
-}
-.label-sheet[data-layout='A4_40'] {
-  page: a4;
-}
-.label-sheet[data-layout='A4_24'] {
-  page: a4;
-}
-.label-sheet[data-layout='A4_14'] {
-  page: a4;
-}
-.label-sheet[data-layout='THERMAL_50x25'] {
-  page: thermal;
+.label-cell[data-bar='off'] {
+  padding-left: 1.5mm;
 }

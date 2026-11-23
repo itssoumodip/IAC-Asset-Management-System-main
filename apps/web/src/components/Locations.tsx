@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { can, useSession } from '../session';
 import type { LocationTreeNode, LocationAsset } from '../types';
@@ -9,6 +10,7 @@ import {
   Empty,
   ErrorNotice,
   Field,
+  LoadMore,
   Loading,
   PageTitle,
   Panel,
@@ -22,6 +24,8 @@ import {
   formStackClass,
   PersonChip,
 } from './ui';
+import { BarList, Card, StatTile } from './charts';
+import { canSeeWarranty, useCareSummary } from './AssetCare';
 import './locations.css';
 
 const LEVELS = ['SITE', 'ZONE', 'BUILDING', 'FLOOR', 'UNIT', 'STORE', 'RACK'];
@@ -236,10 +240,80 @@ function money(value: number | null | undefined): string {
   }).format(value);
 }
 
+const inrCompact = (n: number) =>
+  n >= 1e7 ? `₹${(n / 1e7).toFixed(1)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(1)} L` : money(n);
+
+/**
+ * Snapshot above the tree: how many places, how many assets are placed and what they are worth,
+ * then where the assets sit (by site, by level and the busiest single places). Bars open that
+ * location's asset list below.
+ */
+function LocationInsights({ nodes }: { nodes: LocationTreeNode[] }) {
+  const { user } = useSession();
+  // Count from the server summary (no register download); needs Warranty & AMC access.
+  const unplaced = useCareSummary('warranty', canSeeWarranty(user));
+  const active = nodes.filter((n) => n.active);
+  const roots = active.filter((n) => n.depth === 1);
+  const placed = roots.reduce((s, n) => s + n.subtreeAssetCount, 0);
+  const value = roots.reduce((s, n) => s + n.subtreePurchaseValue, 0);
+  const current = roots.reduce((s, n) => s + n.subtreeCurrentValue, 0);
+  const stores = active.filter((n) => n.level === 'STORE' || n.level === 'RACK').length;
+  const empty = active.filter((n) => n.subtreeAssetCount === 0).length;
+  const noLocation = unplaced.data?.gaps.location ?? undefined;
+  const levels = new Map<string, number>();
+  for (const n of active) if (n.assetCount) levels.set(n.level, (levels.get(n.level) ?? 0) + n.assetCount);
+  const link = (id: string) => `/locations?locationId=${id}`;
+  if (!active.length) return null;
+  return (
+    <div className="mb-6 flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Locations" value={active.length.toLocaleString('en-IN')} detail={`${roots.length} sites`} />
+        <StatTile label="Assets placed" value={placed.toLocaleString('en-IN')} detail="Across all sites" to="/assets" />
+        <StatTile
+          label="No location"
+          value={noLocation == null ? '—' : noLocation.toLocaleString('en-IN')}
+          detail="Assets to place"
+        />
+        <StatTile label="Stores & racks" value={stores.toLocaleString('en-IN')} detail="Places stock is kept" />
+        <StatTile label="Purchase value" value={inrCompact(value)} detail={`Now ${inrCompact(current)}`} />
+        <StatTile label="Empty locations" value={empty.toLocaleString('en-IN')} detail="Nothing placed yet" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card title="Assets by site">
+          <BarList
+            valueLabel="Assets"
+            empty="No assets placed yet"
+            items={roots.map((n) => ({ label: n.name, value: n.subtreeAssetCount, to: link(n.id) }))}
+          />
+        </Card>
+        <Card title="Busiest locations">
+          <BarList
+            valueLabel="Assets"
+            empty="No assets placed yet"
+            items={active
+              .filter((n) => n.assetCount > 0)
+              .map((n) => ({ label: n.name, value: n.assetCount, note: levelLabel(n.level), to: link(n.id) }))}
+          />
+        </Card>
+        <Card title="Value by site">
+          <BarList
+            valueLabel="Purchase value"
+            format={inrCompact}
+            empty="No priced assets placed yet"
+            items={roots.map((n) => ({ label: n.name, value: n.subtreePurchaseValue, to: link(n.id) }))}
+          />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export function Locations() {
   const { user } = useSession();
   const canManage = can(user, 'system.admin');
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const initialLocationId = searchParams.get('locationId');
   const [showInactive, setShowInactive] = useState(false);
   const [search, setSearch] = useState('');
   const [expandedOverride, setExpandedOverride] = useState<Record<string, boolean>>({});
@@ -257,6 +331,7 @@ export function Locations() {
   const [assetsPage, setAssetsPage] = useState<{
     location: LocationTreeNode;
     items: LocationAsset[];
+    nextCursor: string | null;
   } | null>(null);
   const [assetSearch, setAssetSearch] = useState('');
   const [assetStatus, setAssetStatus] = useState('');
@@ -272,20 +347,44 @@ export function Locations() {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const selectedNode = nodes.find((n) => n.id === selectedId);
 
-  async function fetchLocationAssets() {
+  useEffect(() => {
+    if (initialLocationId && nodes.some((node) => node.id === initialLocationId)) {
+      setSelectedId(initialLocationId);
+      const ancestors: string[] = [];
+      const nodeById = new Map(nodes.map((node) => [node.id, node]));
+      let current = nodeById.get(initialLocationId);
+      while (current?.parentId) {
+        ancestors.push(current.parentId);
+        current = nodeById.get(current.parentId);
+      }
+      if (ancestors.length)
+        setExpandedOverride((old) => ({
+          ...old,
+          ...Object.fromEntries(ancestors.map((id) => [id, true])),
+        }));
+    }
+  }, [initialLocationId, nodes]);
+
+  async function fetchLocationAssets(cursor?: string) {
     if (!selectedId) return;
     setLoadingAssets(true);
     setAssetError(null);
     const params = new URLSearchParams();
+    params.set('limit', '100');
     if (assetSearch) params.set('q', assetSearch);
     if (assetStatus) params.set('status', assetStatus);
+    if (cursor) params.set('cursor', cursor);
     try {
       const data = await api<{
         location: LocationTreeNode;
         items: LocationAsset[];
         nextCursor: string | null;
       }>(`/locations/${encodeURIComponent(selectedId)}/assets?${params}`);
-      setAssetsPage({ location: data.location, items: data.items });
+      setAssetsPage((previous) => ({
+        location: data.location,
+        items: cursor ? [...(previous?.items ?? []), ...data.items] : data.items,
+        nextCursor: data.nextCursor,
+      }));
     } catch (error) {
       setAssetError(error);
       setAssetsPage(null);
@@ -333,6 +432,7 @@ export function Locations() {
         description="Site › Zone › Building › Floor › Unit/Room › Store › Rack. Select a node to see its assets."
       />
       <ErrorNotice error={tree.error} />
+      <LocationInsights nodes={nodes} />
       {notice ? (
         <p className={noticeClass('success')} role="status">
           {notice}
@@ -391,8 +491,9 @@ export function Locations() {
                   <tr>
                     <th>Location</th>
                     <th>Level</th>
-                    <th>Assets</th>
+                    <th>Assets in this location and sublocations</th>
                     <th>Purchase value</th>
+                    <th>Current value</th>
                     <th>
                       <span className="sr-only">Actions</span>
                     </th>
@@ -438,54 +539,65 @@ export function Locations() {
                 />
               </Field>
             </div>
-            <div className="mini-stats">
-              <span>Assets: {assetsPage.items.length}</span>
-              <span>
-                Purchase value:{' '}
-                {money(assetsPage.items.reduce((s, a) => s + Number(a.purchaseCost || 0), 0))}
-              </span>
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatTile
+                label="Assets here and below"
+                value={selectedNode.subtreeAssetCount.toLocaleString('en-IN')}
+                detail={`${assetsPage.items.length}${assetsPage.nextCursor ? '+' : ''} loaded below`}
+              />
+              <StatTile label="Purchase value" value={money(selectedNode.subtreePurchaseValue)} />
+              <StatTile label="Current value" value={money(selectedNode.subtreeCurrentValue)} detail="After depreciation" />
             </div>
             {loadingAssets ? (
               <Loading label="Loading assets…" />
             ) : assetsPage.items.length ? (
-              <div className={tableWrapClass}>
-                <table className={cx(tableClass, 'location-assets-table')}>
-                  <thead>
-                    <tr>
-                      <th>Asset ID</th>
-                      <th>Type</th>
-                      <th>Description</th>
-                      <th>Status</th>
-                      <th>Custodian</th>
-                      <th>Purchase cost</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assetsPage.items.map((asset) => (
-                      <tr key={asset.id}>
-                        <td className="mono">{asset.assetCode}</td>
-                        <td>{asset.assetType}</td>
-                        <td>{asset.description}</td>
-                        <td>
-                          <Badge value={asset.status} />
-                        </td>
-                        <td>
-                          {asset.custodian ? (
-                            <PersonChip
-                              userId={asset.custodian.userId}
-                              name={asset.custodian.name}
-                              hasPhoto={asset.custodian.hasPhoto}
-                            />
-                          ) : (
-                            <span className="text-gray-500">Unassigned</span>
-                          )}
-                        </td>
-                        <td>{money(Number(asset.purchaseCost || 0))}</td>
+              <>
+                <div className={tableWrapClass}>
+                  <table className={cx(tableClass, 'location-assets-table')}>
+                    <thead>
+                      <tr>
+                        <th>Asset ID</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Custodian</th>
+                        <th>Purchase cost</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {assetsPage.items.map((asset) => (
+                        <tr key={asset.id}>
+                          <td className="mono">
+                            <Link to={`/assets/${asset.id}`}>{asset.assetCode}</Link>
+                          </td>
+                          <td>{asset.assetType}</td>
+                          <td>{asset.description}</td>
+                          <td>
+                            <Badge value={asset.status} />
+                          </td>
+                          <td>
+                            {asset.custodian ? (
+                              <PersonChip
+                                userId={asset.custodian.userId}
+                                name={asset.custodian.name}
+                                hasPhoto={asset.custodian.hasPhoto}
+                              />
+                            ) : (
+                              <span className="text-gray-500">Unassigned</span>
+                            )}
+                          </td>
+                          <td>{money(Number(asset.purchaseCost || 0))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <LoadMore
+                  available={!!assetsPage.nextCursor}
+                  loading={loadingAssets}
+                  onClick={() => void fetchLocationAssets(assetsPage.nextCursor ?? undefined)}
+                />
+              </>
             ) : (
               <Empty title="No assets at this location" />
             )}
@@ -548,8 +660,9 @@ export function Locations() {
           <td>
             <Badge value={node.level} label={levelLabel(node.level)} />
           </td>
-          <td>{node.assetCount}</td>
-          <td>{money(node.purchaseValue)}</td>
+          <td>{node.subtreeAssetCount}</td>
+          <td>{money(node.subtreePurchaseValue)}</td>
+          <td>{money(node.subtreeCurrentValue)}</td>
           <td>
             <div className="location-row-actions">
               <button

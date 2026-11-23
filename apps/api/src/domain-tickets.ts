@@ -91,6 +91,8 @@ export class TicketDomain extends AssetDomain {
         values.push(p[key]);
         where.push(`t.${col}=$${values.length}`);
       }
+    // Dashboard "Support requests without an owner": open tickets nobody has taken yet.
+    if (p.unowned) where.push("t.owner_id IS NULL AND t.status<>'COMPLETED'");
     if (p.q) {
       values.push(p.q);
       where.push(

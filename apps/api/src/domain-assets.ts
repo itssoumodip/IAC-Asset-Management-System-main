@@ -191,13 +191,26 @@ export class AssetDomain extends MasterDomain {
         `EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL AND holder.user_id=ANY($${values.length}::uuid[]))`,
       );
     }
+    // Same rules as the dashboard counts, so a row's number matches the list it opens.
+    const attention: Record<string, string> = {
+      unconfirmed: `EXISTS(SELECT 1 FROM assignments ack WHERE ack.asset_id=a.id AND ack.ended_at IS NULL AND ack.acknowledgement='PENDING')`,
+      no_cost: 'a.purchase_cost IS NULL',
+      no_date: 'a.purchase_date IS NULL',
+      no_warranty: 'a.warranty_expiry IS NULL',
+      left_holder: `EXISTS(SELECT 1 FROM assignments lh JOIN users lu ON lu.id=lh.user_id WHERE lh.asset_id=a.id AND lh.ended_at IS NULL AND lu.left_at IS NOT NULL)`,
+      finance_pending: `a.finance_status<>'APPROVED'`,
+    };
+    if (p.attention) where.push(attention[p.attention]!);
     if (p.labelPrinted && canSomewhere(req.user, 'asset.label'))
       where.push('NOT EXISTS(SELECT 1 FROM asset_label_prints lp WHERE lp.asset_id=a.id)');
     if (p.q) {
       // ILIKE so the pg_trgm indexes from migration 043 apply; escape LIKE wildcards in user text.
+      // Also matches the person currently holding the asset (custodian name).
       values.push(`%${p.q.replace(/[\\%_]/g, '\\$&')}%`);
       where.push(
-        `(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length} OR a.serial_number ILIKE $${values.length} OR a.model ILIKE $${values.length} OR a.manufacturer ILIKE $${values.length} OR a.barcode ILIKE $${values.length})`,
+        `(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length} OR a.serial_number ILIKE $${values.length} OR a.model ILIKE $${values.length} OR a.manufacturer ILIKE $${values.length} OR a.barcode ILIKE $${values.length}
+          OR a.id IN (SELECT hs.asset_id FROM assignments hs JOIN users hu ON hu.id = hs.user_id
+                      WHERE hs.ended_at IS NULL AND hu.display_name ILIKE $${values.length}))`,
       );
     }
     const ilike = (column: string, value: string) => {

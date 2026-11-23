@@ -7,8 +7,10 @@ import { can, useSession } from '../session';
 import type { Asset, Ticket } from '../types';
 import { summaryLine } from '../executive';
 import { BarList, Card, EmptyChart, StatTile } from './charts';
-import { OverviewDashboard } from './OverviewDashboard';
+import { OverviewDashboard, RegisterCharts } from './OverviewDashboard';
+import { SupportInsights } from './SupportInsights';
 import { AssetInsights, type InsightsVariant } from './Insights';
+import { AssetCareCard } from './AssetCare';
 import {
   AuditorDashboard,
   FinanceDashboard,
@@ -138,6 +140,10 @@ function withInsights(dashboard: ReactNode, variant: InsightsVariant) {
   return (
     <>
       {dashboard}
+      {/* Warranty, AMC and insurance needing attention; hides itself for people without access. */}
+      <div className="mt-6">
+        <AssetCareCard />
+      </div>
       <AssetInsights variant={variant} />
     </>
   );
@@ -158,11 +164,12 @@ export function UserDashboard() {
   }
   const roles = user?.roles ?? [];
   // Most specific first. Someone with several roles gets the one closest to their daily work.
-  // Finance and Auditor can also open Reports (report.view), but their own dashboard
+  // Finance and Auditor can also open warranty reporting (report.view), but their dashboard
   // fits their daily work better than the organisation overview.
   const overview = roles.includes('SUPER_ADMIN') || roles.includes('EXECUTIVE');
   if (!overview && roles.includes('FINANCE')) return withInsights(<FinanceDashboard />, 'finance');
-  if (!overview && roles.includes('AUDITOR') && !can(user, 'ticket.work')) return withInsights(<AuditorDashboard />, 'auditor');
+  if (!overview && roles.includes('AUDITOR') && !can(user, 'ticket.work'))
+    return withInsights(<AuditorDashboard />, 'auditor');
   if (can(user, 'report.view')) return withInsights(<OverviewDashboard />, 'overview');
   if (roles.includes('FINANCE')) return withInsights(<FinanceDashboard />, 'finance');
   if (can(user, 'ticket.work')) return withInsights(<TeamDashboard />, 'team');
@@ -348,7 +355,7 @@ function TeamDashboard() {
                   {
                     label: 'Tickets without an owner',
                     count: unowned.length,
-                    to: '/tickets',
+                    to: '/tickets?unowned=1',
                     tone: 'warning',
                   },
                   {
@@ -360,30 +367,31 @@ function TeamDashboard() {
                   {
                     label: 'Assets with people who have left',
                     count: att?.leftHoldersWithAssets,
+                    to: '/assets?attention=left_holder',
                     tone: 'danger',
                   },
                   {
                     label: 'Waiting for Finance review',
                     count: att?.pendingFinance,
-                    to: '/assets',
+                    to: '/assets?attention=finance_pending',
                     tone: 'neutral',
                   },
                   {
                     label: 'Warranty ending in 30 days',
                     count: att?.warrantyExpiring30,
-                    to: '/assets',
+                    to: '/warranty-expiry?show=due30',
                     tone: 'warning',
                   },
                   {
                     label: 'AMC ending in 30 days',
                     count: att?.amcExpiring30,
-                    to: '/assets',
+                    to: '/warranty-expiry?cover=amc&show=due30',
                     tone: 'warning',
                   },
                   {
                     label: 'Custody not yet confirmed',
                     count: summary.data?.assets?.pendingAcknowledgements,
-                    to: '/assets',
+                    to: '/assets?attention=unconfirmed',
                     tone: 'neutral',
                   },
                 ]}
@@ -444,6 +452,13 @@ function TeamDashboard() {
               )}
             </Card>
           </div>
+
+          {/* The same charts the admin Overview has, limited to this person's teams by the server. */}
+          <section className="flex flex-col gap-4 border-t border-gray-200 pt-6">
+            <h2 className="text-base font-semibold text-navy-900">Support desk</h2>
+            <SupportInsights />
+          </section>
+          <RegisterCharts />
         </>
       )}
     </div>
@@ -458,7 +473,9 @@ function EmployeeDashboard() {
     // Exactly what this person holds (not the first page of everything they can see).
     queryKey: ['my-assets', user?.id],
     queryFn: ({ signal }) =>
-      api<{ items: Asset[] }>(`/assets?holderId=${encodeURIComponent(user?.id ?? '')}&limit=100`, { signal }),
+      api<{ items: Asset[] }>(`/assets?holderId=${encodeURIComponent(user?.id ?? '')}&limit=100`, {
+        signal,
+      }),
     enabled: !!user?.id,
   });
   const tickets = useQuery({

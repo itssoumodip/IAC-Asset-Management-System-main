@@ -233,7 +233,8 @@ export function ErrorNotice({ error, retry }: { error: unknown; retry?: () => vo
 export function Loading({ label = 'Loading…' }: { label?: string }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => setVisible(true), 180);
+    // Quick loads (under 0.4s) show nothing, so the loader never flashes a half animation.
+    const timer = window.setTimeout(() => setVisible(true), 400);
     return () => window.clearTimeout(timer);
   }, []);
   return (

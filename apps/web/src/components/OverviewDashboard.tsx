@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, queryString } from '../api';
 import { can, useSession } from '../session';
-import { formatInr, fyOptions, humaniseAction } from '../admin-insights';
+import { formatInr, fyOptions } from '../admin-insights';
 import {
   formatHours,
   summaryLine,
@@ -18,11 +18,11 @@ import {
   Card,
   ColumnChart,
   DonutChart,
-  EmptyChart,
   PairedColumnChart,
   StatTile,
 } from './charts';
 import { IMPORT_TOOLS_ENABLED } from './DataTransfer';
+import { useCareSummary } from './AssetCare';
 
 interface Summary {
   assets?: {
@@ -107,12 +107,6 @@ export function inrShort(value: number) {
   if (value >= 1e5) return `₹${(value / 1e5).toFixed(value >= 1e6 ? 0 : 1)} L`;
   return formatInr(value);
 }
-const activityLabel = (action: string) =>
-  ({
-    LOGIN_MFA: 'Signed in (two-step)',
-    LOGIN: 'Signed in',
-    ZOHO_SYNC_COMPLETED: 'Zoho sync completed',
-  })[action] ?? humaniseAction(action);
 
 function useAdminData(filters: Filters) {
   return useQuery({
@@ -193,78 +187,98 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
         </p>
       ) : null}
       {open.length ? <ul className="divide-y divide-gray-100">{open.map(row)}</ul> : null}
-      {clear.length ? (
-        <details className="group mt-auto border-t border-gray-100 pt-3">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-gray-500 select-none hover:text-navy-700 [&::-webkit-details-marker]:hidden">
-            <span className="size-2 rounded-full bg-sky-500" aria-hidden="true" />
-            {clear.length} other {clear.length === 1 ? 'check is' : 'checks are'} clear
-            <svg
-              viewBox="0 0 16 16"
-              className="size-3 transition-transform group-open:rotate-90"
-              aria-hidden="true"
-            >
-              <path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            </svg>
-          </summary>
-          <ul className="mt-1 divide-y divide-gray-100">{clear.map(row)}</ul>
-        </details>
+      {/* Clear checks are not listed as rows of zeros: one quiet line says what was checked. */}
+      {clear.length && open.length ? (
+        <p className="mt-auto flex items-start gap-2 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500">
+          <svg viewBox="0 0 16 16" className="mt-0.5 size-3.5 shrink-0 text-sky-600" aria-hidden="true">
+            <path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>
+            No problems with: {clear.map((c) => c.label.charAt(0).toLowerCase() + c.label.slice(1)).join(', ')}.
+          </span>
+        </p>
       ) : null}
     </>
   );
 }
 
-function MiniTable({
-  headers,
-  rows,
-  empty,
+const openLink = (to: string, label = 'Open') => (
+  <Link to={to} className="text-xs font-medium text-navy-700 no-underline hover:underline">
+    {label}
+  </Link>
+);
+
+/**
+ * Charts over the whole register (the warranty register rows the dashboard already loads):
+ * cover ending by month, missing details, most-reported assets and the age of the fleet.
+ * Every bar that has a matching list opens it.
+ */
+export function RegisterCharts({
+  topReported,
 }: {
-  headers: string[];
-  rows: { key: string; cells: ReactNode[] }[];
-  empty: string;
+  /** Leave out to hide the most-reported card (e.g. on team dashboards). */
+  topReported?: { assetId: string; assetCode: string; assetType: string; tickets: number }[];
 }) {
-  if (!rows.length) return <EmptyChart>{empty}</EmptyChart>;
+  // Counts come from the server (one small summary), so this stays quick on a large register.
+  const s = useCareSummary('warranty').data;
+  const months = (s?.months ?? []).slice(0, 6);
+  const g = s?.gaps;
+  const gaps = [
+    ...(g?.purchaseCost != null ? [{ label: 'Purchase cost', value: g.purchaseCost, to: '/assets?attention=no_cost' }] : []),
+    ...(g?.purchaseDate != null ? [{ label: 'Purchase date', value: g.purchaseDate, to: '/assets?attention=no_date' }] : []),
+    ...(s?.warranty ? [{ label: 'Warranty end date', value: s.warranty.missing, to: '/warranty-expiry?show=missing' }] : []),
+    ...(s?.insurance ? [{ label: 'Insurance cover', value: s.insurance.missing, to: '/insurance?show=missing' }] : []),
+    ...(g?.location != null ? [{ label: 'Location', value: g.location }] : []),
+  ];
+  const ageLabels = ['< 1 yr', '1–2 yrs', '2–3 yrs', '3–4 yrs', '4–5 yrs', '5+ yrs'];
+  const ages = (s?.ages ?? []).map((value, i) => ({ label: ageLabels[i], value, detail: `${ageLabels[i]}: ${value} assets` }));
+  const undated = g?.purchaseDate ?? 0;
+
   return (
-    <div className="-mx-5 overflow-x-auto">
-      <table className="w-full min-w-0 border-collapse text-left text-sm">
-        <thead>
-          <tr className="text-xs text-gray-500">
-            {headers.map((h, i) => (
-              <th
-                key={h}
-                className={cx('px-5 pb-2 font-medium', i === headers.length - 1 && 'text-right')}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key} className="border-t border-gray-100">
-              {row.cells.map((cell, i) => (
-                <td
-                  key={i}
-                  className={cx(
-                    'px-5 py-2.5 text-gray-700',
-                    i === row.cells.length - 1 && 'text-right',
-                  )}
-                >
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className={cx('grid gap-6 border-t border-gray-200 pt-6', topReported ? 'lg:grid-cols-2' : 'lg:grid-cols-3')}>
+      <Card title="Warranty and AMC ending, next 6 months" action={openLink('/warranty-expiry')}>
+        <ColumnChart
+          valueLabel="Ending"
+          labelHeader="Month"
+          empty="Nothing ends in the next 6 months"
+          format={(n) => `${n} ending`}
+          shortFormat={(n) => String(n)}
+          items={months.map((m) => {
+            const label = new Date(m.month).toLocaleDateString('en-IN', { month: 'short' });
+            return { label, value: m.warranty + m.amc, detail: `${label}: ${m.warranty} warranty, ${m.amc} AMC` };
+          })}
+        />
+      </Card>
+      <Card title="Missing details">
+        <BarList valueLabel="Assets" empty="Every asset has its key details" items={gaps} />
+      </Card>
+      {topReported ? (
+        <Card title="Most-reported assets" action={openLink('/tickets')}>
+          <BarList
+            valueLabel="Tickets"
+            empty="No tickets raised against assets yet"
+            items={topReported.map((r) => ({
+              label: `${r.assetCode} · ${r.assetType}`,
+              value: r.tickets,
+              to: `/assets/${r.assetId}`,
+            }))}
+          />
+        </Card>
+      ) : null}
+      <Card title="Assets by age">
+        <ColumnChart
+          valueLabel="Assets"
+          labelHeader="Age"
+          empty="No purchase dates recorded"
+          format={(n) => `${n} assets`}
+          shortFormat={(n) => String(n)}
+          items={ages}
+        />
+        {undated ? <p className="mt-2 text-xs text-gray-500">{undated} assets have no purchase date.</p> : null}
+      </Card>
     </div>
   );
 }
-
-const assetLink = (id: string, code: string) => (
-  <Link to={`/assets/${id}`} className="font-medium text-navy-700 no-underline hover:underline">
-    {code}
-  </Link>
-);
 
 function FilterSelect({
   id,
@@ -327,13 +341,13 @@ export function OverviewDashboard() {
       label: 'Waiting for Finance review',
       count: attention?.pendingFinance,
       // Only Finance can open the review queue; others (e.g. Executive) just see the count.
-      to: can(user, 'asset.finance_edit') ? '/finance' : undefined,
+      to: can(user, 'asset.finance_edit') ? '/finance' : '/assets?attention=finance_pending',
       tone: 'warning',
     },
     {
       label: 'Assets held by people who have left',
       count: attention?.leftHoldersWithAssets,
-      to: isAdmin ? '/admin/directory' : undefined,
+      to: '/assets?attention=left_holder',
       tone: 'danger',
     },
     {
@@ -345,25 +359,25 @@ export function OverviewDashboard() {
     {
       label: 'Support requests without an owner',
       count: summary.data?.tickets?.unassigned,
-      to: '/tickets',
+      to: '/tickets?unowned=1',
       tone: 'warning',
     },
     {
       label: 'Warranty ending in 30 days',
       count: attention?.warrantyExpiring30,
-      to: '/assets',
+      to: '/warranty-expiry?show=due30',
       tone: 'warning',
     },
     {
       label: 'AMC ending in 30 days',
       count: attention?.amcExpiring30,
-      to: '/assets',
+      to: '/warranty-expiry?cover=amc&show=due30',
       tone: 'warning',
     },
     {
       label: 'Custody not yet confirmed',
       count: summary.data?.assets?.pendingAcknowledgements,
-      to: '/assets',
+      to: '/assets?attention=unconfirmed',
       tone: 'neutral',
     },
     ...(isAdmin && IMPORT_TOOLS_ENABLED
@@ -379,13 +393,13 @@ export function OverviewDashboard() {
     {
       label: 'Assets missing purchase cost',
       count: k?.missingCost,
-      to: '/assets',
+      to: '/assets?attention=no_cost',
       tone: 'neutral',
     },
     {
       label: 'Assets with unknown warranty date',
       count: summary.data?.unknownCounts?.warrantyExpiry,
-      to: '/assets',
+      to: '/warranty-expiry?show=missing',
       tone: 'neutral',
     },
   ];
@@ -405,9 +419,7 @@ export function OverviewDashboard() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-navy-900">
-            Overview
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-navy-900">Overview</h1>
           {headline ? <p className="mt-1 text-sm text-gray-500">{headline}</p> : null}
           {all.data?.asOf ? (
             <p className="mt-1 text-xs text-gray-400">
@@ -417,8 +429,8 @@ export function OverviewDashboard() {
         </div>
         <div className="flex flex-wrap gap-2">
           {can(user, 'report.view') ? (
-            <Link to="/reports" className={buttonClass('secondary')}>
-              Reports
+            <Link to="/warranty-expiry" className={buttonClass('secondary')}>
+              Warranty &amp; AMC
             </Link>
           ) : null}
           {can(user, 'asset.create') ? (
@@ -646,81 +658,7 @@ export function OverviewDashboard() {
             </div>
           </section>
 
-          <div className="grid gap-6 border-t border-gray-200 pt-6 lg:grid-cols-2">
-            <Card title="Warranty and AMC ending in 60 days">
-              <MiniTable
-                empty="Nothing ending in the next 60 days"
-                headers={['Asset', 'Type', 'Cover', 'Ends']}
-                rows={(all.data?.expiring ?? []).map((r) => ({
-                  key: `${r.assetId}-${r.kind}`,
-                  cells: [
-                    assetLink(r.assetId, r.assetCode),
-                    r.assetType,
-                    r.kind,
-                    displayDate(r.date),
-                  ],
-                }))}
-              />
-            </Card>
-            <Card
-              title="Missing finance details"
-              action={
-                all.data?.financeGaps.length ? (
-                  <Link
-                    to="/assets"
-                    className="text-xs font-medium text-navy-700 no-underline hover:underline"
-                  >
-                    Open catalog
-                  </Link>
-                ) : null
-              }
-            >
-              <MiniTable
-                empty="Every asset has its cost and purchase date"
-                headers={['Asset', 'Type', 'Missing']}
-                rows={(all.data?.financeGaps ?? []).map((r) => ({
-                  key: r.assetId,
-                  cells: [
-                    assetLink(r.assetId, r.assetCode),
-                    r.assetType,
-                    [r.missingCost && 'Cost', r.missingDate && 'Purchase date']
-                      .filter(Boolean)
-                      .join(', '),
-                  ],
-                }))}
-              />
-            </Card>
-            <Card title="Most-reported assets">
-              <MiniTable
-                empty="No tickets raised against assets yet"
-                headers={['Asset', 'Type', 'Tickets']}
-                rows={(all.data?.topReported ?? []).map((r) => ({
-                  key: r.assetId,
-                  cells: [assetLink(r.assetId, r.assetCode), r.assetType, r.tickets],
-                }))}
-              />
-            </Card>
-            <Card title="Recent activity">
-              <MiniTable
-                empty="No activity yet"
-                headers={['What happened', 'By', 'When']}
-                rows={(all.data?.recentActivity ?? []).map((r, i) => ({
-                  key: `${r.occurredAt}-${i}`,
-                  cells: [
-                    activityLabel(r.action),
-                    r.actor,
-                    <time
-                      key="t"
-                      dateTime={r.occurredAt}
-                      className="whitespace-nowrap text-gray-500"
-                    >
-                      {displayDate(r.occurredAt, true)}
-                    </time>,
-                  ],
-                }))}
-              />
-            </Card>
-          </div>
+          <RegisterCharts topReported={all.data?.topReported ?? []} />
         </>
       )}
     </div>

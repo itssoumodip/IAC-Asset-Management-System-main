@@ -2,6 +2,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Inject,
@@ -34,6 +35,22 @@ const categoryPatch = z
   })
   .strict();
 
+const categoryCreate = z
+  .object({
+    name: categoryCode,
+    handlingTeamId: z.string().uuid(),
+    teamIds: z.array(z.string().uuid()).min(1).max(20),
+    reason: text(1000),
+    // Optional subcategories created with the category.
+    subcategories: z
+      .array(z.object({ name: text(100), requiresCustodian: z.boolean() }).strict())
+      .max(50)
+      .optional()
+      .default([]),
+  })
+  .strict();
+const categoryDelete = z.object({ reason: text(1000) }).strict();
+
 export class CategoriesService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
@@ -48,10 +65,15 @@ export class CategoriesService {
          FROM category_teams ct ORDER BY ct.category_code, ct.team_id`,
       ),
       this.db.query(
+        // Active subcategories only, with their display name and how many assets use them.
         `SELECT at.asset_type_code AS "assetTypeCode", at.category_code AS "categoryCode",
                 at.requires_custodian AS "requiresCustodian", at.owning_team_id AS "owningTeamId",
-                at.handling_team_id AS "handlingTeamId"
-         FROM asset_type_policies at ORDER BY at.category_code, at.asset_type_code`,
+                at.handling_team_id AS "handlingTeamId", coalesce(rv.label, at.asset_type_code) AS label,
+                (SELECT count(*)::int FROM assets a WHERE a.asset_type = at.asset_type_code AND a.removed_at IS NULL) AS "assetCount"
+         FROM asset_type_policies at
+         LEFT JOIN reference_values rv ON rv.kind = 'ASSET_TYPE' AND rv.code = at.asset_type_code
+        WHERE coalesce(rv.active, true)
+        ORDER BY at.category_code, coalesce(rv.label, at.asset_type_code)`,
       ),
     ]);
 
@@ -78,8 +100,122 @@ export class CategoriesService {
     }));
   }
 
-  async update(categoryCodeValue: string, req: AuthRequest, body: unknown) {
+  /**
+   * New category: its name (also the code), the team that handles its problems and the teams
+   * that may own its assets. Super Admin only; audited.
+   */
+  async create(req: AuthRequest, body: unknown) {
     assertCan(req.user, 'system.admin');
+    const input = parse(categoryCreate, body);
+    const code = input.name.trim();
+    const uniqueTeams = [...new Set(input.teamIds)];
+    const active = await this.db.query('SELECT id FROM teams WHERE id = ANY($1::uuid[]) AND active', [
+      [...new Set([...uniqueTeams, input.handlingTeamId])],
+    ]);
+    if (active.length !== new Set([...uniqueTeams, input.handlingTeamId]).size)
+      throw new UnprocessableEntityException('Choose active teams only');
+    return this.db.tx(async (c) => {
+      const [taken] = await this.db.query(
+        `SELECT 1 FROM category_policies WHERE lower(category_code) = lower($1)
+         UNION ALL SELECT 1 FROM reference_values WHERE kind = 'CATEGORY' AND lower(code) = lower($1) AND active`,
+        [code],
+        c,
+      );
+      if (taken) throw new ConflictException('A category with this name already exists');
+      await this.db.query(
+        `INSERT INTO reference_values(kind, code, label) VALUES('CATEGORY', $1, $1)
+         ON CONFLICT(kind, code) DO UPDATE SET active = true, label = excluded.label`,
+        [code],
+        c,
+      );
+      await this.db.query('INSERT INTO category_policies(category_code, handling_team_id) VALUES($1, $2)', [
+        code,
+        input.handlingTeamId,
+      ], c);
+      for (const teamId of uniqueTeams)
+        await this.db.query('INSERT INTO category_teams(category_code, team_id) VALUES($1, $2)', [code, teamId], c);
+      const subcategoryCodes: string[] = [];
+      for (const sub of input.subcategories) {
+        const subCode = sub.name.trim();
+        if (subcategoryCodes.some((s) => s.toLowerCase() === subCode.toLowerCase())) continue;
+        // A subcategory already used by another category is not taken over silently.
+        const [elsewhere] = await this.db.query(
+          `SELECT atp.category_code FROM asset_type_policies atp
+             JOIN reference_values rv ON rv.kind = 'ASSET_TYPE' AND rv.code = atp.asset_type_code AND rv.active
+            WHERE lower(atp.asset_type_code) = lower($1)`,
+          [subCode],
+          c,
+        );
+        if (elsewhere)
+          throw new ConflictException(`"${subCode}" already belongs to ${elsewhere.category_code}; move it from that category instead`);
+        await this.db.query(
+          `INSERT INTO reference_values(kind, code, label) VALUES('ASSET_TYPE', $1, $1)
+           ON CONFLICT(kind, code) DO UPDATE SET active = true, label = excluded.label`,
+          [subCode],
+          c,
+        );
+        await this.db.query(
+          `INSERT INTO asset_type_policies(asset_type_code, requires_custodian, category_code) VALUES($1, $2, $3)
+           ON CONFLICT(asset_type_code) DO UPDATE SET requires_custodian = excluded.requires_custodian, category_code = excluded.category_code`,
+          [subCode, sub.requiresCustodian, code],
+          c,
+        );
+        subcategoryCodes.push(subCode);
+      }
+      await this.db.audit(c, req.user, 'category', null, 'CATEGORY_CREATED', {
+        categoryCode: code,
+        reason: input.reason,
+        after: { categoryCode: code, handlingTeamId: input.handlingTeamId, teamIds: uniqueTeams, subcategories: subcategoryCodes },
+      });
+      return { categoryCode: code, handlingTeamId: input.handlingTeamId, owningTeamIds: uniqueTeams, subcategories: subcategoryCodes };
+    });
+  }
+
+  /**
+   * Deletes a category nobody uses: refused while any asset (including ones removed from the
+   * register) is in the category or one of its subcategories, so history stays consistent.
+   * Its subcategories are switched off rather than erased. Super Admin only; audited.
+   */
+  async remove(categoryCodeValue: string, req: AuthRequest, body: unknown) {
+    assertCan(req.user, 'system.admin');
+    const code = parse(categoryCode, categoryCodeValue);
+    const { reason } = parse(categoryDelete, body);
+    return this.db.tx(async (c) => {
+      const [before] = await this.db.query('SELECT * FROM category_policies WHERE category_code=$1 FOR UPDATE', [code], c);
+      if (!before) throw new UnprocessableEntityException('Category not found');
+      const subcategories = (
+        await this.db.query('SELECT asset_type_code FROM asset_type_policies WHERE category_code=$1', [code], c)
+      ).map((r) => r.asset_type_code as string);
+      const [used] = await this.db.query(
+        'SELECT count(*)::int AS n FROM assets WHERE category=$1 OR asset_type = ANY($2::text[])',
+        [code, subcategories],
+        c,
+      );
+      if (used.n > 0)
+        throw new ConflictException(
+          `${used.n} asset${used.n === 1 ? ' uses' : 's use'} this category. Move ${used.n === 1 ? 'it' : 'them'} to another category first.`,
+        );
+      await this.db.query(
+        "UPDATE reference_values SET active=false, version=version+1 WHERE kind='ASSET_TYPE' AND code = ANY($1::text[])",
+        [subcategories],
+        c,
+      );
+      await this.db.query(
+        "UPDATE reference_values SET active=false, version=version+1 WHERE kind='CATEGORY' AND code=$1",
+        [code],
+        c,
+      );
+      await this.db.query('DELETE FROM category_policies WHERE category_code=$1', [code], c);
+      await this.db.audit(c, req.user, 'category', null, 'CATEGORY_DELETED', {
+        categoryCode: code,
+        reason,
+        before: { handlingTeamId: before.handling_team_id, subcategories },
+      });
+      return { categoryCode: code, deleted: true };
+    });
+  }
+
+  async update(categoryCodeValue: string, req: AuthRequest, body: unknown) {    assertCan(req.user, 'system.admin');
     const code = parse(categoryCode, categoryCodeValue);
     const { handlingTeamId, teamIds, reason } = parse(categoryPatch, body);
 
@@ -149,9 +285,11 @@ export class CategoriesService {
         c,
         req.user,
         'category',
-        code,
+        // The audit entity id is a uuid; the category is identified in the details.
+        null,
         'CATEGORY_UPDATED',
         {
+          categoryCode: code,
           reason,
           before: { handlingTeamId: before.handling_team_id },
           after: { handlingTeamId, teamIds: uniqueTeams },
@@ -171,6 +309,16 @@ export class CategoriesController {
   @Get()
   list(@Req() _req: AuthRequest) {
     return this.service.list();
+  }
+
+  @Post()
+  create(@Req() req: AuthRequest, @Body() body: unknown) {
+    return this.service.create(req, body);
+  }
+
+  @Delete(':categoryCode')
+  remove(@Req() req: AuthRequest, @Param('categoryCode') categoryCode: string, @Body() body: unknown) {
+    return this.service.remove(categoryCode, req, body);
   }
 
   @Put(':categoryCode')
@@ -322,9 +470,9 @@ export class CategoryService {
       throw new ForbiddenException('Only Super Admin may move a subcategory');
     return this.db.tx(async (c) => {
       const [row] = await this.db.query(
-        `UPDATE reference_values SET label=coalesce($3,label),active=coalesce($4,active),version=version+1
+        `UPDATE reference_values SET label=coalesce($2,label),active=coalesce($3,active),version=version+1
          WHERE kind='ASSET_TYPE' AND code=$1 RETURNING code,label,active`,
-        [code, null, input.label ?? null, input.active ?? null],
+        [code, input.label ?? null, input.active ?? null],
         c,
       );
       const [policy] = await this.db.query(

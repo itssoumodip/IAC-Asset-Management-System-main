@@ -169,6 +169,55 @@ function AssetThumb({ asset }: { asset: Asset }) {
     </div>
   );
 }
+/** What each `?attention=` value on the catalog means (the dashboard "Needs attention" rows). */
+const attentionLabels: Record<string, string> = {
+  unconfirmed: 'Custody not yet confirmed by the holder',
+  no_cost: 'Assets missing purchase cost',
+  no_date: 'Assets missing purchase date',
+  no_warranty: 'Assets with no warranty end date',
+  left_holder: 'Assets held by people who have left',
+  finance_pending: 'Waiting for Finance review',
+};
+
+/** Small row of live numbers above the catalog; each one opens the matching list. */
+function CatalogSnapshot({ active }: { active?: string }) {
+  const summary = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: ({ signal }) =>
+      api<{
+        assets?: { total: number; assigned: number; inStore?: number; pendingAcknowledgements: number; warrantyExpiring: number };
+        unknownCounts?: { warrantyExpiry: number };
+      }>('/dashboard', { signal }),
+  });
+  const a = summary.data?.assets;
+  if (!a) return null;
+  const n = (v: number | undefined) => (v ?? 0).toLocaleString('en-IN');
+  const tile = (label: string, value: string, detail: string, to: string, on = false, warn = false) => (
+    <Link
+      key={label}
+      to={to}
+      className={cx(
+        'flex min-w-0 flex-col rounded-xl border bg-white px-4 py-3 no-underline transition-colors',
+        on ? 'border-navy-500 ring-2 ring-navy-100' : 'border-gray-200 hover:border-navy-200',
+      )}
+    >
+      <span className="text-xs font-medium text-gray-500">{label}</span>
+      <strong className={cx('mt-0.5 text-xl font-semibold tabular-nums', warn ? 'text-red-700' : 'text-navy-900')}>{value}</strong>
+      <span className="truncate text-xs text-gray-500">{detail}</span>
+    </Link>
+  );
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      {tile('All assets', n(a.total), 'In the register', '/assets', !active)}
+      {tile('In use', n(a.assigned), a.total ? `${Math.round((a.assigned / a.total) * 100)}% of assets` : 'Assigned', '/assets?status=In%20Use,Assigned')}
+      {tile('In store', n(a.inStore), 'Ready to issue', '/assets?status=In%20Store')}
+      {tile('Not confirmed', n(a.pendingAcknowledgements), 'Holder has not confirmed', '/assets?attention=unconfirmed', active === 'unconfirmed', a.pendingAcknowledgements > 0)}
+      {tile('Warranty ≤ 30 days', n(a.warrantyExpiring), 'Ending soon', '/warranty-expiry?show=due30', false, a.warrantyExpiring > 0)}
+      {tile('No warranty date', n(summary.data?.unknownCounts?.warrantyExpiry), 'Add the end date', '/assets?attention=no_warranty', active === 'no_warranty')}
+    </div>
+  );
+}
+
 export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean }) {
   const { user } = useSession();
   const manage = can(user, 'asset.view_all');
@@ -196,6 +245,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     owningTeamId: params.get('owningTeamId') || undefined,
     sort: params.get('sort') || undefined,
     removed: params.get('removed') === 'only' ? 'only' : undefined,
+    attention: params.get('attention') || undefined,
   };
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
@@ -520,7 +570,18 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
           </div>
         ) : null}
       </div>
+      {manage && !assignmentMode ? <CatalogSnapshot active={filters.attention} /> : null}
       <Panel>
+        {filters.attention && attentionLabels[filters.attention] ? (
+          <div className={cx(noticeClass('info'), 'mb-4 flex flex-wrap items-center justify-between gap-3')} role="status">
+            <span>
+              Showing only: <span className="font-semibold">{attentionLabels[filters.attention]}</span>
+            </span>
+            <button type="button" className={buttonClass('secondary', 'sm')} onClick={() => update('attention', '')}>
+              Show all assets
+            </button>
+          </div>
+        ) : null}
         {filters.removed ? (
           <div className={cx(noticeClass('warning'), 'mb-4 flex flex-wrap items-center justify-between gap-3')} role="status">
             <span>Active assets are hidden in this view. You are viewing removed asset records only.</span>
@@ -538,7 +599,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
               id="asset-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search asset ID, description, model, brand, serial or barcode"
+              placeholder="Search asset ID, description, model, brand, serial, barcode or holder name"
               className={inputClass}
               maxLength={100}
             />

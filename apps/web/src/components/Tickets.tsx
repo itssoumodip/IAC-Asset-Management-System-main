@@ -9,6 +9,7 @@ import type { Asset, Ticket, TimelineEvent } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { TICKET_LIMITS, preparePhoto } from '../photo-prepare';
 import { BulkTransfer, ExportRecords, FormTransfer } from './DataTransfer';
+import { SupportInsights } from './SupportInsights';
 import {
   useReferences,
   ReferenceSelect,
@@ -29,6 +30,7 @@ import {
   Select,
   buttonClass,
   noticeClass,
+  cx,
   filterBarClass,
   tableWrapClass,
   linkClass,
@@ -66,10 +68,12 @@ export function TicketList() {
   const status = params.get('status') ?? '';
   const priority = params.get('priority') ?? '';
   const teamId = params.get('teamId') ?? '';
+  const unowned = params.get('unowned') === '1' ? '1' : '';
   const query = usePages<Ticket>('/tickets', {
     status: status || undefined,
     priority: priority || undefined,
     teamId: teamId || undefined,
+    unowned: unowned || undefined,
   });
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   function filter(name: string, value: string) {
@@ -89,11 +93,19 @@ export function TicketList() {
             : 'Track your requests and stay in touch with the support team.'
         }
         action={
-          <Link className={buttonClass()} to="/tickets/new">
-            Raise a ticket
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {(can(user, 'ticket.work') || can(user, 'report.view')) && (
+              <Link className={buttonClass('secondary')} to="/tickets/response-times">
+                Response times
+              </Link>
+            )}
+            <Link className={buttonClass()} to="/tickets/new">
+              Raise a ticket
+            </Link>
+          </div>
         }
       />
+      <SupportInsights />
       <ExportRecords
         name="tickets"
         columns={ticketExportColumns}
@@ -115,6 +127,16 @@ export function TicketList() {
         </div>
       ) : null}
       <BulkTransfer module="tickets" />
+      {unowned ? (
+        <div className={cx(noticeClass('info'), 'flex flex-wrap items-center justify-between gap-3')} role="status">
+          <span>
+            Showing only: <span className="font-semibold">open tickets without an owner</span>
+          </span>
+          <button type="button" className={buttonClass('secondary', 'sm')} onClick={() => filter('unowned', '')}>
+            Show all tickets
+          </button>
+        </div>
+      ) : null}
       <Panel>
         <div className={filterBarClass}>
           <Field label="Status" htmlFor="ticket-status-filter">

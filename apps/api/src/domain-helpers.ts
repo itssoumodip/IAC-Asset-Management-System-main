@@ -212,11 +212,16 @@ export function requestPage(query: any, fields: string[]) {
         owningTeamId: uuidList.optional(),
         locationId: uuidList.optional(),
         holderId: uuidList.optional(),
+        // Dashboard "Needs attention" rows open exactly the assets they count.
+        attention: z
+          .enum(['unconfirmed', 'no_cost', 'no_date', 'no_warranty', 'left_holder', 'finance_pending'])
+          .optional(),
         // Asset list order: Asset ID A-Z (default), Z-A, recently added, recently updated.
         sort: z.enum(['code', 'code_desc', 'added', 'updated']).optional(),
         removed: z.enum(['only']).optional(),
         priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
         ownerId: uuid.optional(),
+        unowned: z.enum(['1']).optional(),
         teamId: uuid.optional(),
         entityType: z.string().max(100).optional(),
         entityId: uuid.optional(),
@@ -282,7 +287,7 @@ export function assetScope(actor: Actor, values: any[]) {
     if (actor.roles.includes('EMPLOYEE')) {
       values.push(actor.id);
       clauses.push(
-        `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`,
+        `a.id IN (SELECT own.asset_id FROM assignments own WHERE own.user_id=$${values.length} AND own.ended_at IS NULL)`,
       );
     }
     return clauses.length ? `(${clauses.join(' OR ')})` : 'FALSE';
@@ -309,10 +314,11 @@ export function assetScope(actor: Actor, values: any[]) {
       )
     `);
   }
+  // A hashed IN list, not a per-row EXISTS: one lookup however large the register is.
   if (actor.roles.includes('EMPLOYEE')) {
     values.push(actor.id);
     clauses.push(
-      `EXISTS(SELECT 1 FROM assignments own WHERE own.asset_id=a.id AND own.user_id=$${values.length} AND own.ended_at IS NULL)`,
+      `a.id IN (SELECT own.asset_id FROM assignments own WHERE own.user_id=$${values.length} AND own.ended_at IS NULL)`,
     );
   }
   return clauses.length ? `(${clauses.join(' OR ')})` : 'FALSE';

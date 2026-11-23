@@ -35,6 +35,7 @@ import { RequestsController, RequestsService } from './requests';
 import { CategoryController, CategoryService } from './categories';
 import { ViewAsController } from './view-as';
 import { InsightsController, InsightsService } from './insights';
+import { TicketInsightsController, TicketInsightsService } from './ticket-insights';
 import {
   DirectoryController,
   UserPhotoController,
@@ -80,6 +81,7 @@ import {
     CategoryController,
     ViewAsController,
     InsightsController,
+    TicketInsightsController,
   ],
   providers: [
     Db,
@@ -107,6 +109,7 @@ import {
     DepreciationService,
     ReportsService,
     InsuranceService,
+    TicketInsightsService,
     ProcurementService,
     ApprovalsService,
     ExportJobsService,

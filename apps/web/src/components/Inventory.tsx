@@ -21,6 +21,7 @@ import {
   cx,
 } from './ui';
 import { locationLabel, useReferences } from './References';
+import { BarList, Card, DonutChart, StatTile } from './charts';
 
 interface InventoryRow {
   category: string;
@@ -45,6 +46,8 @@ interface InventoryResponse {
 }
 
 type StatusView = 'all' | 'low' | 'out';
+const viewHref = (item: InventoryRow) =>
+  `/assets?category=${encodeURIComponent(item.category)}&assetType=${encodeURIComponent(item.asset_type ?? '')}&owningTeamId=${encodeURIComponent(item.owning_team_id)}`;
 const ALL_TEAMS = '__all';
 
 function MinCell({ item, canEdit }: { item: InventoryRow; canEdit: boolean }) {
@@ -140,6 +143,16 @@ export function Inventory() {
   }, [rows]);
 
   const filtered = Boolean(search || category || team || locationId || status !== 'all');
+  const totals = rows.reduce(
+    (t, r) => ({
+      total: t.total + r.total_count,
+      inStore: t.inStore + r.in_store_count,
+      ready: t.ready + r.ready_count,
+      assigned: t.assigned + r.assigned_count,
+      other: t.other + r.other_count,
+    }),
+    { total: 0, inStore: 0, ready: 0, assigned: 0, other: 0 },
+  );
 
   return (
     <>
@@ -154,7 +167,20 @@ export function Inventory() {
           void query.refetch();
         }}
       />
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Total assets" value={totals.total.toLocaleString('en-IN')} detail="In this view" to="/assets" />
+        <StatTile
+          label="Available"
+          value={(totals.inStore + totals.ready).toLocaleString('en-IN')}
+          detail={`${totals.inStore} in store, ${totals.ready} ready`}
+          to="/assets?status=In%20Store,Ready%20to%20Assign"
+        />
+        <StatTile
+          label="With staff"
+          value={totals.assigned.toLocaleString('en-IN')}
+          detail={totals.total ? `${Math.round((totals.assigned / totals.total) * 100)}% in use` : 'Assigned'}
+          to="/assets?status=In%20Use,Assigned"
+        />
         {(
           [
             {
@@ -193,6 +219,48 @@ export function Inventory() {
           </button>
         ))}
       </div>
+      {rows.length ? (
+        <div className="mb-6 grid gap-6 lg:grid-cols-3">
+          <Card title="Where the assets are">
+            <DonutChart
+              valueLabel="Assets"
+              labelHeader="Where"
+              centerLabel="Assets"
+              items={[
+                { label: 'In store', value: totals.inStore, to: '/assets?status=In%20Store' },
+                { label: 'Ready to assign', value: totals.ready, to: '/assets?status=Ready%20to%20Assign' },
+                { label: 'With staff', value: totals.assigned, to: '/assets?status=In%20Use,Assigned' },
+                { label: 'Other (repair, retired…)', value: totals.other },
+              ]}
+            />
+          </Card>
+          <Card title="Largest product types">
+            <BarList
+              valueLabel="Assets"
+              items={rows.map((r) => ({
+                label: `${r.asset_type || 'Unspecified'} · ${r.team_code}`,
+                value: r.total_count,
+                note: `${r.in_store_count + r.ready_count} available`,
+                to: viewHref(r),
+              }))}
+            />
+          </Card>
+          <Card title="Short of minimum stock">
+            <BarList
+              valueLabel="Short by"
+              empty="Every product type meets its minimum"
+              items={rows
+                .map((r) => ({
+                  label: `${r.asset_type || 'Unspecified'} · ${r.team_code}`,
+                  value: Math.max(0, r.min_in_store - (r.in_store_count + r.ready_count)),
+                  note: `min ${r.min_in_store}`,
+                  to: viewHref(r),
+                }))
+                .filter((r) => r.value > 0)}
+            />
+          </Card>
+        </div>
+      ) : null}
       <Panel title="Stock by product type">
         <div className={filterBarClass}>
           <Field label="Search" htmlFor="inventory-q">
@@ -297,10 +365,7 @@ export function Inventory() {
                       <MinCell item={item} canEdit={can(user, 'asset.edit', item.owning_team_id)} />
                     </td>
                     <td>
-                      <Link
-                        className={linkClass}
-                        to={`/assets?category=${encodeURIComponent(item.category)}&assetType=${encodeURIComponent(item.asset_type ?? '')}&owningTeamId=${encodeURIComponent(item.owning_team_id)}`}
-                      >
+                      <Link className={linkClass} to={viewHref(item)}>
                         View assets
                       </Link>
                     </td>

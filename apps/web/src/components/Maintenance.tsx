@@ -5,7 +5,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import { can, useSession } from '../session';
 import type { AssignablePerson } from '../types';
-import { StatTile } from './charts';
+import { BarList, Card, ColumnChart, PairedColumnChart, StatTile } from './charts';
 import { useReferences } from './References';
 import {
   Drawer,
@@ -418,6 +418,70 @@ function CompleteDrawer({
 }
 
 /** Preventive maintenance: repeating service tasks, what is due, and completion records. */
+interface MaintenanceInsightsData {
+  done: { weekStart: string; onTime: number; late: number }[];
+  upcoming: { weekStart: string; due: number }[];
+  byType: { label: string; value: number; overdue: number }[];
+  byPerson: { userId: string | null; label: string; value: number; overdue: number }[];
+  onTime90: { total: number; onTime: number };
+}
+const weekLabel = (iso: string) => displayDate(iso).replace(/,?\s*\d{4}$/, '');
+
+/** Charts under the numbers: work done, work coming, where schedules sit and who carries them. */
+function MaintenanceInsights() {
+  const query = useQuery({
+    queryKey: ['maintenance', 'insights'],
+    queryFn: ({ signal }) => api<MaintenanceInsightsData>('/maintenance/insights', { signal }),
+  });
+  const d = query.data;
+  if (query.error) return <ErrorNotice error={query.error} retry={() => void query.refetch()} />;
+  if (!d) return null;
+  const rate = d.onTime90.total ? Math.round((d.onTime90.onTime / d.onTime90.total) * 100) : null;
+  return (
+    <div className="mb-6 grid gap-6 lg:grid-cols-2">
+      <Card
+        title="Services done, last 12 weeks"
+        action={
+          <span className="text-xs text-gray-500">
+            {rate == null ? 'No services in 90 days' : `${rate}% on time in the last 90 days`}
+          </span>
+        }
+      >
+        <PairedColumnChart
+          series={['On time', 'Late']}
+          empty="No services recorded in the last 12 weeks"
+          xLabel={(key) => `Week of ${displayDate(key)}`}
+          points={d.done.map((w) => ({ key: w.weekStart, label: weekLabel(w.weekStart), a: w.onTime, b: w.late }))}
+        />
+      </Card>
+      <Card title="Coming due, next 8 weeks">
+        <ColumnChart
+          valueLabel="Due"
+          labelHeader="Week"
+          empty="Nothing falls due in the next 8 weeks"
+          format={(n) => `${n} due`}
+          shortFormat={(n) => String(n)}
+          items={d.upcoming.map((w) => ({ label: weekLabel(w.weekStart), value: w.due, detail: `Week of ${displayDate(w.weekStart)}: ${w.due} due` }))}
+        />
+      </Card>
+      <Card title="Schedules by asset type">
+        <BarList
+          valueLabel="Schedules"
+          empty="No active schedules"
+          items={d.byType.map((r) => ({ label: r.label, value: r.value, note: r.overdue ? `${r.overdue} overdue` : undefined }))}
+        />
+      </Card>
+      <Card title="Open work by person (next 30 days)">
+        <BarList
+          valueLabel="Tasks"
+          empty="Nothing due in the next 30 days"
+          items={d.byPerson.map((r) => ({ label: r.label, value: r.value, note: r.overdue ? `${r.overdue} overdue` : undefined }))}
+        />
+      </Card>
+    </div>
+  );
+}
+
 export function Maintenance() {
   const { user } = useSession();
   const [view, setView] = useState<View>('upcoming');
@@ -467,6 +531,7 @@ export function Maintenance() {
           detail="Completed services"
         />
       </div>
+      <MaintenanceInsights />
       <Panel>
         <div className="mb-4 flex flex-wrap gap-2" role="tablist">
           {views.map((v) => (

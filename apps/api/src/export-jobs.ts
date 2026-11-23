@@ -147,7 +147,10 @@ export async function buildAssetCsv(
     values.push(`%${filters.q.replace(/[\\%_]/g, '\\$&')}%`);
     const n = values.length;
     where.push(
-      `(a.asset_code ILIKE $${n} OR a.description ILIKE $${n} OR a.serial_number ILIKE $${n})`,
+      `(a.asset_code ILIKE $${n} OR a.description ILIKE $${n} OR a.serial_number ILIKE $${n} OR a.model ILIKE $${n}
+        OR a.manufacturer ILIKE $${n} OR a.barcode ILIKE $${n}
+        OR a.id IN (SELECT hs.asset_id FROM assignments hs JOIN users hu ON hu.id = hs.user_id
+                    WHERE hs.ended_at IS NULL AND hu.display_name ILIKE $${n}))`,
     );
   }
   const base = values.length;

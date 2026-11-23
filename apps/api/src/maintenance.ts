@@ -93,6 +93,69 @@ export class MaintenanceService {
     return { items: rows.map(camel), summary: camel(counts) };
   }
 
+  /**
+   * Charts for the maintenance page, scoped like the list: services done per week for 12 weeks
+   * (on time vs late), what falls due in each of the next 8 weeks, active schedules by asset
+   * type (with how many are overdue), open work per person, and the on-time rate for 90 days.
+   */
+  async insights(req: AuthRequest) {
+    assertCan(req.user, 'ticket.work');
+    const values: any[] = [];
+    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
+    const weekStart = `date_trunc('week', now() AT TIME ZONE 'Asia/Kolkata')`;
+    const [done, upcoming, byType, byPerson, [rate]] = await Promise.all([
+      this.db.query(
+        `WITH w AS (SELECT generate_series(${weekStart} - interval '11 weeks', ${weekStart}, interval '1 week') AS week_start)
+         SELECT w.week_start,
+                count(r.id) FILTER (WHERE r.completed_at::date <= r.due_date)::int AS on_time,
+                count(r.id) FILTER (WHERE r.completed_at::date > r.due_date)::int AS late
+           FROM w LEFT JOIN (maintenance_records r JOIN assets a ON a.id = r.asset_id AND ${scope})
+             ON r.completed_at AT TIME ZONE 'Asia/Kolkata' >= w.week_start
+            AND r.completed_at AT TIME ZONE 'Asia/Kolkata' < w.week_start + interval '1 week'
+          GROUP BY w.week_start ORDER BY w.week_start`,
+        values,
+      ),
+      this.db.query(
+        `WITH w AS (SELECT generate_series(${weekStart}, ${weekStart} + interval '7 weeks', interval '1 week') AS week_start)
+         SELECT w.week_start, count(s.id)::int AS due
+           FROM w LEFT JOIN (maintenance_schedules s JOIN assets a ON a.id = s.asset_id AND ${scope} AND s.active)
+             ON s.next_due >= w.week_start::date AND s.next_due < (w.week_start + interval '1 week')::date
+          GROUP BY w.week_start ORDER BY w.week_start`,
+        values,
+      ),
+      this.db.query(
+        `SELECT coalesce(nullif(a.asset_type, ''), 'Unspecified') AS label, count(*)::int AS value,
+                count(*) FILTER (WHERE s.next_due < ${TODAY})::int AS overdue
+           FROM maintenance_schedules s JOIN assets a ON a.id = s.asset_id
+          WHERE ${scope} AND s.active
+          GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 10`,
+        values,
+      ),
+      this.db.query(
+        `SELECT u.id, coalesce(u.display_name, 'Not assigned') AS label, count(*)::int AS value,
+                count(*) FILTER (WHERE s.next_due < ${TODAY})::int AS overdue
+           FROM maintenance_schedules s JOIN assets a ON a.id = s.asset_id
+           LEFT JOIN users u ON u.id = s.assigned_to
+          WHERE ${scope} AND s.active AND s.next_due <= ${TODAY} + 30
+          GROUP BY u.id, u.display_name ORDER BY 3 DESC, 2 LIMIT 10`,
+        values,
+      ),
+      this.db.query(
+        `SELECT count(*)::int AS total, count(*) FILTER (WHERE r.completed_at::date <= r.due_date)::int AS on_time
+           FROM maintenance_records r JOIN assets a ON a.id = r.asset_id
+          WHERE ${scope} AND r.completed_at >= now() - interval '90 days'`,
+        values,
+      ),
+    ]);
+    return {
+      done: done.map((w: any) => ({ weekStart: w.week_start, onTime: w.on_time, late: w.late })),
+      upcoming: upcoming.map((w: any) => ({ weekStart: w.week_start, due: w.due })),
+      byType: byType.map((r: any) => ({ label: r.label, value: r.value, overdue: r.overdue })),
+      byPerson: byPerson.map((r: any) => ({ userId: r.id, label: r.label, value: r.value, overdue: r.overdue })),
+      onTime90: { total: rate.total, onTime: rate.on_time },
+    };
+  }
+
   async create(req: AuthRequest, body: unknown) {
     assertCan(req.user, 'ticket.work');
     const input = parse(createInput, body);
@@ -235,6 +298,10 @@ export class MaintenanceService {
 export class MaintenanceController {
   constructor(@Inject(MaintenanceService) private readonly service: MaintenanceService) {}
 
+  @Get('insights')
+  insights(@Req() req: AuthRequest) {
+    return this.service.insights(req);
+  }
   @Get()
   list(@Req() req: AuthRequest, @Query() q: unknown) {
     return this.service.list(req, q);

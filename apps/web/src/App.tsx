@@ -37,16 +37,26 @@ import { Verification } from './components/Verification';
 import { Directory } from './components/Directory';
 import { FinanceReview } from './components/FinanceReview';
 import { PushAnnouncements } from './components/PushAnnouncements';
-import { Reports } from './components/Reports';
-import { Insurance } from './components/Insurance';
+import { TicketResponseTimes } from './components/OperationalReports';
+import { PageReveal } from './components/PageReveal';
+import { Insurance, WarrantyExpiry, canSeeInsurance, canSeeWarranty } from './components/AssetCare';
 import { Procurement } from './components/Procurement';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
 import { ChangeRequests } from './components/ChangeRequests';
 import { useAction } from './hooks';
 import { IMPORT_TOOLS_ENABLED } from './components/DataTransfer';
 import { greeting, todayLabel } from './executive';
-import type { Action } from './types';
-function Guard({ action, anyOf }: { action?: Action; anyOf?: Action[] }) {
+import type { Action, User } from './types';
+function Guard({
+  action,
+  anyOf,
+  allow,
+}: {
+  action?: Action;
+  anyOf?: Action[];
+  /** A page-specific rule, for pages open to more than one kind of access. */
+  allow?: (user: User) => boolean;
+}) {
   const { user, loading, error } = useSession();
   const location = useLocation();
   const remember = () => rememberReturnTo(location.pathname + location.search);
@@ -80,7 +90,11 @@ function Guard({ action, anyOf }: { action?: Action; anyOf?: Action[] }) {
     remember();
     return <Navigate to="/access" replace />;
   }
-  if ((action && !can(user, action)) || (anyOf && !anyOf.some((item) => can(user, item))))
+  if (
+    (action && !can(user, action)) ||
+    (anyOf && !anyOf.some((item) => can(user, item))) ||
+    (allow && !allow(user))
+  )
     return <Empty title="Access required">Your account does not have access to this area.</Empty>;
   return <Outlet />;
 }
@@ -449,7 +463,9 @@ function Shell() {
               </SideLink>
             )}
             {/* Protected-field edits wait for the role that owns the field. */}
-            {user.roles.some((role) => ['SUPER_ADMIN', 'STORE', 'AUDITOR', 'TECHNICIAN'].includes(role)) && (
+            {user.roles.some((role) =>
+              ['SUPER_ADMIN', 'STORE', 'AUDITOR', 'TECHNICIAN'].includes(role),
+            ) && (
               <SideLink to="/admin/change-requests" icon="approvals">
                 Change approvals
               </SideLink>
@@ -497,6 +513,17 @@ function Shell() {
                 Verification
               </SideLink>
             )}
+            {/* Team leads and members see their own team's cover; admins, Finance and leadership see all. */}
+            {canSeeWarranty(user) && (
+              <SideLink to="/warranty-expiry" icon="reports">
+                Warranty &amp; AMC
+              </SideLink>
+            )}
+            {canSeeInsurance(user) && (
+              <SideLink to="/insurance" icon="insurance">
+                Insurance
+              </SideLink>
+            )}
           </NavGroup>
           <NavGroup label="Finance & reports" ariaLabel="Finance navigation">
             {can(user, 'asset.finance_edit') && (
@@ -512,16 +539,6 @@ function Shell() {
             {can(user, 'depreciation.manage_methods') && (
               <SideLink to="/depreciation/settings" icon="master">
                 Depreciation settings
-              </SideLink>
-            )}
-            {can(user, 'report.view') && (
-              <SideLink to="/reports" icon="reports">
-                Reports
-              </SideLink>
-            )}
-            {can(user, 'insurer.view') && (
-              <SideLink to="/insurance" icon="insurance">
-                Insurance
               </SideLink>
             )}
             {can(user, 'procurement.view') && (
@@ -677,7 +694,9 @@ function Shell() {
         >
           {logoutError ? <ErrorNotice error={logoutError} /> : null}
           <OfflineScreen />
-          <Outlet />
+          <PageReveal>
+            <Outlet />
+          </PageReveal>
           <footer className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-4 text-xs text-gray-400">
             <span>
               <span className="font-medium text-gray-600">IAC Patrons Foundation</span> · India
@@ -941,10 +960,14 @@ export function App() {
             <Route element={<Guard action="depreciation.manage_methods" />}>
               <Route path="/depreciation/settings" element={<DepreciationSettings />} />
             </Route>
-            <Route element={<Guard action="report.view" />}>
-              <Route path="/reports" element={<Reports />} />
+            <Route element={<Guard allow={canSeeWarranty} />}>
+              <Route path="/warranty-expiry" element={<WarrantyExpiry />} />
+              <Route path="/reports" element={<Navigate to="/warranty-expiry" replace />} />
             </Route>
-            <Route element={<Guard action="insurer.view" />}>
+            <Route element={<Guard anyOf={['ticket.work', 'report.view']} />}>
+              <Route path="/tickets/response-times" element={<TicketResponseTimes />} />
+            </Route>
+            <Route element={<Guard allow={canSeeInsurance} />}>
               <Route path="/insurance" element={<Insurance />} />
             </Route>
             <Route element={<Guard action="procurement.view" />}>
@@ -953,7 +976,9 @@ export function App() {
             {/* TeamMembers checks team.manage_members for the team in the URL itself. */}
             <Route path="/team/:teamId" element={<TeamMembers />} />
             <Route element={<Guard action="system.admin" />}>
-              {IMPORT_TOOLS_ENABLED ? <Route path="/admin/imports" element={<ImportsView />} /> : null}
+              {IMPORT_TOOLS_ENABLED ? (
+                <Route path="/admin/imports" element={<ImportsView />} />
+              ) : null}
             </Route>
             <Route element={<Guard action="store.operations" />}>
               <Route path="/store" element={<Store />} />
@@ -970,7 +995,10 @@ export function App() {
               <Route path="/admin/teams" element={<TeamsAndProjects />} />
               <Route path="/admin/locations" element={<Locations />} />
               {/* Main's field-permission page is covered by the fuller /admin/roles page. */}
-              <Route path="/admin/field-permissions" element={<Navigate to="/admin/roles" replace />} />
+              <Route
+                path="/admin/field-permissions"
+                element={<Navigate to="/admin/roles" replace />}
+              />
               <Route path="/admin/directory" element={<Directory />} />
               <Route path="/admin/users" element={<UserAdmin />} />
               <Route path="/admin/audit" element={<AuditView />} />

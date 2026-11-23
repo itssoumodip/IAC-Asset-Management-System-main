@@ -29,7 +29,6 @@ export const LOCATION_PATHS_SQL = `
     FROM locations l JOIN tree ON l.parent_id = tree.id WHERE tree.depth < 50
   )`;
 
-
 const levels = ['SITE', 'ZONE', 'BUILDING', 'FLOOR', 'UNIT', 'STORE', 'RACK'] as const;
 // Same rules as Master Control: Admin only, reason required, audited, advisory-locked.
 const locationCode = z
@@ -94,14 +93,33 @@ export class LocationsService {
         FROM locations l
         JOIN loc_tree lt ON lt.id = l.parent_id
         ${input.includeInactive ? '' : 'WHERE l.active'}
+      ), descendants AS (
+        SELECT id AS ancestor_id,id AS descendant_id FROM loc_tree
+        UNION ALL
+        SELECT d.ancestor_id,l.id FROM descendants d JOIN loc_tree l ON l.parent_id=d.descendant_id
+      ), latest_depreciation AS (
+        SELECT DISTINCT ON (asset_id) asset_id,accumulated_depreciation
+        FROM depreciation_schedules ORDER BY asset_id,financial_year_start DESC
+      ), rollups AS (
+        SELECT d.ancestor_id,COUNT(a.id)::int AS subtree_asset_count,
+               COALESCE(SUM(a.purchase_cost),0)::float8 AS subtree_purchase_value,
+               GREATEST(COALESCE(SUM(a.purchase_cost),0)-COALESCE(SUM(dep.accumulated_depreciation),0),0)::float8 AS subtree_current_value
+        FROM descendants d
+        LEFT JOIN assets a ON a.location_id=d.descendant_id
+        LEFT JOIN latest_depreciation dep ON dep.asset_id=a.id
+        GROUP BY d.ancestor_id
       )
       SELECT lt.id, lt.code, lt.level, lt.name, lt.parent_id, lt.active, lt.version, lt.depth,
              lt.root_id,
-             count(a.id)::int AS asset_count,
-             coalesce(sum(a.purchase_cost)::float8, 0) AS purchase_value
+             COUNT(direct.id)::int AS asset_count,
+             COALESCE(SUM(direct.purchase_cost),0)::float8 AS purchase_value,
+             COALESCE(r.subtree_asset_count,0) AS subtree_asset_count,
+             COALESCE(r.subtree_purchase_value,0)::float8 AS subtree_purchase_value,
+             COALESCE(r.subtree_current_value,0)::float8 AS subtree_current_value
       FROM loc_tree lt
-      LEFT JOIN assets a ON a.location_id = lt.id
-      GROUP BY lt.id, lt.code, lt.level, lt.name, lt.parent_id, lt.active, lt.version, lt.depth, lt.root_id
+      LEFT JOIN rollups r ON r.ancestor_id=lt.id
+      LEFT JOIN assets direct ON direct.location_id=lt.id
+      GROUP BY lt.id,lt.code,lt.level,lt.name,lt.parent_id,lt.active,lt.version,lt.depth,lt.root_id,r.subtree_asset_count,r.subtree_purchase_value,r.subtree_current_value
       ORDER BY lt.root_id, lt.depth, lt.name`,
       values,
     );
@@ -269,7 +287,9 @@ export class LocationsService {
       }
     }
     const values: any[] = [locationId];
-    const where = ['a.location_id=$1'];
+    const where = [
+      'a.location_id IN (WITH RECURSIVE scope AS (SELECT id FROM locations WHERE id=$1 UNION ALL SELECT l.id FROM locations l JOIN scope s ON l.parent_id=s.id) SELECT id FROM scope)',
+    ];
     if (p.q) {
       values.push(p.q);
       where.push(`(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length})`);

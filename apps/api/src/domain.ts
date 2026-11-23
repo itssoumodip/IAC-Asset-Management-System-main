@@ -43,7 +43,7 @@ export class DomainService extends ImportDomain {
     const assetValues: any[] = [];
     const assetWhere = `${assetScope(req.user, assetValues)} AND a.removed_at IS NULL`;
     const [assets] = await this.db.query(
-      `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status IN ('Assigned','In Use'))::int AS assigned,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${can(req.user, 'asset.view_private') ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
+      `SELECT count(*)::int AS total,count(*) FILTER(WHERE a.status IN ('Assigned','In Use'))::int AS assigned,count(*) FILTER(WHERE a.status='In Store')::int AS in_store,count(*) FILTER(WHERE a.warranty_expiry BETWEEN (now() AT TIME ZONE 'Asia/Kolkata')::date AND (now() AT TIME ZONE 'Asia/Kolkata')::date+30)::int AS warranty_expiring,count(*) FILTER(WHERE a.warranty_expiry IS NULL)::int AS unknown_warranty,count(*) FILTER(WHERE a.amc_applies AND a.amc_expiry IS NULL)::int AS unknown_amc${can(req.user, 'asset.view_private') ? ',count(*) FILTER(WHERE a.finance_pending)::int AS finance_pending' : ''} FROM assets a WHERE ${assetWhere}`,
       assetValues,
     );
     const pendingValues: any[] = [req.user.id];
@@ -69,6 +69,7 @@ export class DomainService extends ImportDomain {
       assets: {
         total: assets.total,
         assigned: assets.assigned,
+        inStore: assets.in_store,
         pendingAcknowledgements: pending,
         warrantyExpiring: assets.warranty_expiring,
       },

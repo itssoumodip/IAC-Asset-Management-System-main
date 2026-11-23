@@ -357,6 +357,9 @@ export interface LocationTreeNode {
   rootId: string;
   assetCount: number;
   purchaseValue: number;
+  subtreeAssetCount: number;
+  subtreePurchaseValue: number;
+  subtreeCurrentValue: number;
 }
 export interface LocationAsset {
   id: string;
@@ -399,6 +402,10 @@ export interface RoleFieldResponse {
 }
 export interface CategorySubcategory {
   assetTypeCode: string;
+  /** Display name (falls back to the code). */
+  label?: string;
+  /** Live assets using this subcategory. */
+  assetCount?: number;
   categoryCode: string;
   requiresCustodian: boolean;
   owningTeamId: string | null;

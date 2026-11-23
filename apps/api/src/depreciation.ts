@@ -307,89 +307,65 @@ export class DepreciationService {
       WHERE rv.kind='DEPRECIATION_METHOD' AND rv.code=$1 AND rv.active`, [methodCode]);
     if (!defaultMethod) throw new UnprocessableEntityException('Choose an active depreciation method');
 
-    // Get all assets with purchase cost but no capitalisation date yet
-    const assets = await this.db.query(`
-      SELECT a.id, a.purchase_cost, a.residual_value, a.depreciation_method,
-             a.useful_life_years, a.capitalisation_date, a.purchase_date,
-             COALESCE(asset_rule.calculation_type, default_rule.calculation_type, 'WDV') AS calculation_type,
-             COALESCE(asset_rule.rate_percent, default_rule.rate_percent, 15)::float8 AS rate_percent
-      FROM assets a
-      LEFT JOIN depreciation_method_rules asset_rule ON asset_rule.method_code=a.depreciation_method
-      LEFT JOIN depreciation_method_rules default_rule ON default_rule.method_code=$2
-      WHERE a.purchase_cost IS NOT NULL
-    `, [methodCode]);
-
-    const results: any[] = [];
-    for (const asset of assets) {
-      const purchaseCost = Number(asset.purchase_cost);
-      const residualValue = Number(asset.residual_value || 0);
-      const depMethod = asset.calculation_type;
-      const usefulLife = Number(asset.useful_life_years || 5);
-
-      // Determine opening value from last schedule
-      const [lastSchedule] = await this.db.query(
-        `
-        SELECT closing_value FROM depreciation_schedules
-        WHERE asset_id = $1 AND financial_year_start < $2
-        ORDER BY financial_year_start DESC LIMIT 1
+    // One statement for the whole register (fast at tens of thousands of assets, and all or
+    // nothing): opening value is last year's closing value, or cost less residual for a first
+    // year; assets already written down to zero are skipped. SLM charges (cost − residual) /
+    // useful life; WDV charges the method's rate on the opening value. Useful life defaults to 5.
+    const results = await this.db.query(
+      `
+      WITH last AS MATERIALIZED (
+        -- Each asset's most recent earlier closing value, read once before anything is written
+        -- (a per-asset lookup would rescan the table as it grows during the insert).
+        SELECT DISTINCT ON (ds.asset_id) ds.asset_id, ds.closing_value
+          FROM depreciation_schedules ds
+         WHERE ds.financial_year_start < $2
+         ORDER BY ds.asset_id, ds.financial_year_start DESC
+      ),
+      base AS (
+        SELECT a.id,
+               a.purchase_cost AS cost,
+               coalesce(a.residual_value, 0) AS residual,
+               coalesce(nullif(a.useful_life_years, 0), 5) AS life,
+               COALESCE(asset_rule.calculation_type, default_rule.calculation_type, 'WDV') AS calculation_type,
+               COALESCE(asset_rule.rate_percent, default_rule.rate_percent, 15) AS rate_percent,
+               last.closing_value AS last_closing
+          FROM assets a
+          LEFT JOIN last ON last.asset_id = a.id
+          LEFT JOIN depreciation_method_rules asset_rule ON asset_rule.method_code = a.depreciation_method
+          LEFT JOIN depreciation_method_rules default_rule ON default_rule.method_code = $1
+         WHERE a.purchase_cost IS NOT NULL AND a.removed_at IS NULL
+      ),
+      opened AS (
+        SELECT *, coalesce(last_closing, cost - residual) AS opening FROM base
+      ),
+      charged AS (
+        SELECT *,
+               CASE WHEN calculation_type = 'SLM' THEN (cost - residual) / life
+                    ELSE opening * (rate_percent / 100) END AS charge
+          FROM opened WHERE opening > 0
+      )
+      INSERT INTO depreciation_schedules
+        (asset_id, financial_year_start, method, rate, purchase_cost,
+         opening_value, depreciation_charge, closing_value, accumulated_depreciation)
+      SELECT id, $2, calculation_type,
+             CASE WHEN calculation_type = 'SLM' THEN round(100.0 / life, 2) ELSE rate_percent END,
+             cost, opening, charge, greatest(0, opening - charge),
+             cost - residual - greatest(0, opening - charge)
+        FROM charged
+      ON CONFLICT (asset_id, financial_year_start) DO UPDATE SET
+        method = EXCLUDED.method,
+        rate = EXCLUDED.rate,
+        purchase_cost = EXCLUDED.purchase_cost,
+        opening_value = EXCLUDED.opening_value,
+        depreciation_charge = EXCLUDED.depreciation_charge,
+        closing_value = EXCLUDED.closing_value,
+        accumulated_depreciation = EXCLUDED.accumulated_depreciation
+      RETURNING asset_id AS "assetId", method,
+                opening_value::float8 AS "openingValue", depreciation_charge::float8 AS "depreciationCharge",
+                closing_value::float8 AS "closingValue", accumulated_depreciation::float8 AS "accumulatedDepreciation"
       `,
-        [asset.id, fyStart],
-      );
-      const openingValue = lastSchedule
-        ? Number(lastSchedule.closing_value)
-        : purchaseCost - residualValue;
-
-      if (openingValue <= 0) continue;
-
-      const depreciationCharge = calculateDepreciationCharge({
-        calculationType: depMethod,
-        purchaseCost,
-        residualValue,
-        openingValue,
-        usefulLifeYears: usefulLife,
-        ratePercent: Number(asset.rate_percent),
-      });
-      const closingValue = Math.max(0, openingValue - depreciationCharge);
-      const accumulatedDepreciation = purchaseCost - residualValue - closingValue;
-
-      await this.db.query(
-        `
-        INSERT INTO depreciation_schedules
-          (asset_id, financial_year_start, method, rate, purchase_cost,
-           opening_value, depreciation_charge, closing_value, accumulated_depreciation)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (asset_id, financial_year_start) DO UPDATE SET
-          method = EXCLUDED.method,
-          rate = EXCLUDED.rate,
-          purchase_cost = EXCLUDED.purchase_cost,
-          opening_value = EXCLUDED.opening_value,
-          depreciation_charge = EXCLUDED.depreciation_charge,
-          closing_value = EXCLUDED.closing_value,
-          accumulated_depreciation = EXCLUDED.accumulated_depreciation
-      `,
-        [
-          asset.id,
-          fyStart,
-          depMethod,
-          depMethod === 'SLM' ? Number((100 / usefulLife).toFixed(2)) : Number(asset.rate_percent),
-          purchaseCost,
-          openingValue,
-          depreciationCharge,
-          closingValue,
-          accumulatedDepreciation,
-        ],
-      );
-
-      results.push({
-        assetId: asset.id,
-        method: depMethod,
-        openingValue,
-        depreciationCharge,
-        closingValue,
-        accumulatedDepreciation,
-      });
-    }
-
+      [methodCode, fyStart],
+    );
     return { financialYearStart: fyStart, method: methodCode, processed: results.length, results };
   }
 }

@@ -101,9 +101,37 @@ export function TeamsAndProjects() {
       </Panel>
       <Panel title="Ticket routing">
         <p className="mb-4 text-sm text-gray-500">
-          New tickets go to the owning team of the linked asset. Otherwise they go to the team
-          mapped here, or to IT when a category has no team.
+          A ticket about an asset goes to the handling team of that asset’s category, for example
+          furniture to Admin. Tickets raised without an asset go by their type; a type with no team
+          goes to IT.
         </p>
+        <h3 className="mb-3 text-sm font-semibold text-navy-900">Tickets about an asset, by category</h3>
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {(data.categoryPolicies ?? [])
+            .slice()
+            .sort((a, b) => a.categoryCode.localeCompare(b.categoryCode))
+            .map((policy) => (
+              <Select
+                key={policy.categoryCode}
+                label={policy.categoryCode}
+                htmlFor={`category-handling-${policy.categoryCode}`}
+                value={policy.handlingTeamId}
+                onChange={(teamId) =>
+                  teamId && teamId !== policy.handlingTeamId
+                    ? save(`/categories/${encodeURIComponent(policy.categoryCode)}/teams`, 'PUT', {
+                        handlingTeamId: teamId,
+                        teamIds: policy.teamIds.length ? policy.teamIds : [teamId],
+                        reason: 'Ticket routing changed in Teams',
+                      })
+                    : undefined
+                }
+                options={(data.teams ?? [])
+                  .filter((t) => t.active || t.id === policy.handlingTeamId)
+                  .map((t) => ({ value: t.id, label: t.name }))}
+              />
+            ))}
+        </div>
+        <h3 className="mb-3 text-sm font-semibold text-navy-900">Tickets raised without an asset, by type</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.values
             .filter((v) => v.kind === 'TICKET_CATEGORY' && v.active)

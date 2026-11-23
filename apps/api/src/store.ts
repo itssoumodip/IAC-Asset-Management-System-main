@@ -60,7 +60,7 @@ export class StoreService {
         COUNT(*) FILTER (WHERE a.status = 'In Store')::int AS in_store_count,
         COUNT(*) FILTER (WHERE a.status IN ('Assigned','In Use'))::int AS assigned_count
       FROM locations l
-      LEFT JOIN assets a ON a.location_id = l.id
+      LEFT JOIN assets a ON a.location_id = l.id AND a.removed_at IS NULL
       WHERE l.level = 'STORE' OR l.level = 'RACK'
       GROUP BY l.id, l.code, l.name, l.level, l.parent_id
       ORDER BY l.code
@@ -170,11 +170,13 @@ export class StoreService {
     const rows = await this.db.query(`
       SELECT a.id, a.asset_id, ast.asset_code, ast.description, ast.status,
         u.id as user_id, u.display_name as user_name, u.email as user_email,
+        u.designation AS user_designation, (u.left_at IS NOT NULL) AS user_left,
+        EXISTS(SELECT 1 FROM user_photos up WHERE up.user_id = u.id) AS user_has_photo,
         a.assigned_by, a.assigned_at
       FROM assignments a
       JOIN assets ast ON ast.id = a.asset_id
       JOIN users u ON u.id = a.user_id
-      WHERE a.ended_at IS NULL
+      WHERE a.ended_at IS NULL AND ast.removed_at IS NULL
       ORDER BY a.assigned_at DESC
     `);
 
@@ -187,6 +189,9 @@ export class StoreService {
       userId: r.user_id,
       userName: r.user_name,
       userEmail: r.user_email,
+      userDesignation: r.user_designation,
+      userLeft: r.user_left,
+      userHasPhoto: r.user_has_photo,
       assignedAt: r.assigned_at,
     })) };
   }
@@ -301,8 +306,60 @@ export class StoreService {
     });
   }
 
-  async listActivity(req: AuthRequest) {
+  /**
+   * Store snapshot: what can be issued now, what is with staff or in repair, the value sitting in
+   * store, stock by product type and condition, and receive/issue/return counts for 8 weeks.
+   */
+  async summary(req: AuthRequest) {
     assertCan(req.user, 'store.operations');
+    const live = 'a.removed_at IS NULL';
+    const [[counts], byType, byCondition, weeks] = await Promise.all([
+      this.db.query(`
+        SELECT count(*) FILTER (WHERE a.status IN ('In Store','Ready to Assign'))::int AS ready,
+               count(*) FILTER (WHERE a.status = 'Under Repair')::int AS repair,
+               count(*) FILTER (WHERE EXISTS(SELECT 1 FROM assignments g WHERE g.asset_id=a.id AND g.ended_at IS NULL))::int AS with_staff,
+               coalesce(sum(a.purchase_cost) FILTER (WHERE a.status IN ('In Store','Ready to Assign')),0)::float8 AS store_value,
+               count(*)::int AS total
+          FROM assets a WHERE ${live}`),
+      this.db.query(`
+        SELECT coalesce(nullif(a.asset_type,''),'Unspecified') AS label, count(*)::int AS value
+          FROM assets a WHERE ${live} AND a.status IN ('In Store','Ready to Assign')
+         GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 12`),
+      this.db.query(`
+        SELECT coalesce(a.condition,'Unknown') AS label, count(*)::int AS value
+          FROM assets a WHERE ${live} AND a.status IN ('In Store','Ready to Assign','Under Repair')
+         GROUP BY 1 ORDER BY 2 DESC`),
+      this.db.query(`
+        WITH w AS (
+          SELECT generate_series(date_trunc('week', now() AT TIME ZONE 'Asia/Kolkata') - interval '7 weeks',
+                                 date_trunc('week', now() AT TIME ZONE 'Asia/Kolkata'), interval '1 week') AS week_start)
+        SELECT w.week_start,
+               count(e.id) FILTER (WHERE e.action IN ('ASSET_RECEIVED','STORE_RETURN_RECEIVED'))::int AS received,
+               count(e.id) FILTER (WHERE e.action = 'ASSET_ISSUED')::int AS issued
+          FROM w LEFT JOIN audit_events e
+            ON e.entity_type = 'asset'
+           AND e.action IN ('ASSET_RECEIVED','ASSET_ISSUED','STORE_RETURN_RECEIVED')
+           AND e.occurred_at AT TIME ZONE 'Asia/Kolkata' >= w.week_start
+           AND e.occurred_at AT TIME ZONE 'Asia/Kolkata' < w.week_start + interval '1 week'
+         GROUP BY w.week_start ORDER BY w.week_start`),
+    ]);
+    const sum = (key: 'received' | 'issued', last: number) =>
+      weeks.slice(-last).reduce((s: number, w: any) => s + w[key], 0);
+    return {
+      readyToIssue: counts.ready,
+      underRepair: counts.repair,
+      withStaff: counts.with_staff,
+      storeValue: Number(counts.store_value),
+      totalAssets: counts.total,
+      receivedLast4Weeks: sum('received', 4),
+      issuedLast4Weeks: sum('issued', 4),
+      byType,
+      byCondition,
+      weeks: weeks.map((w: any) => ({ weekStart: w.week_start, received: w.received, issued: w.issued })),
+    };
+  }
+
+  async listActivity(req: AuthRequest) {    assertCan(req.user, 'store.operations');
     const rows = await this.db.query(`
       SELECT e.id, e.occurred_at, e.action, ast.asset_code,
         u.display_name AS actor_name, l.code AS location_code, l.name AS location_name
@@ -359,6 +416,11 @@ export class StoreController {
     @Body() body: unknown,
   ) {
     return this.service.receiveReturn(req, assignmentId, body);
+  }
+
+  @Get('summary')
+  summary(@Req() req: AuthRequest) {
+    return this.service.summary(req);
   }
 
   @Get('activity')

@@ -7,6 +7,7 @@ import { useAction, usePages } from '../hooks';
 import { can, useSession } from '../session';
 import type { Asset, FinanceComment, FinanceQueueItem, InvoiceMeta, ProposedField } from '../types';
 import { useReferences } from './References';
+import { BarList, Card, PairedColumnChart, StatTile } from './charts';
 import {
   Badge,
   Empty,
@@ -584,6 +585,108 @@ function ReviewPane({ item, onDone }: { item: FinanceQueueItem; onDone: () => vo
   );
 }
 
+interface FinanceSummary {
+  pending: number;
+  rejected: number;
+  approved: number;
+  blockers: { noCost: number; noInvoice: number; readingInvoice: number; manualEntry: number };
+  pendingValue: number;
+  approvedValueThisYear: number;
+  medianWaitDays: number | null;
+  oldestWaitDays: number | null;
+  byTeam: { teamId: string; code: string; name: string; pending: number; rejected: number }[];
+  weeks: { weekStart: string; approved: number; rejected: number }[];
+}
+
+const waitText = (d: number | null) => (d == null ? '—' : d < 1 ? 'Under a day' : `${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'}`);
+
+/** Numbers and charts above the queue; the three status tiles switch the queue below. */
+function FinanceSnapshot({
+  status,
+  onStatus,
+}: {
+  status: string;
+  onStatus: (status: string) => void;
+}) {
+  const summary = useQuery({
+    queryKey: ['finance-summary'],
+    queryFn: ({ signal }) => api<FinanceSummary>('/finance/summary', { signal }),
+    refetchInterval: 15000,
+  });
+  const s = summary.data;
+  if (summary.error) return <ErrorNotice error={summary.error} retry={() => void summary.refetch()} />;
+  if (!s) return null;
+  const pick = (value: string) => (
+    <button
+      type="button"
+      onClick={() => onStatus(value)}
+      aria-pressed={status === value}
+      className={`flex min-w-0 flex-col rounded-xl border bg-white px-4 py-3.5 text-left transition-colors ${
+        status === value ? 'border-navy-500 ring-2 ring-navy-100' : 'border-gray-200 hover:border-navy-200'
+      }`}
+    >
+      <span className="text-xs font-medium text-gray-500">
+        {value === 'PENDING' ? 'Waiting for review' : value === 'REJECTED' ? 'Sent back' : 'Approved'}
+      </span>
+      <strong data-count className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-navy-900 tabular-nums">
+        {(value === 'PENDING' ? s.pending : value === 'REJECTED' ? s.rejected : s.approved).toLocaleString('en-IN')}
+      </strong>
+      <span className="mt-0.5 text-xs text-gray-500">
+        {value === 'PENDING' ? 'Open the queue' : value === 'REJECTED' ? 'Waiting for the team' : 'Checked against invoice'}
+      </span>
+    </button>
+  );
+  const blockers = [
+    { label: 'No invoice attached', value: s.blockers.noInvoice },
+    { label: 'No purchase cost', value: s.blockers.noCost },
+    { label: 'Invoice could not be read', value: s.blockers.manualEntry },
+    { label: 'Invoice still being read', value: s.blockers.readingInvoice },
+  ];
+  return (
+    <div className="mb-6 flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {pick('PENDING')}
+        {pick('REJECTED')}
+        {pick('APPROVED')}
+        <StatTile label="Value waiting" value={formatInr(s.pendingValue)} detail="Purchase cost in the queue" />
+        <StatTile
+          label="Typical wait"
+          value={waitText(s.medianWaitDays)}
+          detail={s.oldestWaitDays != null ? `Oldest ${waitText(s.oldestWaitDays).toLowerCase()}` : 'Nothing waiting'}
+        />
+        <StatTile label="Approved this year" value={formatInr(s.approvedValueThisYear)} detail="Purchases since 1 April" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card title="Approved and sent back, last 12 weeks">
+          <PairedColumnChart
+            series={['Approved', 'Sent back']}
+            empty="No decisions in the last 12 weeks"
+            xLabel={(key) => `Week of ${displayDate(key)}`}
+            points={s.weeks.map((w) => ({
+              key: w.weekStart,
+              label: displayDate(w.weekStart).replace(/,?\s*\d{4}$/, ''),
+              a: w.approved,
+              b: w.rejected,
+            }))}
+          />
+        </Card>
+        <Card title="What is holding the queue">
+          <BarList valueLabel="Assets" empty="Nothing is blocking the queue" items={blockers} />
+        </Card>
+        <Card title="Waiting by team">
+          <BarList
+            valueLabel="Waiting"
+            empty="No team has assets waiting"
+            items={s.byTeam
+              .filter((t) => t.pending > 0)
+              .map((t) => ({ label: t.name, value: t.pending, note: t.rejected ? `${t.rejected} sent back` : undefined }))}
+          />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export function FinanceReview() {
   const refs = useReferences();
   const [status, setStatus] = useState('PENDING');
@@ -604,6 +707,15 @@ export function FinanceReview() {
         title="Finance review"
         description="Check each asset against its invoice, correct the proposed values, then approve or send it back."
       />
+      {selected ? null : (
+        <FinanceSnapshot
+          status={status}
+          onStatus={(value) => {
+            setStatus(value);
+            setSelected(undefined);
+          }}
+        />
+      )}
       <div className="mb-5 grid gap-3 sm:grid-cols-[12rem_14rem_1fr]">
         <select
           aria-label="Status"

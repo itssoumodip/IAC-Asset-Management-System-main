@@ -9,6 +9,7 @@ import { summaryLine } from '../executive';
 import { inrShort } from './OverviewDashboard';
 import { BarList, Card, EmptyChart, StatTile } from './charts';
 import { Badge, ErrorNotice, Loading, buttonClass, displayDate } from './ui';
+import { useCareSummary } from './AssetCare';
 
 /*
   Dashboards for the global roles that are not Super Admin / Executive / team members:
@@ -472,20 +473,8 @@ export function AuditorDashboard() {
 }
 
 export function InsurerDashboard() {
-  const assets = useQuery({
-    queryKey: ['insurer-dash', 'assets'],
-    queryFn: ({ signal }) =>
-      api<{
-        items: {
-          id: string;
-          assetCode: string;
-          description: string;
-          category: string;
-          purchaseCost: number | null;
-          repairCount: number;
-        }[];
-      }>('/insurance', { signal }),
-  });
+  // Counts come from the server summary, so this stays quick on a large register.
+  const summary = useCareSummary('insurance');
   const locations = useQuery({
     queryKey: ['insurer-dash', 'locations'],
     queryFn: ({ signal }) =>
@@ -499,49 +488,30 @@ export function InsurerDashboard() {
         }[];
       }>('/insurance/locations', { signal }),
   });
-  const items = assets.data?.items ?? [];
-  const total = items.reduce((s, a) => s + (a.purchaseCost ?? 0), 0);
-  const repaired = items.filter((a) => a.repairCount > 0);
+  const s = summary.data;
+  const c = s?.insurance;
+  const insured = (c?.active ?? 0) + (c?.due30 ?? 0) + (c?.due90 ?? 0);
+  const total = s?.value?.total ?? 0;
   return (
     <Shell
       title="Insurance"
-      line={`${plain(items.length)} assets covered, purchase value ${formatInr(total)}.`}
+      line={`${plain(insured)} of ${plain(s?.total ?? 0)} assets covered, purchase value ${formatInr(total)}.`}
       actions={
         <Link to="/insurance" className={buttonClass()}>
           Insurance view
         </Link>
       }
     >
-      <ErrorNotice error={assets.error ?? locations.error} />
-      {assets.isPending ? (
+      <ErrorNotice error={summary.error ?? locations.error} />
+      {summary.isPending ? (
         <Loading label="Loading insurance…" />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile
-              label="Insured assets"
-              value={plain(items.length)}
-              detail="In the register"
-              to="/insurance"
-            />
-            <StatTile
-              label="Total purchase value"
-              value={inrShort(total)}
-              detail="Sum of purchase cost"
-              to="/insurance"
-            />
-            <StatTile
-              label="Locations"
-              value={plain(locations.data?.items.length ?? 0)}
-              detail="With insured assets"
-              to="/insurance"
-            />
-            <StatTile
-              label="Repaired assets"
-              value={plain(repaired.length)}
-              detail="With repair history"
-              to="/insurance"
-            />
+            <StatTile label="Insured assets" value={plain(insured)} detail={`${plain(c?.due30 ?? 0)} renew within 30 days`} to="/insurance?show=active" />
+            <StatTile label="Total purchase value" value={inrShort(total)} detail={s?.value ? `${inrShort(s.value.atRisk)} without cover` : 'Sum of purchase cost'} to="/insurance" />
+            <StatTile label="Not insured" value={plain((c?.missing ?? 0) + (c?.expired ?? 0))} detail="Missing or expired cover" to="/insurance?show=missing" />
+            <StatTile label="Repaired assets" value={plain(s?.repairedAssets ?? 0)} detail="With repair history" to="/insurance" />
           </div>
           <div className="grid gap-6 lg:grid-cols-2">
             <Card title="Value by location" action={viewLink('/insurance')}>
@@ -556,25 +526,18 @@ export function InsurerDashboard() {
                 }))}
               />
             </Card>
-            <Card title="Most repaired assets">
-              {repaired.length ? (
-                <ul className="divide-y divide-gray-100">
-                  {[...repaired]
-                    .sort((a, b) => b.repairCount - a.repairCount)
-                    .slice(0, 6)
-                    .map((a) => (
-                      <li key={a.id} className="flex items-center gap-3 py-2.5 text-sm">
-                        <span className="font-medium text-navy-700">{a.assetCode}</span>
-                        <span className="flex-1 truncate text-gray-700">{a.description}</span>
-                        <span className="text-xs text-gray-500 tabular-nums">
-                          {a.repairCount} repairs
-                        </span>
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <EmptyChart>No repairs recorded</EmptyChart>
-              )}
+            <Card title="Cover status" action={viewLink('/insurance')}>
+              <BarList
+                valueLabel="Assets"
+                empty="No assets in view"
+                items={[
+                  { label: 'Insured', value: c?.active ?? 0, to: '/insurance?show=active' },
+                  { label: 'Renew within 30 days', value: c?.due30 ?? 0, to: '/insurance?show=due30' },
+                  { label: 'Renew in 31–90 days', value: c?.due90 ?? 0, to: '/insurance?show=due90' },
+                  { label: 'Cover expired', value: c?.expired ?? 0, to: '/insurance?show=expired' },
+                  { label: 'Not insured', value: c?.missing ?? 0, to: '/insurance?show=missing' },
+                ]}
+              />
             </Card>
           </div>
         </>
@@ -582,7 +545,6 @@ export function InsurerDashboard() {
     </Shell>
   );
 }
-
 export function ProcurementDashboard() {
   const toBuy = useQuery({
     queryKey: ['procurement-dash', 'to-buy'],

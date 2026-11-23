@@ -53,6 +53,11 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     assert.equal(row?.count, 2);
   });
 
+  it('finds assets by the name of the person holding them', async () => {
+    const result = await domain.assets({ user: admin } as any, { q: `${tag} person`, limit: 50 });
+    assert.equal(result.items.length, 2);
+  });
+
   it('filters the catalog to everything one person holds', async () => {
     const result = await domain.assets({ user: admin } as any, { holderId: holder, limit: 50 });
     assert.equal(result.items.length, 2);

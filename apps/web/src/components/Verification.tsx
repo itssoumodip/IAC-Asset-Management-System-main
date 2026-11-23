@@ -5,6 +5,7 @@ import { useAction } from '../hooks';
 import { useSession } from '../session';
 import { can } from '../session';
 import { locationLabel, useReferences } from './References';
+import { BarList, Card, DonutChart, PairedColumnChart, StatTile } from './charts';
 import {
   Badge,
   Empty,
@@ -36,18 +37,91 @@ interface VerificationCycle {
 
 interface VerificationItem {
   id: string;
+  assetId: string;
   assetCode: string;
   assetDescription: string;
   locationPath: string;
   status: string;
   expectedLocation: string;
   actualLocation: string;
+  actualLocationId: string | null;
   verified: boolean;
   verificationStatus: 'PENDING' | 'FOUND' | 'NOT_FOUND' | 'WRONG_PLACE';
   verifiedAt: string | null;
 }
 
 /** Verification page: auditor verification cycles and item-level found / not found / wrong place. */
+interface VerificationInsightsData {
+  activeCycles: number;
+  completedCycles: number;
+  results: { found: number; notFound: number; wrongPlace: number };
+  liveAssets: number;
+  checkedThisYear: number;
+  neverChecked: number;
+  months: { month: string; found: number; problems: number }[];
+  staleLocations: { locationId: string; name: string; assets: number }[];
+}
+
+/** Numbers and charts above the cycles: coverage, results, monthly checks, places overdue. */
+function VerificationInsights() {
+  const query = useQuery({
+    queryKey: ['verification', 'insights'],
+    queryFn: ({ signal }) => api<VerificationInsightsData>('/verification/insights', { signal }),
+  });
+  const d = query.data;
+  if (query.error) return <ErrorNotice error={query.error} retry={() => void query.refetch()} />;
+  if (!d) return null;
+  const n = (v: number) => v.toLocaleString('en-IN');
+  const coverage = d.liveAssets ? Math.round((d.checkedThisYear / d.liveAssets) * 100) : 0;
+  return (
+    <div className="mb-6 flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Checked this year" value={`${coverage}%`} detail={`${n(d.checkedThisYear)} of ${n(d.liveAssets)} assets`} />
+        <StatTile label="Never checked" value={n(d.neverChecked)} detail="No physical check yet" />
+        <StatTile label="Open cycles" value={n(d.activeCycles)} detail="In progress" />
+        <StatTile label="Cycles finished" value={n(d.completedCycles)} detail="Last 12 months" />
+        <StatTile label="Not found" value={n(d.results.notFound)} detail="Last 12 months" />
+        <StatTile label="Wrong place" value={n(d.results.wrongPlace)} detail="Last 12 months" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card title="Checks per month">
+          <PairedColumnChart
+            series={['Found', 'Not found or misplaced']}
+            empty="No checks in the last 12 months"
+            xLabel={(key) => new Date(key).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            points={d.months.map((m) => ({
+              key: m.month,
+              label: new Date(m.month).toLocaleDateString('en-IN', { month: 'short' }),
+              a: m.found,
+              b: m.problems,
+            }))}
+          />
+        </Card>
+        <Card title="Results, last 12 months">
+          <DonutChart
+            valueLabel="Checks"
+            labelHeader="Result"
+            centerLabel="Checks"
+            empty="No checks in the last 12 months"
+            items={[
+              { label: 'Found', value: d.results.found },
+              { label: 'Not found', value: d.results.notFound },
+              { label: 'Wrong place', value: d.results.wrongPlace },
+            ]}
+          />
+        </Card>
+        <Card title="Places not checked in a year">
+          <BarList
+            valueLabel="Assets"
+            empty="Every place has been checked this year"
+            items={d.staleLocations.map((l) => ({ label: l.name, value: l.assets, to: `/locations?locationId=${l.locationId}` }))}
+          />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export function Verification() {
   const { user } = useSession();
   const allowed = can(user, 'verification.perform');
@@ -71,6 +145,8 @@ export function Verification() {
   const [activeCycleId, setActiveCycleId] = useState<string | null>(null);
   const [items, setItems] = useState<VerificationItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [wrongPlaceAssetId, setWrongPlaceAssetId] = useState<string | null>(null);
+  const [actualLocationId, setActualLocationId] = useState('');
 
   async function startCycle(event: FormEvent) {
     event.preventDefault();
@@ -86,7 +162,8 @@ export function Verification() {
       setNewCycleLocationId('');
       setNewCycleReason('');
       void cycles.refetch();
-      setActiveCycleId((result as { id?: string }).id ?? null);
+      const cycleId = (result as { id?: string }).id;
+      if (cycleId) await loadItems(cycleId);
     }
   }
 
@@ -105,14 +182,23 @@ export function Verification() {
     }
   }
 
-  async function recordItem(assetId: string, status: 'FOUND' | 'NOT_FOUND' | 'WRONG_PLACE') {
+  async function recordItem(
+    assetId: string,
+    status: 'FOUND' | 'NOT_FOUND' | 'WRONG_PLACE',
+    actualLocationId?: string,
+  ) {
     const reason = window.prompt(`Reason for ${status.toLowerCase()}:`);
     if (!reason || !reason.trim()) return;
     const result = await action
       .mutateAsync({
         path: `/verification/cycles/${activeCycleId}/items`,
         method: 'POST',
-        body: { assetId, verificationStatus: status, reason: reason.trim() },
+        body: {
+          assetId,
+          verificationStatus: status,
+          reason: reason.trim(),
+          ...(actualLocationId ? { actualLocationId } : {}),
+        },
       })
       .catch(() => undefined);
     if (result) {
@@ -139,10 +225,11 @@ export function Verification() {
     <>
       <PageTitle
         eyebrow="MAINTENANCE & AUDIT"
-        title="Verification"
-        description="Auditors start verification cycles, scan items, and mark found / not found / wrong place."
+        title="Physical asset checks"
+        description="Run a stocktake for a location and its sublocations. Compare each registered asset with what is physically there, then record found, not found, or the actual location when it is misplaced."
       />
       <ErrorNotice error={action.error ?? cycles.error} />
+      <VerificationInsights />
 
       <Panel title="Verification cycles">
         <p className="muted">
@@ -200,14 +287,7 @@ export function Verification() {
                             View items
                           </button>
                         ) : (
-                          <button
-                            className={buttonClass('secondary', 'sm')}
-                            type="button"
-                            disabled={action.isPending}
-                            onClick={() => completeCycle(c.id)}
-                          >
-                            Completed
-                          </button>
+                          <span className="muted">{c.status.toLowerCase()}</span>
                         )}
                       </div>
                     </td>
@@ -291,7 +371,7 @@ export function Verification() {
                               <button
                                 className={buttonClass('secondary', 'sm')}
                                 type="button"
-                                onClick={() => recordItem(item.id, 'FOUND')}
+                                onClick={() => recordItem(item.assetId, 'FOUND')}
                                 disabled={action.isPending}
                               >
                                 Found
@@ -299,7 +379,7 @@ export function Verification() {
                               <button
                                 className={buttonClass('secondary', 'sm')}
                                 type="button"
-                                onClick={() => recordItem(item.id, 'NOT_FOUND')}
+                                onClick={() => recordItem(item.assetId, 'NOT_FOUND')}
                                 disabled={action.isPending}
                               >
                                 Not found
@@ -307,7 +387,10 @@ export function Verification() {
                               <button
                                 className={buttonClass('secondary', 'sm')}
                                 type="button"
-                                onClick={() => recordItem(item.id, 'WRONG_PLACE')}
+                                onClick={() => {
+                                  setWrongPlaceAssetId(item.assetId);
+                                  setActualLocationId('');
+                                }}
                                 disabled={action.isPending}
                               >
                                 Wrong place
@@ -316,6 +399,46 @@ export function Verification() {
                           ) : (
                             <span className="muted">Verified</span>
                           )}
+                          {wrongPlaceAssetId === item.assetId &&
+                          item.verificationStatus === 'PENDING' ? (
+                            <div className="form-actions">
+                              <Select
+                                label="Where was it found?"
+                                htmlFor={`actual-location-${item.assetId}`}
+                                value={actualLocationId}
+                                onChange={setActualLocationId}
+                                required
+                                options={[
+                                  { value: '', label: 'Choose actual location' },
+                                  ...(refs.data?.locations ?? [])
+                                    .filter((location) => location.active)
+                                    .map((location) => ({
+                                      value: location.id,
+                                      label: locationLabel(location),
+                                    })),
+                                ]}
+                              />
+                              <button
+                                type="button"
+                                className={buttonClass()}
+                                disabled={action.isPending || !actualLocationId}
+                                onClick={async () => {
+                                  await recordItem(item.assetId, 'WRONG_PLACE', actualLocationId);
+                                  setWrongPlaceAssetId(null);
+                                  setActualLocationId('');
+                                }}
+                              >
+                                Save result
+                              </button>
+                              <button
+                                type="button"
+                                className={buttonClass('secondary')}
+                                onClick={() => setWrongPlaceAssetId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

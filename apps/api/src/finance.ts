@@ -306,6 +306,76 @@ export class FinanceService {
     return this.invoiceRow(req, invoiceId, true);
   }
 
+  /**
+   * Finance review snapshot: the queue by state, what is blocking it (no cost, no invoice,
+   * invoice still being read), how long items wait, value waiting and approved this financial
+   * year, the queue by team and 12 weeks of approvals and rejections. Live assets only.
+   */
+  async summary(req: AuthRequest) {
+    assertCan(req.user, 'asset.finance_edit');
+    const live = 'a.removed_at IS NULL';
+    const today = `(now() AT TIME ZONE 'Asia/Kolkata')::date`;
+    const fyStart = `make_date(extract(year FROM ${today} - interval '3 months')::int, 4, 1)`;
+    const [[t], byTeam, weeks] = await Promise.all([
+      this.db.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (ia.asset_id) ia.asset_id, i.extraction_state
+            FROM invoice_assets ia JOIN invoices i ON i.id = ia.invoice_id
+           ORDER BY ia.asset_id, ia.linked_at DESC, i.uploaded_at DESC)
+        SELECT count(*) FILTER (WHERE a.finance_status = 'PENDING')::int AS pending,
+               count(*) FILTER (WHERE a.finance_status = 'REJECTED')::int AS rejected,
+               count(*) FILTER (WHERE a.finance_status = 'APPROVED')::int AS approved,
+               count(*) FILTER (WHERE a.finance_status = 'PENDING' AND a.purchase_cost IS NULL)::int AS pending_no_cost,
+               count(*) FILTER (WHERE a.finance_status = 'PENDING' AND l.asset_id IS NULL)::int AS pending_no_invoice,
+               count(*) FILTER (WHERE a.finance_status = 'PENDING' AND l.extraction_state = 'PENDING')::int AS reading,
+               count(*) FILTER (WHERE a.finance_status = 'PENDING' AND l.extraction_state = 'FAILED')::int AS manual,
+               coalesce(sum(a.purchase_cost) FILTER (WHERE a.finance_status = 'PENDING'), 0)::float8 AS pending_value,
+               coalesce(sum(a.purchase_cost) FILTER (WHERE a.finance_status = 'APPROVED' AND a.purchase_date >= ${fyStart}), 0)::float8 AS approved_value_fy,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM now() - a.created_at) / 86400)
+                 FILTER (WHERE a.finance_status = 'PENDING') AS median_wait_days,
+               max(EXTRACT(EPOCH FROM now() - a.created_at) / 86400) FILTER (WHERE a.finance_status = 'PENDING') AS oldest_wait_days
+          FROM assets a LEFT JOIN latest l ON l.asset_id = a.id
+         WHERE ${live}`),
+      this.db.query(`
+        SELECT tm.id, tm.code, tm.name,
+               count(*) FILTER (WHERE a.finance_status = 'PENDING')::int AS pending,
+               count(*) FILTER (WHERE a.finance_status = 'REJECTED')::int AS rejected
+          FROM assets a JOIN teams tm ON tm.id = a.owning_team_id
+         WHERE ${live} AND a.finance_status <> 'APPROVED'
+         GROUP BY tm.id, tm.code, tm.name ORDER BY pending DESC, tm.name`),
+      this.db.query(`
+        WITH w AS (
+          SELECT generate_series(date_trunc('week', now() AT TIME ZONE 'Asia/Kolkata') - interval '11 weeks',
+                                 date_trunc('week', now() AT TIME ZONE 'Asia/Kolkata'), interval '1 week') AS week_start)
+        SELECT w.week_start,
+               count(e.id) FILTER (WHERE e.action = 'FINANCE_APPROVED')::int AS approved,
+               count(e.id) FILTER (WHERE e.action = 'FINANCE_REJECTED')::int AS rejected
+          FROM w LEFT JOIN audit_events e
+            ON e.entity_type = 'asset' AND e.action IN ('FINANCE_APPROVED','FINANCE_REJECTED')
+           AND e.occurred_at AT TIME ZONE 'Asia/Kolkata' >= w.week_start
+           AND e.occurred_at AT TIME ZONE 'Asia/Kolkata' < w.week_start + interval '1 week'
+         GROUP BY w.week_start ORDER BY w.week_start`),
+    ]);
+    const days = (v: unknown) => (v == null ? null : Math.round(Number(v) * 10) / 10);
+    return {
+      pending: t.pending,
+      rejected: t.rejected,
+      approved: t.approved,
+      blockers: {
+        noCost: t.pending_no_cost,
+        noInvoice: t.pending_no_invoice,
+        readingInvoice: t.reading,
+        manualEntry: t.manual,
+      },
+      pendingValue: Number(t.pending_value),
+      approvedValueThisYear: Number(t.approved_value_fy),
+      medianWaitDays: days(t.median_wait_days),
+      oldestWaitDays: days(t.oldest_wait_days),
+      byTeam: byTeam.map((r: any) => ({ teamId: r.id, code: r.code, name: r.name, pending: r.pending, rejected: r.rejected })),
+      weeks: weeks.map((w: any) => ({ weekStart: w.week_start, approved: w.approved, rejected: w.rejected })),
+    };
+  }
+
   async queue(req: AuthRequest, query: any) {
     assertCan(req.user, 'asset.finance_edit');
     const p = requestPage(query, ['asset_code', 'id']);
@@ -501,6 +571,10 @@ export class FinanceController {
       );
     else res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
     res.end(row.file);
+  }
+  @Get('finance/summary')
+  summary(@Req() req: AuthRequest) {
+    return this.service.summary(req);
   }
   @Get('finance/queue')
   queue(@Req() req: AuthRequest, @Query() query: unknown) {

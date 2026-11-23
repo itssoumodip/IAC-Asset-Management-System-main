@@ -171,6 +171,15 @@ describe('store returns PostgreSQL integration', { skip: !connection, concurrenc
     assert.equal(after.condition, 'Damaged');
   });
 
+  it('gives the store a snapshot with 8 weeks of movements, and only to store staff', async () => {
+    const summary = await store.summary(request(storeUser));
+    assert.equal(summary.weeks.length, 8);
+    assert.ok(summary.receivedLast4Weeks >= 1, 'returns received above are counted');
+    assert.equal(typeof summary.readyToIssue, 'number');
+    assert.ok(Array.isArray(summary.byType) && Array.isArray(summary.byCondition));
+    await assert.rejects(store.summary(request(employee)), status(403));
+  });
+
   it('denies users without store.operations', async () => {
     const { asset, assignment } = await assigned();
     await assert.rejects(

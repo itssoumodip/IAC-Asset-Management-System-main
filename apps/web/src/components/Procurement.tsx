@@ -1,5 +1,5 @@
 import { formatInr } from '../admin-insights';
-import { StatTile } from './charts';
+import { BarList, Card, ColumnChart, StatTile } from './charts';
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
@@ -30,6 +30,71 @@ interface PurchaseRow {
   notes: string | null;
   createdByName: string;
   createdAt: string;
+}
+
+/** Numbers and charts over the purchase record: this financial year, month by month, suppliers. */
+function ProcurementInsights({ data }: { data: PurchaseRow[] }) {
+  const now = new Date();
+  const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fyStart = new Date(fyStartYear, 3, 1);
+  const thisYear = data.filter((p) => new Date(p.purchaseDate) >= fyStart);
+  const spent = thisYear.reduce((s, p) => s + p.amount, 0);
+  const units = thisYear.reduce((s, p) => s + p.quantity, 0);
+  const suppliers = new Map<string, { amount: number; count: number }>();
+  for (const p of data) {
+    const key = p.supplier.trim() || 'Unknown';
+    const cur = suppliers.get(key) ?? { amount: 0, count: 0 };
+    suppliers.set(key, { amount: cur.amount + p.amount, count: cur.count + 1 });
+  }
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    return { y: d.getFullYear(), m: d.getMonth(), label: d.toLocaleDateString('en-IN', { month: 'short' }), amount: 0, count: 0 };
+  });
+  for (const p of data) {
+    const d = new Date(p.purchaseDate);
+    const slot = months.find((x) => x.y === d.getFullYear() && x.m === d.getMonth());
+    if (slot) {
+      slot.amount += p.amount;
+      slot.count += 1;
+    }
+  }
+  const last = [...data].sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate))[0];
+  return (
+    <div className="mb-6 flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Purchases this year" value={thisYear.length.toLocaleString('en-IN')} detail={`Since 1 April ${fyStartYear}`} />
+        <StatTile label="Spent this year" value={formatInr(spent)} detail="Recorded amount" />
+        <StatTile label="Units bought" value={units.toLocaleString('en-IN')} detail="This financial year" />
+        <StatTile
+          label="Average purchase"
+          value={thisYear.length ? formatInr(spent / thisYear.length) : '—'}
+          detail="This financial year"
+        />
+        <StatTile label="Suppliers" value={suppliers.size.toLocaleString('en-IN')} detail="All time" />
+        <StatTile label="Last purchase" value={last ? new Date(last.purchaseDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'} detail={last ? last.supplier : 'None recorded'} />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card title="Spend by month, last 12 months">
+          <ColumnChart
+            valueLabel="Spend"
+            labelHeader="Month"
+            empty="No purchases in the last 12 months"
+            format={formatInr}
+            shortFormat={(v) => (v >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : v >= 1e3 ? `₹${Math.round(v / 1e3)}k` : `₹${Math.round(v)}`)}
+            items={months.map((m) => ({ label: m.label, value: m.amount, detail: `${m.label}: ${formatInr(m.amount)} · ${m.count} purchases` }))}
+          />
+        </Card>
+        <Card title="Top suppliers by spend">
+          <BarList
+            valueLabel="Spend"
+            format={formatInr}
+            empty="No purchases recorded"
+            items={[...suppliers.entries()].map(([label, s]) => ({ label, value: s.amount, note: `${s.count} purchase${s.count === 1 ? '' : 's'}` }))}
+          />
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 /** Procurement page: approved requests to buy, out-of-stock products, basic purchase record
@@ -106,6 +171,7 @@ export function Procurement() {
         description="Approved requests to buy, out-of-stock products, basic purchase record (supplier, date, qty, amount)."
       />
       <ErrorNotice error={action.error ?? query.error} />
+      {query.data ? <ProcurementInsights data={data} /> : null}
 
       <Panel title="Record a purchase">
         <p className="muted">Record a purchase with its supplier, date, quantity and amount.</p>
