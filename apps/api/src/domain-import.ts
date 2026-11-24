@@ -326,6 +326,8 @@ export class ImportDomain extends TicketDomain {
     }
     candidate.amcApplies = !!candidate.amcExpiry;
     Object.assign(candidate, corrections);
+    // "Assigned" is the old name for "In Use" (retired in migration 062); old sheets still say it.
+    if (candidate.status === 'Assigned') candidate.status = 'In Use';
     delete candidate.assetCode;
     delete candidate.custodianEmail;
     const result = assetInput.safeParse(candidate);

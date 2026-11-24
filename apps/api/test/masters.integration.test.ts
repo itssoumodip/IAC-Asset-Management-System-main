@@ -276,7 +276,7 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
       reason,
     });
     await assert.rejects(
-      db.query("UPDATE reference_values SET active=false WHERE kind='STATUS' AND code='Assigned'"),
+      db.query("UPDATE reference_values SET active=false WHERE kind='STATUS' AND code='In Store'"),
       (error: any) => error.code === '23514',
     );
   });
@@ -441,7 +441,7 @@ describe('Master Control PostgreSQL integration', { concurrency: false }, () => 
     ])
       await assert.rejects(service.createAsset(request(admin), input), status(422));
     await assert.rejects(
-      service.editAsset(request(admin, asset.version), asset.id, { status: 'Assigned', reason }),
+      service.editAsset(request(admin, asset.version), asset.id, { status: 'In Use', reason }),
       status(409),
     );
     const alternate = await service.createAsset(request(admin), {
