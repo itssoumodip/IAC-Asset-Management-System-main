@@ -9,6 +9,7 @@ import type { Asset, AssignablePerson, InvoiceMeta } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { AssetPhoto } from './AssetPhoto';
 import { AssetTags } from './AssetTags';
+import { PersonPicker } from './PersonPicker';
 import { useBrands, useHolders } from './Insights';
 import {
   ColumnFilter,
@@ -1490,6 +1491,15 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     null,
   );
   const [savedWithoutInvoice, setSavedWithoutInvoice] = useState<Asset | null>(null);
+  const [savedWithoutAssignment, setSavedWithoutAssignment] = useState<{
+    asset: Asset;
+    personName: string;
+    transfer: boolean;
+    message: string;
+  } | null>(null);
+  const [assigneeSearch, setAssigneeSearch] = useState(asset?.currentAssignment?.employeeName ?? '');
+  const [assigneeQuery, setAssigneeQuery] = useState(asset?.currentAssignment?.employeeName ?? '');
+  const [pickedAssignee, setPickedAssignee] = useState<AssignablePerson>();
   // An invoice billed in another currency: the register is kept in INR, so the amount is
   // converted with a rate the person enters rather than copied across as if it were rupees.
   const [foreignTotal, setForeignTotal] = useState<{ currency: string; amount: string } | null>(
@@ -1511,6 +1521,8 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
         policy.teamIds.includes(teams.find((t) => t.code === 'ADM')?.id ?? '')),
   );
   const canFinance = can(user, 'asset.finance_edit', teamId || undefined);
+  const canAssignCustody = can(user, 'asset.custody', teamId || undefined);
+  const assignmentStatus = ['Assigned', 'In Use'].includes(values.status ?? '');
   const canChangeTeam = !!baseline && can(user, 'asset.change_team');
   // Finance without asset.edit for this team may change only the finance fields.
   const financeOnly =
@@ -1529,6 +1541,22 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     enabled: canFinance,
     staleTime: 300_000,
   });
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAssigneeQuery(assigneeSearch.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [assigneeSearch]);
+  const assignablePeople = useQuery({
+    queryKey: ['asset-editor-assignable-people', baseline?.id, assigneeQuery],
+    queryFn: ({ signal }) =>
+      api<{ items: AssignablePerson[] }>(
+        `${baseline ? `/assets/${baseline.id}/assignable-people` : '/assignable-people'}?limit=25${assigneeQuery ? `&q=${encodeURIComponent(assigneeQuery)}` : ''}`,
+        { signal },
+      ),
+    enabled: assignmentStatus && canAssignCustody,
+  });
+  const selectedAssignee =
+    pickedAssignee ??
+    assignablePeople.data?.items.find((person) => person.id === baseline?.currentAssignment?.userId);
   const supplierNames = (vendors.data?.items ?? []).map((vendor) => vendor.name);
   const supplierOptions = [
     { value: '', label: 'Select supplier' },
@@ -1674,6 +1702,24 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       setValidation('Description and change reason must contain text.');
       return;
     }
+    if (assignmentStatus && !baseline?.currentAssignment?.userId && !selectedAssignee) {
+      setValidation(
+        canAssignCustody
+          ? 'Choose an assignee before saving an asset as Assigned.'
+          : 'You need asset custody permission to assign this asset.',
+      );
+      return;
+    }
+    if (
+      assignmentStatus &&
+      baseline?.currentAssignment?.userId &&
+      selectedAssignee &&
+      selectedAssignee.id !== baseline.currentAssignment.userId &&
+      !canAssignCustody
+    ) {
+      setValidation('You need asset custody permission to change this assignee.');
+      return;
+    }
     const body: Record<string, unknown> = {};
     const allowed = [
       'category',
@@ -1768,6 +1814,11 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       )
         body[name] = null;
     }
+    const needsAssignment =
+      assignmentStatus && !!selectedAssignee &&
+      selectedAssignee.id !== baseline?.currentAssignment?.userId;
+    // Custody is recorded by the assignment endpoint, which changes status to In Use.
+    if (needsAssignment && !baseline?.currentAssignment?.userId) body.status = 'In Store';
     body.amcApplies = amc;
     if (!amc) body.amcExpiry = null;
     if (baseline) body.reason = values.reason.trim();
@@ -1793,6 +1844,27 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
         return;
       }
     }
+    if (needsAssignment && selectedAssignee) {
+      const transfer = !!baseline?.currentAssignment?.userId;
+      try {
+        await api(`/assets/${result.id}/${transfer ? 'reassign' : 'assignments'}`, {
+          method: 'POST',
+          version: result.version,
+          idempotencyKey: crypto.randomUUID(),
+          body: transfer
+            ? { userId: selectedAssignee.id, reason: values.reason.trim() }
+            : { userId: selectedAssignee.id, note: baseline ? values.reason.trim() : 'Assigned during asset setup' },
+        });
+      } catch (error) {
+        setSavedWithoutAssignment({
+          asset: result,
+          personName: selectedAssignee.displayName,
+          transfer,
+          message: error instanceof Error ? error.message : 'The assignment could not be completed.',
+        });
+        return;
+      }
+    }
     navigate(`/assets/${result.id}`);
   }
   if (savedWithoutInvoice)
@@ -1807,6 +1879,22 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
             Open {savedWithoutInvoice.assetCode}
           </Link>
         </p>
+      </Panel>
+    );
+  if (savedWithoutAssignment)
+    return (
+      <Panel title="Asset saved">
+        <div className={noticeClass('warning')} role="alert">
+          {savedWithoutAssignment.asset.assetCode} was saved, but assignment to {savedWithoutAssignment.personName} did not finish: {savedWithoutAssignment.message}
+        </div>
+        <div className={actionsClass}>
+          <Link className={buttonClass()} to={`/assets/${savedWithoutAssignment.asset.id}/assign${savedWithoutAssignment.transfer ? '?transfer=1' : ''}`}>
+            Continue assignment
+          </Link>
+          <Link className={buttonClass('secondary')} to={`/assets/${savedWithoutAssignment.asset.id}`}>
+            Open asset
+          </Link>
+        </div>
       </Panel>
     );
   return (
@@ -2104,6 +2192,34 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 ]}
               />
             </div>
+            {assignmentStatus ? (
+              <div className="mt-5">
+                {canAssignCustody ? (
+                  <>
+                    <PersonPicker
+                      label="Assignee"
+                      people={assignablePeople.data?.items ?? []}
+                      loading={assignablePeople.isFetching}
+                      search={assigneeSearch}
+                      onSearch={setAssigneeSearch}
+                      selected={selectedAssignee}
+                      onSelect={(person) => {
+                        setPickedAssignee(person);
+                        if (!person) setAssigneeSearch('');
+                      }}
+                      disabled={action.isPending || !!assignablePeople.error}
+                    />
+                    {assignablePeople.error ? (
+                      <p className="mt-1 text-sm text-red-700">Could not load eligible assignees. Refresh and retry.</p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className={noticeClass('warning')} role="note">
+                    Asset custody permission is required to choose an assignee.
+                  </p>
+                )}
+              </div>
+            ) : null}
             <Field label="Configuration" htmlFor="configuration">
               <textarea
                 id="configuration"
