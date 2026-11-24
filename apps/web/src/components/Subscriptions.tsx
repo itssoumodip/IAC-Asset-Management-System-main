@@ -269,7 +269,6 @@ export function SubscriptionList() {
   useEffect(() => {
     const timer = setTimeout(() => search.trim() !== q && update('q', search.trim()), 300);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
   // The server searches (including the people using each one); filters and sort run here.
   const list = useQuery({

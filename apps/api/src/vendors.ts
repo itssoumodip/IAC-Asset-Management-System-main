@@ -192,7 +192,7 @@ export class VendorService {
   }
 
   /** Vendor names for suggestions on asset and subscription forms. */
-  async names(req: AuthRequest) {
+  async names(_req: AuthRequest) {
     const rows = await this.db.query("SELECT id, name FROM vendors WHERE status = 'ACTIVE' ORDER BY name");
     return { items: rows.map((r: any) => ({ id: r.id, name: r.name })) };
   }

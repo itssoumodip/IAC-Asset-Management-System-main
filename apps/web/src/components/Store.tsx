@@ -295,7 +295,6 @@ function StoreWorkspace() {
   };
   useEffect(() => {
     if (action.isSuccess) refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action.isSuccess]);
   const [withStaffSearch, setWithStaffSearch] = useState('');
   const staffRows = (returns.data?.items ?? []).filter((a) => {

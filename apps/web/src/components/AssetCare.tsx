@@ -308,7 +308,6 @@ function useRegisterFilters() {
       if ((params.get('q') ?? '') !== search.trim()) set('q', search.trim());
     }, 300);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
   return { params, set, search, setSearch };
 }

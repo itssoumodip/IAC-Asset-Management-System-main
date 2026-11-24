@@ -164,7 +164,6 @@ export function VendorList() {
   useEffect(() => {
     const timer = setTimeout(() => search.trim() !== q && update('q', search.trim()), 300);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
   // The server searches; filters and sort run here (every status is loaded).
   const query = useQuery({

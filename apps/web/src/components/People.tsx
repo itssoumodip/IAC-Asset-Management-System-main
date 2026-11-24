@@ -117,7 +117,6 @@ export function PeopleDirectory() {
       setOffset(0);
     }, 300);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
   const query = useQuery({
     queryKey: ['people', q, holding, offset],
