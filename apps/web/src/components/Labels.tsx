@@ -482,18 +482,17 @@ export function LabelPrintPage() {
                   </button>
                 </div>
                 {labelColumns.map((column) => (
-                  <label key={column.key} className="flex cursor-pointer items-center gap-2 py-1.5 text-sm">
-                    <input
-                      type="checkbox"
+                  <div key={column.key} className="py-1.5">
+                    <Checkbox
+                      label={column.label}
                       checked={columns.includes(column.key)}
-                      onChange={(event) =>
+                      onChange={(checked) =>
                         setColumns((current) =>
-                          event.target.checked ? [...current, column.key] : current.filter((k) => k !== column.key),
+                          checked ? [...current, column.key] : current.filter((k) => k !== column.key),
                         )
                       }
                     />
-                    {column.label}
-                  </label>
+                  </div>
                 ))}
               </div>
             </details>
@@ -564,10 +563,8 @@ export function LabelPrintPage() {
                 <thead>
                   <tr>
                     <th className="w-10">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-navy-700"
-                        aria-label="Select the assets shown"
+                      <Checkbox
+                        ariaLabel="Select the assets shown"
                         checked={allChecked}
                         onChange={() =>
                           setSelected((current) => {
@@ -597,10 +594,8 @@ export function LabelPrintPage() {
                       }}
                     >
                       <td>
-                        <input
-                          type="checkbox"
-                          className="size-4 accent-navy-700"
-                          aria-label={`Select ${asset.assetCode}`}
+                        <Checkbox
+                          ariaLabel={`Select ${asset.assetCode}`}
                           checked={selected.has(asset.id)}
                           onChange={() => toggle(asset)}
                         />

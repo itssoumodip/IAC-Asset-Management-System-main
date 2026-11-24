@@ -1,3 +1,4 @@
+import { VendorSuggestions } from './Vendors';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -38,6 +39,7 @@ import {
   referenceOptions,
 } from './References';
 import {
+  Checkbox,
   Badge,
   Empty,
   ErrorNotice,
@@ -641,20 +643,17 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
                   </button>
                 </div>
                 {allowedCatalogColumns.map((column) => (
-                  <label key={column.key} className="flex cursor-pointer items-center gap-2 py-1.5 text-sm">
-                    <input
-                      type="checkbox"
+                  <div key={column.key} className="py-1.5">
+                    <Checkbox
+                      label={column.label}
                       checked={visibleColumns.includes(column.key)}
-                      onChange={(event) =>
+                      onChange={(checked) =>
                         setVisibleColumns((current) =>
-                          event.target.checked
-                            ? [...current, column.key]
-                            : current.filter((key) => key !== column.key),
+                          checked ? [...current, column.key] : current.filter((key) => key !== column.key),
                         )
                       }
                     />
-                    {column.label}
-                  </label>
+                  </div>
                 ))}
               </div>
             </details>
@@ -2154,14 +2153,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   onChange={(event) => set('disposalReference', event.target.value)}
                 />
               </Field>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={amc}
-                  onChange={(event) => setAmc(event.target.checked)}
-                />
-                AMC applies to this asset
-              </label>
+              <Checkbox label="AMC applies to this asset" checked={amc} onChange={setAmc} />
               {amc ? (
                 <Field
                   label="AMC expiry"
@@ -2295,6 +2287,7 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                   id={name}
                   value={values[name] ?? ''}
                   onChange={(event) => set(name, event.target.value)}
+                  list={name === 'supplier' ? 'vendor-suggestions' : undefined}
                   inputMode={
                     name === 'purchaseCost' || name === 'residualValue' ? 'decimal' : 'text'
                   }
@@ -2306,6 +2299,8 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 />
               </Field>
             ))}
+            {/* Supplier suggestions from the Vendors list, so assets link to their vendor. */}
+            <VendorSuggestions id="vendor-suggestions" />
           </fieldset>
         </Panel>
         <Panel title="Notes & accountability">

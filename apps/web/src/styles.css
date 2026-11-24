@@ -50,7 +50,7 @@ button:disabled,
   cursor: not-allowed;
   opacity: 0.55;
 }
-input,
+input:where(:not([type='checkbox'], [type='radio'])),
 select,
 textarea {
   width: 100%;
@@ -65,7 +65,7 @@ textarea {
   resize: vertical;
   min-height: 100px;
 }
-input:focus,
+input:where(:not([type='checkbox'], [type='radio'])):focus,
 select:focus,
 textarea:focus {
   outline: 3px solid #c1ddf2;
@@ -1733,7 +1733,7 @@ p {
   letter-spacing: 0;
   color: var(--muted);
 }
-input,
+input:where(:not([type='checkbox'], [type='radio'])),
 select,
 textarea {
   border: 1px solid var(--border);
@@ -1744,7 +1744,7 @@ textarea {
   color: var(--ink);
   background: var(--sheet);
 }
-input:focus,
+input:where(:not([type='checkbox'], [type='radio'])):focus,
 select:focus,
 textarea:focus {
   outline: 2px solid #cfe0ee;
@@ -2799,36 +2799,8 @@ body:has(.access-layout) {
     display: none;
   }
 }
-input[type='checkbox'] {
-  width: 20px;
-  min-width: 20px;
-  height: 20px;
-  min-height: 20px;
-  padding: 0;
-  border-radius: 3px;
-  accent-color: var(--navy);
-  vertical-align: middle;
-  cursor: pointer;
-}
-input[type='checkbox']:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
+/* Checkboxes are styled by the shared Checkbox component (components/ui.tsx). */
 @media (max-width: 768px) {
-  input[type='checkbox'] {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    min-height: 24px;
-  }
-  .checkbox input {
-    width: 22px;
-    height: 22px;
-  }
-  .filter-checkbox input {
-    width: 22px;
-    height: 22px;
-  }
   .button.small {
     min-height: 44px;
     padding: 10px 16px;

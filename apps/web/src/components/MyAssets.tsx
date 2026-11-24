@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import type { Asset } from '../types';
 import { useSession } from '../session';
+import { MySubscriptions } from './Subscriptions';
 import {
   Badge,
   Empty,
@@ -52,7 +53,7 @@ export function MyAssets() {
       <PageTitle
         eyebrow="My workspace"
         title="My assets"
-        description="Equipment assigned to you. Confirm what you received, and report problems here."
+        description="Equipment and subscriptions assigned to you. Confirm what you received, and report problems here."
       />
       <ErrorNotice error={query.error ?? action.error} retry={() => void query.refetch()} />
       {query.isPending ? (
@@ -74,6 +75,8 @@ export function MyAssets() {
           When equipment is handed to you, it appears here for you to confirm.
         </Empty>
       )}
+      {/* Software and AI tools given to this person (hidden when there are none). */}
+      <MySubscriptions />
     </>
   );
 }

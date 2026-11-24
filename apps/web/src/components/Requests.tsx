@@ -6,6 +6,7 @@ import { useSession } from '../session';
 import type { Asset } from '../types';
 import { EmptyChart } from './charts';
 import {
+  Checkbox,
   Badge,
   Drawer,
   Empty,
@@ -512,12 +513,7 @@ function HandOverDrawer({
                       on ? 'border-navy-300 bg-navy-50' : 'border-gray-200 hover:bg-gray-50',
                     )}
                   >
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-navy-700"
-                      checked={on}
-                      onChange={() => toggle(a.id)}
-                    />
+                    <Checkbox checked={on} onChange={() => toggle(a.id)} ariaLabel={`Select ${a.assetCode}`} />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium text-navy-700">{a.assetCode}</span>
                       <span className="block truncate text-xs text-gray-500">

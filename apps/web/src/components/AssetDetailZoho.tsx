@@ -1,3 +1,4 @@
+import { SupplierLink } from './Vendors';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -309,6 +310,10 @@ export function AssetDetailZoho() {
                 <dd>{asset.model || 'Unknown'}</dd>
                 <dt>Serial number</dt>
                 <dd>{asset.serialNumber || 'Unknown'}</dd>
+                <dt>Supplier</dt>
+                <dd>
+                  <SupplierLink supplier={asset.supplier} />
+                </dd>
                 <dt>Barcode / QR</dt>
                 <dd>{asset.barcode || 'Unknown'}</dd>
                 <dt>Ownership</dt>

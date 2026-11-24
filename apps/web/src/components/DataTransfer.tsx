@@ -4,6 +4,7 @@ import { api } from '../api';
 import { cellText, downloadTable, readTable } from '../transfer-files';
 import type { TransferColumn, TransferFormat } from '../transfer-files';
 import {
+  Checkbox,
   ErrorNotice,
   Field,
   Loading,
@@ -639,21 +640,18 @@ function BulkTransferPanel({ module, disabled = false }: { module: string; disab
         />
       </Field>
       {module === 'people' || module === 'assignments' ? (
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={sendEmails}
-            disabled={disabled || busy}
-            onChange={(event) => {
-              generation.current++;
-              setSendEmails(event.target.checked);
-              setPreview(undefined);
-              setConfirmed(false);
-              setMessage('');
-            }}
-          />
-          Send invitation and asset assignment emails after import
-        </label>
+        <Checkbox
+          label="Send invitation and asset assignment emails after import"
+          checked={sendEmails}
+          disabled={disabled || busy}
+          onChange={(checked) => {
+            generation.current++;
+            setSendEmails(checked);
+            setPreview(undefined);
+            setConfirmed(false);
+            setMessage('');
+          }}
+        />
       ) : null}
       <button
         type="button"
@@ -703,21 +701,18 @@ function BulkTransferPanel({ module, disabled = false }: { module: string; disab
                   correction will be skipped and can be uploaded later in a separate batch.
                 </p>
               ) : null}
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  disabled={disabled || busy}
-                  onChange={(event) => setConfirmed(event.target.checked)}
-                />
-                I reviewed these changes and authorize importing {validRowCount} valid rows.
-                {skippedRowCount > 0
-                  ? ` ${skippedRowCount} invalid rows will be skipped.`
-                  : ''}{' '}
-                {sendEmails
-                  ? 'Invitation and assignment emails may be sent.'
-                  : 'Email is off for this batch.'}
-              </label>
+              <Checkbox
+                label={
+                  <>
+                    I reviewed these changes and authorize importing {validRowCount} valid rows.
+                    {skippedRowCount > 0 ? ` ${skippedRowCount} invalid rows will be skipped.` : ''}{' '}
+                    {sendEmails ? 'Invitation and assignment emails may be sent.' : 'Email is off for this batch.'}
+                  </>
+                }
+                checked={confirmed}
+                disabled={disabled || busy}
+                onChange={setConfirmed}
+              />
               <button
                 type="button"
                 className={buttonClass()}

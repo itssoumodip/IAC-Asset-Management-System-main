@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import type { RoleFieldResponse } from '../types';
 import {
+  Checkbox,
   ErrorNotice,
   Field,
   Loading,
@@ -281,19 +282,15 @@ export function RoleFieldPermissions() {
                             <tr key={field} className={edits[field] ? 'bg-yellow-50' : undefined}>
                               <td className="text-gray-800">{fieldLabel(field)}</td>
                               <td className="text-center">
-                                <input
-                                  type="checkbox"
-                                  className="size-4 accent-navy-700"
-                                  aria-label={`${roleLabel(selectedRole)} can see ${fieldLabel(field)}`}
+                                <Checkbox
+                                  ariaLabel={`${roleLabel(selectedRole)} can see ${fieldLabel(field)}`}
                                   checked={value.canView}
                                   onChange={() => toggle(field, 'canView')}
                                 />
                               </td>
                               <td className="text-center">
-                                <input
-                                  type="checkbox"
-                                  className="size-4 accent-navy-700"
-                                  aria-label={`${roleLabel(selectedRole)} can change ${fieldLabel(field)}`}
+                                <Checkbox
+                                  ariaLabel={`${roleLabel(selectedRole)} can change ${fieldLabel(field)}`}
                                   checked={value.canEdit}
                                   onChange={() => toggle(field, 'canEdit')}
                                 />

@@ -54,3 +54,10 @@ GRANT DELETE ON in_app_announcement_reads TO iac_runtime;
 GRANT INSERT,UPDATE ON verification_cycles,verification_items TO iac_runtime;
 GRANT INSERT,UPDATE ON depreciation_schedules TO iac_runtime;
 GRANT INSERT ON purchases TO iac_runtime;
+-- Subscriptions: managed by IT; giving and ending a person's seat keeps the row as history.
+GRANT INSERT,UPDATE ON subscriptions,subscription_assignments TO iac_runtime;
+-- Exchange rates for rupee totals (refreshed by the server from a public rates service).
+GRANT INSERT,UPDATE ON exchange_rates TO iac_runtime;
+-- Vendors: edited from the Vendors page; reference people are replaced as a set on save.
+GRANT INSERT,UPDATE ON vendors TO iac_runtime;
+GRANT INSERT,DELETE ON vendor_reference_people TO iac_runtime;

@@ -1,0 +1,459 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { api } from '../api';
+import { formatInr } from '../admin-insights';
+import { can, useSession } from '../session';
+import type { User } from '../types';
+import { StatTile } from './charts';
+import { SubscriptionLogo, canViewSubscriptions } from './Subscriptions';
+import {
+  Avatar,
+  Badge,
+  Empty,
+  ErrorNotice,
+  Loading,
+  PageTitle,
+  Panel,
+  backLinkClass,
+  buttonClass,
+  cx,
+  displayDate,
+  inputClass,
+  tableClass,
+  tableWrapClass,
+} from './ui';
+
+/** Who may browse other people's holdings (each person can always open their own page). */
+export function canBrowsePeople(user: User | undefined) {
+  return can(user, 'asset.view_all') || can(user, 'report.view') || canViewSubscriptions(user);
+}
+
+interface PersonRow {
+  id: string;
+  name: string;
+  email: string;
+  designation: string | null;
+  employeeCode: string | null;
+  department: string | null;
+  left: boolean;
+  hasPhoto: boolean;
+  assets: number;
+  subscriptions: number;
+}
+interface Profile {
+  person: {
+    id: string;
+    name: string;
+    email: string;
+    designation: string | null;
+    employeeCode: string | null;
+    department: string | null;
+    manager: string | null;
+    state: string;
+    leftAt: string | null;
+    hasPhoto: boolean;
+  };
+  totals: {
+    assets: number;
+    assetValue: number | null;
+    pendingConfirmation: number;
+    subscriptions: number | null;
+    namedSubscriptions: number | null;
+    monthlySubscriptionShare: number | null;
+    pastAssets: number;
+  };
+  assets: {
+    id: string;
+    assetCode: string;
+    description: string;
+    category: string;
+    assetType: string;
+    manufacturer: string | null;
+    model: string | null;
+    serialNumber: string | null;
+    status: string;
+    warrantyExpiry: string | null;
+    purchaseCost: number | null;
+    assignedAt: string;
+    acknowledgement: 'PENDING' | 'ACCEPTED' | 'DISPUTED';
+  }[];
+  pastAssets: { id: string; assetCode: string; description: string; assetType: string; assignedAt: string; endedAt: string }[];
+  subscriptions:
+    | {
+        id: string;
+        name: string;
+        vendor: string | null;
+        plan: string | null;
+        category: string;
+        status: string;
+        renewalDate: string | null;
+        via: 'PERSON' | 'DEPARTMENT' | 'ORGANISATION';
+        assignedAt: string | null;
+        logoVersion: number | null;
+        monthlyShareInr: number | null;
+      }[]
+    | null;
+  tickets: { id: string; ticketNumber: number; subject: string; status: string; priority: string; createdAt: string }[] | null;
+  scopeNote: string | null;
+}
+
+/* --------------------------------------------------------------- list */
+
+/** Everyone, with how much each holds; opens each person's page. */
+export function PeopleDirectory() {
+  const [params, setParams] = useSearchParams();
+  const [search, setSearch] = useState(params.get('q') ?? '');
+  const q = params.get('q') ?? '';
+  const holding = params.get('holding') ?? 'any';
+  const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (search.trim() === q) return;
+      const next = new URLSearchParams(params);
+      if (search.trim()) next.set('q', search.trim());
+      else next.delete('q');
+      setParams(next, { replace: true });
+      setOffset(0);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+  const query = useQuery({
+    queryKey: ['people', q, holding, offset],
+    queryFn: ({ signal }) =>
+      api<{ items: PersonRow[]; nextOffset: number | null; showsSubscriptions: boolean }>(
+        `/people?limit=50&offset=${offset}${holding !== 'all' ? `&holding=${holding}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+        { signal },
+      ),
+    placeholderData: keepPreviousData,
+  });
+  const rows = query.data?.items ?? [];
+  const subs = query.data?.showsSubscriptions;
+  const setHolding = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value === 'any') next.delete('holding');
+    else next.set('holding', value);
+    setParams(next, { replace: true });
+    setOffset(0);
+  };
+
+  return (
+    <>
+      <PageTitle
+        eyebrow="ASSETS"
+        title="People"
+        description="Everyone and what they hold. Open a person to see their equipment, subscriptions, what they had before, and their support requests."
+      />
+      <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+      <Panel>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <input
+            type="search"
+            className={cx(inputClass, 'min-w-56 flex-1')}
+            placeholder="Search name, email, employee code or designation"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search people"
+          />
+          <div role="tablist" aria-label="Show" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+            {[
+              ['any', 'Holding something'],
+              ['assets', 'With assets'],
+              ...(subs ? [['subscriptions', 'With subscriptions']] : []),
+              ['all', 'Everyone'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                role="tab"
+                type="button"
+                aria-selected={holding === value}
+                onClick={() => setHolding(value)}
+                className={cx(
+                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  holding === value ? 'bg-navy-700 text-white' : 'text-gray-600 hover:text-navy-700',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {query.isPending ? (
+          <Loading />
+        ) : rows.length ? (
+          <div className={tableWrapClass}>
+            <table className={tableClass}>
+              <thead>
+                <tr>
+                  <th>Person</th>
+                  <th>Designation</th>
+                  <th>Department</th>
+                  <th className="text-right">Assets</th>
+                  {subs ? <th className="text-right">Subscriptions</th> : null}
+                  <th aria-label="Open" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <Link to={`/people/${p.id}`} className="flex items-center gap-3 no-underline">
+                        <Avatar userId={p.id} name={p.name} hasPhoto={p.hasPhoto} size={32} />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-gray-900 hover:text-navy-700">{p.name}</span>
+                          <span className="block truncate text-xs text-gray-500">
+                            {p.email}
+                            {p.left ? <span className="ml-1 font-medium text-red-700">· has left</span> : null}
+                          </span>
+                        </span>
+                      </Link>
+                    </td>
+                    <td className="text-sm">{p.designation ?? '—'}</td>
+                    <td className="text-sm">{p.department ?? '—'}</td>
+                    <td className="text-right tabular-nums">{p.assets || <span className="text-gray-400">0</span>}</td>
+                    {subs ? <td className="text-right tabular-nums">{p.subscriptions || <span className="text-gray-400">0</span>}</td> : null}
+                    <td className="text-right">
+                      <Link to={`/people/${p.id}`} className={buttonClass('secondary', 'sm')}>
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty title="Nobody matches">Try another search or show everyone.</Empty>
+        )}
+        {offset > 0 || query.data?.nextOffset != null ? (
+          <div className="mt-4 flex justify-center gap-2">
+            <button type="button" className={buttonClass('secondary', 'sm')} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>
+              Previous
+            </button>
+            <button
+              type="button"
+              className={buttonClass('secondary', 'sm')}
+              disabled={query.data?.nextOffset == null}
+              onClick={() => setOffset(query.data?.nextOffset ?? offset)}
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
+      </Panel>
+    </>
+  );
+}
+
+/* --------------------------------------------------------------- page */
+
+const VIA_LABEL = { PERSON: 'Given to them', DEPARTMENT: 'Through their department', ORGANISATION: 'For everyone' } as const;
+const ACK = {
+  PENDING: { value: 'PENDING', label: 'Not confirmed' },
+  ACCEPTED: { value: 'ACCEPTED', label: 'Confirmed' },
+  DISPUTED: { value: 'DISPUTED', label: 'Reported a problem' },
+} as const;
+
+/** Everything one person holds: equipment, subscriptions, past equipment and support requests. */
+export function PersonPage() {
+  const { id } = useParams();
+  const { user } = useSession();
+  const self = user?.id === id;
+  const query = useQuery({
+    queryKey: ['person', id],
+    queryFn: ({ signal }) => api<Profile>(`/people/${id}`, { signal }),
+  });
+  const d = query.data;
+  if (query.isPending) return <Loading label="Loading person…" />;
+  if (query.error || !d) return <ErrorNotice error={query.error} retry={() => void query.refetch()} />;
+  const p = d.person;
+  const t = d.totals;
+  const section = (title: string, count: number | null, children: ReactNode, action?: ReactNode) => (
+    <Panel title={count == null ? title : `${title} · ${count}`} action={action}>
+      {children}
+    </Panel>
+  );
+
+  return (
+    <>
+      {canBrowsePeople(user) ? (
+        <Link to="/people" className={backLinkClass}>
+          ← People
+        </Link>
+      ) : null}
+      <section className="mb-6 flex flex-wrap items-center gap-5 rounded-xl border border-gray-200 bg-white p-5">
+        <Avatar userId={p.id} name={p.name} hasPhoto={p.hasPhoto} size={72} />
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 text-[11px] font-semibold tracking-[0.16em] text-red-600 uppercase">{self ? 'Your profile' : 'Person'}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-navy-900">{p.name}</h1>
+          <p className="mt-0.5 text-sm text-gray-600">{[p.designation, p.department].filter(Boolean).join(' · ') || '—'}</p>
+          <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+            <a href={`mailto:${p.email}`} className="text-navy-700">
+              {p.email}
+            </a>
+            {p.employeeCode ? <span>Employee code {p.employeeCode}</span> : null}
+            {p.manager ? <span>Reports to {p.manager}</span> : null}
+          </p>
+        </div>
+        {p.leftAt ? (
+          <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700 ring-1 ring-red-100">Left on {displayDate(p.leftAt)}</span>
+        ) : p.state !== 'ACTIVE' ? (
+          <Badge value={p.state} />
+        ) : null}
+      </section>
+      {d.scopeNote ? <p className="mb-4 text-sm text-gray-500">{d.scopeNote}</p> : null}
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Assets held" value={String(t.assets)} detail={t.pendingConfirmation ? `${t.pendingConfirmation} not confirmed` : 'All confirmed'} />
+        {t.assetValue != null ? <StatTile label="Value of assets" value={formatInr(t.assetValue)} detail="Purchase cost" /> : null}
+        {t.subscriptions != null ? (
+          <StatTile label="Subscriptions" value={String(t.subscriptions)} detail={`${t.namedSubscriptions ?? 0} given by name`} />
+        ) : null}
+        {t.monthlySubscriptionShare != null ? (
+          <StatTile label="Subscription cost" value={formatInr(t.monthlySubscriptionShare)} detail="Their seats, per month" />
+        ) : null}
+        <StatTile label="Held before" value={String(t.pastAssets)} detail="Returned or moved on" />
+        {d.tickets ? <StatTile label="Support requests" value={String(d.tickets.length)} detail="Most recent 10" /> : null}
+      </div>
+
+      <div className="flex flex-col gap-6">
+        {section(
+          'Equipment',
+          d.assets.length,
+          d.assets.length ? (
+            <div className={tableWrapClass}>
+              <table className={tableClass}>
+                <thead>
+                  <tr>
+                    <th>Asset</th>
+                    <th>Type</th>
+                    <th>Serial</th>
+                    <th>Since</th>
+                    <th>Confirmation</th>
+                    <th>Status</th>
+                    <th>Warranty</th>
+                    {t.assetValue != null ? <th className="text-right">Cost</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.assets.map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <Link to={`/assets/${a.id}`} className="block font-mono text-xs font-medium text-navy-700 no-underline hover:underline">
+                          {a.assetCode}
+                        </Link>
+                        <span className="block max-w-64 truncate text-sm text-gray-800">
+                          {[a.manufacturer, a.model].filter(Boolean).join(' ') || a.description}
+                        </span>
+                      </td>
+                      <td className="text-sm">{a.assetType || a.category}</td>
+                      <td className="font-mono text-xs">{a.serialNumber ?? '—'}</td>
+                      <td className="whitespace-nowrap text-sm">{displayDate(a.assignedAt)}</td>
+                      <td>
+                        <Badge value={ACK[a.acknowledgement].value} label={ACK[a.acknowledgement].label} />
+                      </td>
+                      <td>
+                        <Badge value={a.status} />
+                      </td>
+                      <td className="whitespace-nowrap text-sm">{a.warrantyExpiry ? displayDate(a.warrantyExpiry) : '—'}</td>
+                      {t.assetValue != null ? (
+                        <td className="text-right tabular-nums">{a.purchaseCost != null ? formatInr(a.purchaseCost) : '—'}</td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No equipment is with {self ? 'you' : 'them'} right now.</p>
+          ),
+          canBrowsePeople(user) && d.assets.length ? (
+            <Link to={`/assets?holderId=${p.id}`} className="text-xs font-medium text-navy-700 no-underline hover:underline">
+              Open in the catalog
+            </Link>
+          ) : undefined,
+        )}
+
+        {d.subscriptions
+          ? section(
+              'Subscriptions',
+              d.subscriptions.length,
+              d.subscriptions.length ? (
+                <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {d.subscriptions.map((s) => (
+                    <li key={s.id}>
+                      <Link
+                        to={canViewSubscriptions(user) ? `/subscriptions/${s.id}` : '#'}
+                        className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 no-underline hover:border-navy-200"
+                      >
+                        <SubscriptionLogo s={s} size={36} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-gray-900">{s.name}</span>
+                          <span className="block truncate text-xs text-gray-500">{[s.vendor, s.plan, s.category].filter(Boolean).join(' · ')}</span>
+                          <span className="mt-1 block text-xs text-gray-500">
+                            {VIA_LABEL[s.via]}
+                            {s.via === 'PERSON' && s.assignedAt ? ` since ${displayDate(s.assignedAt)}` : ''}
+                            {s.monthlyShareInr ? ` · ${formatInr(s.monthlyShareInr)}/month` : ''}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-gray-500">No subscriptions.</p>
+              ),
+            )
+          : null}
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {section(
+            'Held before',
+            d.pastAssets.length,
+            d.pastAssets.length ? (
+              <ul className="divide-y divide-gray-100">
+                {d.pastAssets.map((a) => (
+                  <li key={`${a.id}-${a.endedAt}`} className="flex items-center gap-3 py-2.5 text-sm">
+                    <Link to={`/assets/${a.id}`} className="font-mono text-xs font-medium text-navy-700 no-underline hover:underline">
+                      {a.assetCode}
+                    </Link>
+                    <span className="min-w-0 flex-1 truncate text-gray-700">{a.description}</span>
+                    <span className="text-xs whitespace-nowrap text-gray-500">
+                      {displayDate(a.assignedAt)} – {displayDate(a.endedAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500">Nothing returned yet.</p>
+            ),
+          )}
+          {d.tickets
+            ? section(
+                'Support requests',
+                d.tickets.length,
+                d.tickets.length ? (
+                  <ul className="divide-y divide-gray-100">
+                    {d.tickets.map((tk) => (
+                      <li key={tk.id} className="flex items-center gap-3 py-2.5 text-sm">
+                        <Link to={`/tickets/${tk.id}`} className="min-w-0 flex-1 no-underline">
+                          <span className="block truncate font-medium text-gray-900 hover:text-navy-700">{tk.subject}</span>
+                          <span className="text-xs text-gray-500">
+                            #{tk.ticketNumber} · {displayDate(tk.createdAt)}
+                          </span>
+                        </Link>
+                        <Badge value={tk.status} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-500">No support requests.</p>
+                ),
+              )
+            : null}
+        </div>
+      </div>
+    </>
+  );
+}

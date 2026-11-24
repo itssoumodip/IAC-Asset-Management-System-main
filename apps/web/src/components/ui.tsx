@@ -450,30 +450,68 @@ export function Field({
     </div>
   );
 }
+/**
+ * The one checkbox used across the app. With `label` it is a clickable row (the label can wrap
+ * over several lines); without one it is a bare box for table rows, and `ariaLabel` names it.
+ */
 export function Checkbox({
   label,
   checked,
   onChange,
   className = '',
+  disabled = false,
+  required = false,
+  ariaLabel,
+  id,
 }: {
-  label: string;
+  label?: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
   className?: string;
+  disabled?: boolean;
+  required?: boolean;
+  /** Accessible name when there is no visible label. */
+  ariaLabel?: string;
+  id?: string;
 }) {
+  // shadcn/ui-style box drawn with Tailwind over the real (native) checkbox, so keyboard,
+  // forms and screen readers behave exactly as a normal checkbox.
+  const box = (
+    <span className={cx('relative inline-flex size-4 shrink-0', label != null && 'mt-0.5')}>
+      <input
+        type="checkbox"
+        id={id}
+        className={cx(
+          'peer size-4 shrink-0 cursor-pointer appearance-none rounded-[4px] border border-gray-300 bg-white',
+          'transition-colors checked:border-navy-700 checked:bg-navy-700 hover:border-navy-400',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-200 focus-visible:ring-offset-1',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+        )}
+        checked={checked}
+        disabled={disabled}
+        required={required}
+        aria-label={ariaLabel}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <svg
+        viewBox="0 0 16 16"
+        className="pointer-events-none absolute inset-0 size-4 text-white opacity-0 transition-opacity peer-checked:opacity-100"
+        aria-hidden="true"
+      >
+        <path d="m4 8.5 2.5 2.5L12 5.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+  if (label == null) return box;
   return (
     <label
       className={cx(
-        'inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700',
+        'inline-flex cursor-pointer items-start gap-2 text-sm text-gray-700',
+        disabled && 'cursor-not-allowed opacity-60',
         className,
       )}
     >
-      <input
-        type="checkbox"
-        className="size-4 cursor-pointer accent-navy-700"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
+      {box}
       <span>{label}</span>
     </label>
   );
@@ -802,7 +840,7 @@ export function PersonChip({
           ) : null}
           {holdingsHref ? (
             <Link
-              to={holdingsHref}
+              to={`/people/${userId}`}
               onClick={() => setOpen(false)}
               className={cx(buttonClass('secondary', 'sm'), 'mt-4 w-full justify-center')}
             >

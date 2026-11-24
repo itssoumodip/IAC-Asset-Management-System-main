@@ -9,6 +9,7 @@ import type { ImportBatch, References, Role, User } from '../types';
 import { fetchAllPages, readTable } from '../transfer-files';
 import { ExportRecords, FormTransfer } from './DataTransfer';
 import {
+  Checkbox,
   Avatar,
   Badge,
   Empty,
@@ -341,14 +342,7 @@ export function UserAdmin() {
                   maxLength={254}
                 />
               </Field>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={invite}
-                  onChange={(event) => setInvite(event.target.checked)}
-                />
-                Send an invitation to this email
-              </label>
+              <Checkbox label="Send an invitation to this email" checked={invite} onChange={setInvite} />
               {invite ? (
                 <>
                   <Field label="Employee name" htmlFor="admin-displayName">
@@ -483,24 +477,20 @@ export function UserAdmin() {
                 maxLength={254}
               />
             </Field>
-            <fieldset>
-              <legend>Roles</legend>
-              {(['EMPLOYEE', 'FINANCE', 'EXECUTIVE', 'SUPER_ADMIN'] as Role[]).map((role) => (
-                <label className="checkbox" key={role}>
-                  <input
-                    type="checkbox"
+            <fieldset className="m-0 rounded-lg border border-gray-200 px-4 pt-2 pb-3">
+              <legend className="px-1 text-sm font-medium text-gray-700">Roles</legend>
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                {(['EMPLOYEE', 'FINANCE', 'EXECUTIVE', 'SUPER_ADMIN'] as Role[]).map((role) => (
+                  <Checkbox
+                    key={role}
+                    label={role.replace('_', ' ').toLowerCase().replace(/(^|\s)\S/g, (s) => s.toUpperCase())}
                     checked={roles.includes(role)}
-                    onChange={(event) =>
-                      setRoles(
-                        event.target.checked
-                          ? [...roles, role]
-                          : roles.filter((value) => value !== role),
-                      )
+                    onChange={(checked) =>
+                      setRoles(checked ? [...roles, role] : roles.filter((value) => value !== role))
                     }
                   />
-                  {role.replace('_', ' ')}
-                </label>
-              ))}
+                ))}
+              </div>
             </fieldset>
             <Field label="Account status" htmlFor="account-state">
               <Select
@@ -1826,17 +1816,14 @@ export function ImportsView() {
                     />
                   </Field>
                 </div>
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={acceptFinance}
-                    onChange={(event) => {
-                      setAcceptFinance(event.target.checked);
-                      setReviewVersion((value) => value ?? query.data?.version);
-                    }}
-                  />
-                  I approve operational import of rows with explicitly pending Finance metadata.
-                </label>
+                <Checkbox
+                  label="I approve operational import of rows with explicitly pending Finance metadata."
+                  checked={acceptFinance}
+                  onChange={(checked) => {
+                    setAcceptFinance(checked);
+                    setReviewVersion((value) => value ?? query.data?.version);
+                  }}
+                />
                 <button
                   className={buttonClass('secondary')}
                   disabled={
@@ -1853,18 +1840,14 @@ export function ImportsView() {
             )}
             {query.data.state === 'REVIEWED' ? (
               <div className="subsection">
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={confirmed}
-                    onChange={(event) => {
-                      setConfirmed(event.target.checked);
-                      setCommitVersion(query.data?.version);
-                    }}
-                  />
-                  I have reconciled the reviewed rows, exceptions, identity mapping, and source
-                  evidence.
-                </label>
+                <Checkbox
+                  label="I have reconciled the reviewed rows, exceptions, identity mapping, and source evidence."
+                  checked={confirmed}
+                  onChange={(checked) => {
+                    setConfirmed(checked);
+                    setCommitVersion(query.data?.version);
+                  }}
+                />
                 <button
                   className={buttonClass()}
                   type="button"

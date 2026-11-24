@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useAction } from '../hooks';
 import { useReferences } from './References';
 import {
+  Checkbox,
   ErrorNotice,
   Field,
   Loading,
@@ -293,14 +294,11 @@ export function DepreciationSettings() {
               </p>
             ) : null}
             {editing ? (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => setForm({ ...form, active: event.target.checked })}
-                />
-                Available for new asset assignments
-              </label>
+              <Checkbox
+                label="Available for new asset assignments"
+                checked={form.active}
+                onChange={(checked) => setForm({ ...form, active: checked })}
+              />
             ) : null}
             <Field label="Reason for change" htmlFor="method-reason">
               <textarea

@@ -39,6 +39,15 @@ import { FinanceReview } from './components/FinanceReview';
 import { PushAnnouncements } from './components/PushAnnouncements';
 import { TicketResponseTimes } from './components/OperationalReports';
 import { PageReveal } from './components/PageReveal';
+import {
+  SubscriptionDetail,
+  SubscriptionForm,
+  SubscriptionList,
+  canManageSubscriptions,
+  canViewSubscriptions,
+} from './components/Subscriptions';
+import { PeopleDirectory, PersonPage, canBrowsePeople } from './components/People';
+import { VendorDetail, VendorForm, VendorList, canManageVendors, canViewVendors } from './components/Vendors';
 import { Insurance, WarrantyExpiry, canSeeInsurance, canSeeWarranty } from './components/AssetCare';
 import { Procurement } from './components/Procurement';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
@@ -144,6 +153,12 @@ const navIconPaths = {
     </>
   ),
   transfers: <path d="M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3" />,
+  subscriptions: (
+    <>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+      <path d="M3.5 9.5h17M7 14.5h4M15.5 13.5l1.5 1.5 2.5-3" />
+    </>
+  ),
   labels: (
     <>
       <rect x="4" y="4" width="6" height="6" rx="1" />
@@ -454,6 +469,21 @@ function Shell() {
             {can(user, 'asset.view_all') && (
               <SideLink to="/assets" icon="assets" end>
                 Asset catalog
+              </SideLink>
+            )}
+            {canViewSubscriptions(user) && (
+              <SideLink to="/subscriptions" icon="subscriptions">
+                Subscriptions
+              </SideLink>
+            )}
+            {canBrowsePeople(user) && (
+              <SideLink to="/people" icon="people">
+                People
+              </SideLink>
+            )}
+            {canViewVendors(user) && (
+              <SideLink to="/vendors" icon="procurement">
+                Vendors
               </SideLink>
             )}
             {/* Same rule as the /approvals route and API: team leads and Super Admin. */}
@@ -949,6 +979,29 @@ export function App() {
             </Route>
             <Route element={<Guard action="asset.label" />}>
               <Route path="/assets/labels" element={<LabelPrintPage />} />
+            </Route>
+            {/* Subscriptions: IT team adds and assigns; leadership, Finance and auditors view. */}
+            <Route element={<Guard allow={canManageSubscriptions} />}>
+              <Route path="/subscriptions/new" element={<SubscriptionForm />} />
+              <Route path="/subscriptions/:id/edit" element={<SubscriptionForm />} />
+            </Route>
+            {/* Vendors: team members, Finance and Procurement edit; asset viewers and leadership view. */}
+            <Route element={<Guard allow={canManageVendors} />}>
+              <Route path="/vendors/new" element={<VendorForm />} />
+              <Route path="/vendors/:id/edit" element={<VendorForm />} />
+            </Route>
+            <Route element={<Guard allow={canViewVendors} />}>
+              <Route path="/vendors" element={<VendorList />} />
+              <Route path="/vendors/:id" element={<VendorDetail />} />
+            </Route>
+            {/* Person pages: anyone opens their own; the list needs asset, report or subscription access. */}
+            <Route path="/people/:id" element={<PersonPage />} />
+            <Route element={<Guard allow={canBrowsePeople} />}>
+              <Route path="/people" element={<PeopleDirectory />} />
+            </Route>
+            <Route element={<Guard allow={canViewSubscriptions} />}>
+              <Route path="/subscriptions" element={<SubscriptionList />} />
+              <Route path="/subscriptions/:id" element={<SubscriptionDetail />} />
             </Route>
             <Route element={<Guard anyOf={['asset.edit', 'asset.finance_edit']} />}>
               <Route path="/assets/:id/edit" element={<AssetEditor />} />

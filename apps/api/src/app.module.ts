@@ -36,6 +36,9 @@ import { CategoryController, CategoryService } from './categories';
 import { ViewAsController } from './view-as';
 import { InsightsController, InsightsService } from './insights';
 import { TicketInsightsController, TicketInsightsService } from './ticket-insights';
+import { SubscriptionController, SubscriptionService } from './subscriptions';
+import { PersonProfileController, PersonProfileService } from './person-profile';
+import { VendorController, VendorService } from './vendors';
 import {
   DirectoryController,
   UserPhotoController,
@@ -82,6 +85,9 @@ import {
     ViewAsController,
     InsightsController,
     TicketInsightsController,
+    SubscriptionController,
+    PersonProfileController,
+    VendorController,
   ],
   providers: [
     Db,
@@ -110,6 +116,9 @@ import {
     ReportsService,
     InsuranceService,
     TicketInsightsService,
+    SubscriptionService,
+    PersonProfileService,
+    VendorService,
     ProcurementService,
     ApprovalsService,
     ExportJobsService,

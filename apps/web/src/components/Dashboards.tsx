@@ -11,6 +11,7 @@ import { OverviewDashboard, RegisterCharts } from './OverviewDashboard';
 import { SupportInsights } from './SupportInsights';
 import { AssetInsights, type InsightsVariant } from './Insights';
 import { AssetCareCard } from './AssetCare';
+import { SubscriptionsCard } from './Subscriptions';
 import {
   AuditorDashboard,
   FinanceDashboard,
@@ -143,6 +144,10 @@ function withInsights(dashboard: ReactNode, variant: InsightsVariant) {
       {/* Warranty, AMC and insurance needing attention; hides itself for people without access. */}
       <div className="mt-6">
         <AssetCareCard />
+      </div>
+      {/* Subscriptions for those who may view them (IT, admins, Finance, leadership, auditors). */}
+      <div className="mt-6">
+        <SubscriptionsCard />
       </div>
       <AssetInsights variant={variant} />
     </>

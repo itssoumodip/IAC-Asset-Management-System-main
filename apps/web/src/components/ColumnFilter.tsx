@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
-import { buttonClass, cx } from './ui';
+import {
+  Checkbox, buttonClass, cx } from './ui';
 
 export interface FilterOption {
   value: string;
@@ -55,13 +56,7 @@ export function CheckList({
           return (
             <li key={o.value}>
               <label htmlFor={id} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm text-gray-700 hover:bg-gray-50">
-                <input
-                  id={id}
-                  type="checkbox"
-                  className="size-4 accent-navy-700"
-                  checked={selected.includes(o.value)}
-                  onChange={() => toggle(o.value)}
-                />
+                <Checkbox id={id} checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
               </label>
             </li>

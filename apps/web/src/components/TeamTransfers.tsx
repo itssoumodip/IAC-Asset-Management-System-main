@@ -7,6 +7,7 @@ import { can, useSession } from '../session';
 import type { Asset } from '../types';
 import { useReferences } from './References';
 import {
+  Checkbox,
   Empty,
   ErrorNotice,
   Field,
@@ -118,10 +119,7 @@ export function AssetTransferPanel({ asset }: { asset: Asset }) {
             />
           </Field>
           {mayForce ? (
-            <label className="checkbox">
-              <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
-              <span>Force immediately (no acceptance needed)</span>
-            </label>
+            <Checkbox label="Force immediately (no acceptance needed)" checked={force} onChange={setForce} />
           ) : null}
           <div className="form-actions">
             <button

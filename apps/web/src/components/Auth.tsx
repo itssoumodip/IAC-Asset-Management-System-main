@@ -5,7 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, captureFragmentToken, resetCsrf } from '../api';
 import { useSession } from '../session';
 import { takeReturnTo } from '../return-to';
-import { ErrorNotice, Field, Loading } from './ui';
+import {
+  Checkbox, ErrorNotice, Field, Loading } from './ui';
 import QRCode from 'qrcode';
 
 /** Saves recovery codes as a local text file; nothing is sent to the server. */
@@ -447,16 +448,12 @@ export function AccessScreen() {
                 request. Confirm each assigned asset separately after reviewing its details.
               </p>
             </div>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={accepted}
-                onChange={(event) => setAccepted(event.target.checked)}
-                required
-              />
-              I have read and accept portal access notice version {user.currentNoticeVersion ?? '1'}
-              .
-            </label>
+            <Checkbox
+              label={`I have read and accept portal access notice version ${user.currentNoticeVersion ?? '1'}.`}
+              checked={accepted}
+              onChange={setAccepted}
+              required
+            />
             <button className="button full" type="submit" disabled={!accepted || pending}>
               {pending ? 'Saving...' : 'Accept and continue'}
             </button>
