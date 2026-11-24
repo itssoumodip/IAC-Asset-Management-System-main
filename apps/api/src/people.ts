@@ -70,7 +70,9 @@ export class PeopleService {
     const where = [
       `EXISTS(SELECT 1 FROM user_roles r WHERE r.user_id=u.id AND r.role_code='EMPLOYEE')`,
       `u.merged_into_user_id IS NULL`,
-      `((u.state='DIRECTORY' AND u.left_at IS NULL) OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL))`,
+      // Invited people who have not signed in yet are real staff too (and while email is off they
+      // cannot accept an invitation), so they can be given custody like Zoho directory people.
+      `((u.state IN ('DIRECTORY','INVITED') AND u.left_at IS NULL) OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL))`,
     ];
     if (input.q) {
       values.push(input.q);

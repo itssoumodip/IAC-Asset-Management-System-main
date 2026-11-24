@@ -50,7 +50,7 @@ export interface AssignablePerson {
   employeeCode: string | null;
   designation: string | null;
   department: string | null;
-  state: 'ACTIVE' | 'DIRECTORY';
+  state: 'ACTIVE' | 'DIRECTORY' | 'INVITED';
   hasPhoto: boolean;
 }
 export interface User {

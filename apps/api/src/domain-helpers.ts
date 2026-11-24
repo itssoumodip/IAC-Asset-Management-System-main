@@ -656,6 +656,11 @@ async function validateOwnership(
       throw fieldIssue('category', 'An override reason is required');
   }
 }
+/**
+ * Someone who may be given custody: a current Zoho directory person, an invited person who has
+ * not signed in yet (both are real staff who have not left), or an active, verified account.
+ * llowInvited also admits invited people who have left (used when ending a kit's custody).
+ */
 export async function eligibleEmployee(
   db: Db,
   userId: string,
@@ -665,7 +670,7 @@ export async function eligibleEmployee(
   return found(
     (
       await db.query(
-        `SELECT u.id,u.email,u.state FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND (($2::boolean AND u.state='INVITED') OR (u.state='DIRECTORY' AND u.left_at IS NULL) OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
+        `SELECT u.id,u.email,u.state FROM users u JOIN user_roles r ON r.user_id=u.id AND r.role_code='EMPLOYEE' WHERE u.id=$1 AND u.merged_into_user_id IS NULL AND (($2::boolean AND u.state='INVITED') OR (u.state IN ('DIRECTORY','INVITED') AND u.left_at IS NULL) OR (u.state='ACTIVE' AND u.email_verified_at IS NOT NULL AND u.portal_accepted_at IS NOT NULL)) FOR SHARE OF u`,
         [userId, allowInvited],
         c,
       )

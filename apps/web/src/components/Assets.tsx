@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAction, usePages } from '../hooks';
@@ -1462,6 +1462,7 @@ const financeKeys = new Set([
 function AssetEditForm({ asset }: { asset?: Asset }) {
   const [baseline] = useState(asset);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const refs = useReferences();
   const { user } = useSession();
   const action = useAction<Asset>();
@@ -1865,6 +1866,10 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
         return;
       }
     }
+    // The assignment above changed the asset after the save, so drop any copy loaded in between
+    // (otherwise the asset page would show the old status and no holder until refreshed).
+    await queryClient.invalidateQueries({ queryKey: ['asset', result.id] });
+    void queryClient.invalidateQueries({ queryKey: ['/assets'] });
     navigate(`/assets/${result.id}`);
   }
   if (savedWithoutInvoice)
