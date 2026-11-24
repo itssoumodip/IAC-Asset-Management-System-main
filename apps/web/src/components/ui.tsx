@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, PropsWithChildren, ReactNode } from 'react';
 import { useState, useEffect, useId, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api';
@@ -526,6 +526,7 @@ export function Select({
   disabled = false,
   required = false,
   ariaDescribedBy,
+  className,
 }: {
   label: string;
   htmlFor: string;
@@ -536,9 +537,13 @@ export function Select({
   disabled?: boolean;
   required?: boolean;
   ariaDescribedBy?: string;
+  className?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
   const selectRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -553,6 +558,53 @@ export function Select({
   }, [isOpen]);
 
   const selectedOption = options.find((opt) => opt.value === value);
+  const visibleOptions = searchText
+    ? options.filter((option) => option.label.toLocaleLowerCase().includes(searchText.toLocaleLowerCase()))
+    : options;
+  const activeOption = visibleOptions[activeIndex];
+  const open = (initialSearch = '') => {
+    setSearchText(initialSearch);
+    setActiveIndex(0);
+    setIsOpen(true);
+  };
+  const choose = (option: (typeof options)[number] | undefined) => {
+    if (!option || option.disabled) return;
+    onChange(option.value);
+    setSearchText('');
+    setIsOpen(false);
+  };
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!isOpen) {
+        open();
+        return;
+      }
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      setActiveIndex((index) => Math.max(0, Math.min(visibleOptions.length - 1, index + direction)));
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (isOpen) choose(activeOption);
+      else open();
+    } else if (event.key === 'Escape' && isOpen) {
+      event.preventDefault();
+      setSearchText('');
+      setIsOpen(false);
+    } else if (event.key === 'Backspace' && isOpen && searchText) {
+      event.preventDefault();
+      setSearchText((text) => text.slice(0, -1));
+      setActiveIndex(0);
+    } else if (event.key.length === 1 && !event.key.match(/[\\u0000-\\u001f]/)) {
+      event.preventDefault();
+      if (isOpen) {
+        setSearchText((text) => text + event.key);
+        setActiveIndex(0);
+      } else {
+        open(event.key);
+      }
+    }
+  };
 
   return (
     <Field label={label} htmlFor={htmlFor} hint={hint}>
@@ -565,16 +617,26 @@ export function Select({
             'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-navy-500',
             'disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400',
             isOpen ? 'border-navy-500' : 'border-gray-300 hover:border-gray-400',
+            className,
           )}
-          onClick={() => !disabled && setIsOpen(!isOpen)}
+          onClick={() => {
+            if (disabled) return;
+            if (isOpen) {
+              setSearchText('');
+              setIsOpen(false);
+            } else open();
+          }}
+          onKeyDown={handleKeyDown}
           disabled={disabled}
           role="combobox"
           aria-expanded={isOpen}
           aria-haspopup="listbox"
+          aria-controls={listboxId}
+          aria-activedescendant={isOpen && activeOption ? `${listboxId}-option-${activeIndex}` : undefined}
           aria-describedby={ariaDescribedBy}
         >
-          <span className={cx('truncate', !selectedOption && 'text-gray-400')}>
-            {selectedOption ? selectedOption.label : 'Select...'}
+          <span className={cx('truncate', !selectedOption && !searchText && 'text-gray-400')}>
+            {isOpen && searchText ? searchText : selectedOption ? selectedOption.label : 'Select...'}
           </span>
           <svg
             viewBox="0 0 20 20"
@@ -592,32 +654,34 @@ export function Select({
         </button>
         {isOpen && !disabled && (
           <ul
+            id={listboxId}
             className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-md"
             role="listbox"
           >
-            {options.map((option) => (
+            {visibleOptions.length ? visibleOptions.map((option, index) => (
               <li
                 key={option.value}
+                id={`${listboxId}-option-${index}`}
                 className={cx(
                   'cursor-pointer px-3 py-2 text-sm',
-                  option.value === value
+                  index === activeIndex
+                    ? 'bg-gray-50 text-gray-900'
+                    : option.value === value
                     ? 'bg-navy-50 font-medium text-navy-700'
                     : 'text-gray-700 hover:bg-gray-50',
                   option.disabled && 'cursor-not-allowed opacity-50',
                 )}
-                onClick={() => {
-                  if (!option.disabled) {
-                    onChange(option.value);
-                    setIsOpen(false);
-                  }
-                }}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => choose(option)}
                 role="option"
                 aria-selected={option.value === value}
                 aria-disabled={option.disabled}
               >
                 {option.label}
               </li>
-            ))}
+            )) : (
+              <li className="px-3 py-2 text-sm text-gray-500" role="status">No matching options</li>
+            )}
           </ul>
         )}
         {required && (

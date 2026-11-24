@@ -1,4 +1,3 @@
-import { VendorSuggestions } from './Vendors';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -1524,6 +1523,20 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
     }> }>('/depreciation/methods', { signal }),
     enabled: canFinance,
   });
+  const vendors = useQuery({
+    queryKey: ['vendor-names'],
+    queryFn: ({ signal }) => api<{ items: { id: string; name: string }[] }>('/vendors/names', { signal }),
+    enabled: canFinance,
+    staleTime: 300_000,
+  });
+  const supplierNames = (vendors.data?.items ?? []).map((vendor) => vendor.name);
+  const supplierOptions = [
+    { value: '', label: 'Select supplier' },
+    ...(values.supplier && !supplierNames.includes(values.supplier)
+      ? [{ value: values.supplier, label: values.supplier }]
+      : []),
+    ...supplierNames.map((name) => ({ value: name, label: name })),
+  ];
   const applicableDepreciationMethods = (depreciationMethods.data?.items ?? [])
     .filter((method) => method.active && (!method.teamId || method.teamId === teamId) &&
       (!method.categoryCode || method.categoryCode === values.category))
@@ -2279,18 +2292,13 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
               ['purchaseCost', 'Purchase cost (INR)'],
               ['residualValue', 'Residual value (INR)'],
               ['invoiceNumber', 'Invoice number'],
-              ['supplier', 'Supplier'],
-              ['insurancePolicyNumber', 'Insurance policy number'],
             ].map(([name, label]) => (
               <Field key={name} label={label} htmlFor={name}>
                 <input
                   id={name}
                   value={values[name] ?? ''}
                   onChange={(event) => set(name, event.target.value)}
-                  list={name === 'supplier' ? 'vendor-suggestions' : undefined}
-                  inputMode={
-                    name === 'purchaseCost' || name === 'residualValue' ? 'decimal' : 'text'
-                  }
+                  inputMode={name === 'purchaseCost' || name === 'residualValue' ? 'decimal' : 'text'}
                   pattern={
                     name === 'purchaseCost' || name === 'residualValue'
                       ? '[0-9]+([.][0-9]{1,2})?'
@@ -2299,8 +2307,23 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
                 />
               </Field>
             ))}
-            {/* Supplier suggestions from the Vendors list, so assets link to their vendor. */}
-            <VendorSuggestions id="vendor-suggestions" />
+            <Field label="Supplier" htmlFor="supplier">
+              <Select
+                label=""
+                htmlFor="supplier"
+                value={values.supplier ?? ''}
+                onChange={(value) => set('supplier', value)}
+                disabled={!canFinance || vendors.isPending}
+                options={supplierOptions}
+              />
+            </Field>
+            <Field label="Insurance policy number" htmlFor="insurancePolicyNumber">
+              <input
+                id="insurancePolicyNumber"
+                value={values.insurancePolicyNumber ?? ''}
+                onChange={(event) => set('insurancePolicyNumber', event.target.value)}
+              />
+            </Field>
           </fieldset>
         </Panel>
         <Panel title="Notes & accountability">

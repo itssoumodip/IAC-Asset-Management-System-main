@@ -20,6 +20,7 @@ import {
   cx,
   displayDate,
   inputClass,
+  Select,
 } from './ui';
 
 interface CatalogItem {
@@ -173,19 +174,16 @@ function AskForItems({ onCreated }: { onCreated: () => void }) {
           </div>
           <div className="min-w-48">
             <Field label="Category" htmlFor="req-category">
-              <select
-                id="req-category"
-                className={inputClass}
+              <Select
+                label=""
+                htmlFor="req-category"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">All categories</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategory}
+                options={[
+                  { value: '', label: 'All categories' },
+                  ...categories.map((c) => ({ value: c, label: c })),
+                ]}
+              />
             </Field>
           </div>
         </div>

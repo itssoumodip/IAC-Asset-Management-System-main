@@ -19,6 +19,7 @@ import {
   cx,
   displayDate,
   inputClass,
+  Select,
   tableClass,
   tableWrapClass,
 } from './ui';
@@ -342,14 +343,19 @@ function FilterRow({
         aria-label="Search assets"
       />
       {teams.length > 1 ? (
-        <select className={cx(inputClass, 'min-w-40 flex-1')} value={team} onChange={(e) => setTeam(e.target.value)} aria-label="Team">
-          <option value="">All teams</option>
-          {teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({plain(t.assets)})
-            </option>
-          ))}
-        </select>
+        <div className="min-w-40 flex-1">
+          <Select
+            label=""
+            htmlFor="asset-care-team"
+            value={team}
+            onChange={setTeam}
+            className="h-10"
+            options={[
+              { value: '', label: 'All teams' },
+              ...teams.map((t) => ({ value: t.id, label: `${t.name} (${plain(t.assets)})` })),
+            ]}
+          />
+        </div>
       ) : null}
       {showClear ? (
         <button type="button" className={buttonClass('ghost')} onClick={onClear}>

@@ -12,7 +12,7 @@ import {
   type TrendWeek,
 } from '../executive';
 import { useReferences } from './References';
-import { buttonClass, cx, displayDate, ErrorNotice, Loading } from './ui';
+import { buttonClass, cx, displayDate, ErrorNotice, Loading, Select } from './ui';
 import {
   BarList,
   Card,
@@ -294,21 +294,17 @@ function FilterSelect({
   options: { value: string; label: string }[];
 }) {
   return (
-    <label htmlFor={id} className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-      {label}
-      <select
-        id={id}
+    <div className="flex min-w-40 flex-col gap-1 text-xs font-medium text-gray-500">
+      <span>{label}</span>
+      <Select
+        label=""
+        htmlFor={id}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 min-w-40 rounded-lg border border-gray-300 bg-white px-3 text-sm font-normal text-gray-800 focus-visible:outline-2 focus-visible:outline-navy-500"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        className="h-9"
+        options={options}
+      />
+    </div>
   );
 }
 

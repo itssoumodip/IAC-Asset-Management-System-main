@@ -20,7 +20,7 @@ function FunnelIcon({ className }: { className?: string }) {
   );
 }
 
-/** Checkbox list; a search box appears inside only when the list is long. */
+/** Checkbox list that filters in place when someone types while its popover is open. */
 export function CheckList({
   options,
   selected,
@@ -36,20 +36,34 @@ export function CheckList({
   const shown = term
     ? options.filter((o) => o.label.toLowerCase().includes(term.trim().toLowerCase()))
     : options;
+  useEffect(() => {
+    const handleTypeToFilter = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        if (target.isContentEditable || target.matches('textarea, select')) return;
+        if (target instanceof HTMLInputElement && target.type !== 'checkbox') return;
+        // Space keeps its normal checkbox behavior when a checkbox has focus.
+        if (target instanceof HTMLInputElement && target.type === 'checkbox' && event.key === ' ') return;
+      }
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        setTerm((current) => current.slice(0, -1));
+      } else if (event.key.length === 1) {
+        event.preventDefault();
+        setTerm((current) => current + event.key);
+      }
+    };
+    document.addEventListener('keydown', handleTypeToFilter);
+    return () => document.removeEventListener('keydown', handleTypeToFilter);
+  }, []);
   const toggle = (value: string) =>
     onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
   return (
     <div>
-      {options.length > 10 ? (
-        <input
-          type="search"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          placeholder="Find…"
-          aria-label="Find an option"
-          className="mb-2 h-8 w-full rounded-md border border-gray-200 px-2 text-sm"
-        />
-      ) : null}
+      <p className="mb-2 min-h-4 text-[11px] text-gray-400" aria-live="polite">
+        {term ? `Filtering: ${term}` : 'Type to filter options'}
+      </p>
       <ul className="max-h-60 space-y-0.5 overflow-y-auto pr-1">
         {shown.map((o, i) => {
           const id = `${idPrefix}-${i}`;

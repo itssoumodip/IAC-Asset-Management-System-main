@@ -71,6 +71,9 @@ describe('vendors', { skip: !connection, concurrency: false }, () => {
     assert.equal(list.items[0].assetValue, 42000);
     const lookup = await service.lookup({ user: employee } as any, ` ${name.toLowerCase()} `);
     assert.equal(lookup.vendor?.id, vendorId);
+    // Dashes, extra spaces and "and" for "&" still match.
+    const loose = await service.lookup({ user: employee } as any, name.replace(' Optima', '-Optima ').replace('Infotech', 'Info tech'));
+    assert.equal(loose.vendor?.id, vendorId);
   });
 
   it('edits with a version check and replaces reference people', async () => {

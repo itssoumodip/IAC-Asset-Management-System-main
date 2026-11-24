@@ -70,8 +70,8 @@ export function canViewVendors(actor: Actor) {
   return canManageVendors(actor) || can(actor, 'asset.view_all') || can(actor, 'report.view');
 }
 
-/** Name used to link assets and subscriptions to a vendor. */
-const KEY = (column: string) => `lower(btrim(${column}))`;
+/** Name used to link assets and subscriptions to a vendor: ignores case, spaces and punctuation (see migration 060). */
+const KEY = (column: string) => `vendor_key(${column})`;
 
 @Injectable()
 export class VendorService {

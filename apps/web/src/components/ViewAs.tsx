@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, setViewAs } from '../api';
 import { useSession } from '../session';
 import { useReferences } from './References';
-import { buttonClass, cx } from './ui';
+import { buttonClass, cx, Select } from './ui';
 
 const ROLE_CHOICES: { value: string; label: string }[] = [
   { value: 'role:FINANCE', label: 'Finance' },
@@ -53,40 +53,25 @@ export function ViewAsMenu() {
     }
   }
   return (
-    <label className="hidden items-center gap-2 text-xs text-gray-500 md:flex" title={error || undefined}>
+    <div className="hidden items-center gap-2 text-xs text-gray-500 md:flex" title={error || undefined}>
       <span className="sr-only sm:not-sr-only">View as</span>
-      <select
-        className={cx(
-          'h-9 max-w-44 rounded-lg border bg-white px-2 text-sm text-gray-700',
-          error ? 'border-red-400' : 'border-gray-200',
-        )}
+      <Select
+        label=""
+        htmlFor="view-as-select"
+        className={cx('h-9 max-w-44', error ? 'border-red-400' : 'border-gray-200')}
         value=""
         disabled={busy}
-        onChange={(event) => void choose(event.target.value)}
-        aria-label="Preview the portal as another role or team"
-      >
-        <option value="">Choose…</option>
-        <optgroup label="Roles">
-          {ROLE_CHOICES.map((choice) => (
-            <option key={choice.value} value={choice.value}>
-              {choice.label}
-            </option>
-          ))}
-        </optgroup>
-        {teams.length ? (
-          <optgroup label="Teams">
-            {teams.flatMap((team) => [
-              <option key={`${team.id}-m`} value={`team:${team.id}:MEMBER`}>
-                {team.name} — member
-              </option>,
-              <option key={`${team.id}-l`} value={`team:${team.id}:LEAD`}>
-                {team.name} — lead
-              </option>,
-            ])}
-          </optgroup>
-        ) : null}
-      </select>
-    </label>
+        onChange={(target) => void choose(target)}
+        options={[
+          { value: '', label: 'Choose…' },
+          ...ROLE_CHOICES.map((choice) => ({ ...choice, label: `Role · ${choice.label}` })),
+          ...teams.flatMap((team) => [
+            { value: `team:${team.id}:MEMBER`, label: `Team · ${team.name} — member` },
+            { value: `team:${team.id}:LEAD`, label: `Team · ${team.name} — lead` },
+          ]),
+        ]}
+      />
+    </div>
   );
 }
 

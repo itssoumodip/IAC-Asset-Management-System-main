@@ -23,6 +23,7 @@ import {
   actionsClass,
   inputClass,
   formStackClass,
+  Select,
 } from './ui';
 
 export const INVOICE_MAX_BYTES = 10 * 1024 * 1024;
@@ -717,32 +718,30 @@ export function FinanceReview() {
         />
       )}
       <div className="mb-5 grid gap-3 sm:grid-cols-[12rem_14rem_1fr]">
-        <select
-          aria-label="Status"
-          className={inputClass}
+        <Select
+          label=""
+          htmlFor="finance-status-filter"
           value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
+          onChange={(value) => {
+            setStatus(value);
             setSelected(undefined);
           }}
-        >
-          <option value="PENDING">Pending Finance</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="APPROVED">Approved</option>
-        </select>
-        <select
-          aria-label="Team"
-          className={inputClass}
+          options={[
+            { value: 'PENDING', label: 'Pending Finance' },
+            { value: 'REJECTED', label: 'Rejected' },
+            { value: 'APPROVED', label: 'Approved' },
+          ]}
+        />
+        <Select
+          label=""
+          htmlFor="finance-team-filter"
           value={teamId}
-          onChange={(event) => setTeamId(event.target.value)}
-        >
-          <option value="">All teams</option>
-          {(refs.data?.teams ?? []).map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.code} · {t.name}
-            </option>
-          ))}
-        </select>
+          onChange={setTeamId}
+          options={[
+            { value: '', label: 'All teams' },
+            ...(refs.data?.teams ?? []).map((t) => ({ value: t.id, label: `${t.code} · ${t.name}` })),
+          ]}
+        />
         <input
           aria-label="Search assets"
           className={inputClass}
