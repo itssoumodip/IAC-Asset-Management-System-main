@@ -21,17 +21,37 @@ import { AuthRequest, SessionGuard, assertVersion } from './security';
 import { assertCan } from './policy';
 import { parse } from './domain-helpers';
 
+export type CalculationType = 'SLM' | 'WDV' | 'NONE';
+const calculationType = z.enum(['SLM', 'WDV', 'NONE']);
+
+/**
+ * One year's charge, as the finance register works it out (the run below does the same in SQL):
+ * - WDV: rate × opening written-down value. The Companies Act rates already allow for the scrap
+ *   value, so the residual is not deducted again.
+ * - SLM: (cost − residual) ÷ useful life, never taking the value below the residual.
+ * - NONE: no charge (land and similar).
+ * In the year the asset is put to use only the days in service count: × days ÷ 365.
+ * Rounded to whole rupees, like the register.
+ */
 export function calculateDepreciationCharge(input: {
-  calculationType: 'SLM' | 'WDV';
+  calculationType: CalculationType;
   purchaseCost: number;
   residualValue: number;
   openingValue: number;
   usefulLifeYears: number;
   ratePercent: number;
+  daysInService?: number;
 }): number {
-  return input.calculationType === 'SLM'
-    ? (input.purchaseCost - input.residualValue) / input.usefulLifeYears
-    : input.openingValue * (input.ratePercent / 100);
+  if (input.calculationType === 'NONE' || input.openingValue <= 0) return 0;
+  const share = Math.min(input.daysInService ?? 365, 365) / 365;
+  const yearly =
+    input.calculationType === 'SLM'
+      ? Math.min(
+          (input.purchaseCost - input.residualValue) / input.usefulLifeYears,
+          input.openingValue - input.residualValue,
+        )
+      : input.openingValue * (input.ratePercent / 100);
+  return Math.max(0, Math.round(yearly * share));
 }
 
 /** Depreciation page: per-asset purchase date, capitalisation date, method, rate,
@@ -74,7 +94,7 @@ export class DepreciationService {
     assertCan(req.user, 'depreciation.manage_methods');
     const input = parse(z.object({
       label: z.string().trim().min(1).max(150),
-      calculationType: z.enum(['SLM', 'WDV']),
+      calculationType,
       ratePercent: z.number().positive().max(100).nullable().optional(),
       teamId: z.string().uuid().nullable().optional(),
       categoryCode: z.string().trim().min(1).max(100).nullable().optional(),
@@ -134,7 +154,7 @@ export class DepreciationService {
     assertCan(req.user, 'depreciation.manage_methods');
     const input = parse(z.object({
       label: z.string().trim().min(1).max(150),
-      calculationType: z.enum(['SLM', 'WDV']),
+      calculationType,
       ratePercent: z.number().positive().max(100).nullable().optional(),
       teamId: z.string().uuid().nullable().optional(),
       categoryCode: z.string().trim().min(1).max(100).nullable().optional(),
@@ -228,19 +248,21 @@ export class DepreciationService {
         a.purchase_date, a.purchase_cost, a.residual_value,
         COALESCE(method_ref.label, a.depreciation_method) AS depreciation_method,
         a.useful_life_years, a.capitalisation_date,
-        COALESCE(a.purchase_cost, 0)::float8 AS current_value,
-        COALESCE(
-          (SELECT ds.accumulated_depreciation
-           FROM depreciation_schedules ds
-           WHERE ds.asset_id = a.id
-           ORDER BY ds.financial_year_start DESC
-           LIMIT 1), 0
-        )::float8 AS depreciated_value
+        -- Book value after the latest run (cost until the first run); depreciated = written off so far.
+        COALESCE(latest.closing_value, a.purchase_cost, 0)::float8 AS current_value,
+        COALESCE(latest.accumulated_depreciation, 0)::float8 AS depreciated_value
       FROM assets a
       JOIN teams t ON t.id = a.owning_team_id
       LEFT JOIN reference_values method_ref
         ON method_ref.kind='DEPRECIATION_METHOD' AND method_ref.code=a.depreciation_method
-      WHERE a.purchase_cost IS NOT NULL
+      LEFT JOIN LATERAL (
+        SELECT ds.closing_value, ds.accumulated_depreciation
+          FROM depreciation_schedules ds
+         WHERE ds.asset_id = a.id
+         ORDER BY ds.financial_year_start DESC
+         LIMIT 1
+      ) latest ON true
+      WHERE a.purchase_cost IS NOT NULL AND a.removed_at IS NULL
       ORDER BY a.asset_code
     `);
     return withFieldPermissions(this.db, req.user, {
@@ -308,9 +330,14 @@ export class DepreciationService {
     if (!defaultMethod) throw new UnprocessableEntityException('Choose an active depreciation method');
 
     // One statement for the whole register (fast at tens of thousands of assets, and all or
-    // nothing): opening value is last year's closing value, or cost less residual for a first
-    // year; assets already written down to zero are skipped. SLM charges (cost − residual) /
-    // useful life; WDV charges the method's rate on the opening value. Useful life defaults to 5.
+    // nothing), worked out the way the finance register does (see calculateDepreciationCharge):
+    // - opening value is last year's closing value, or the cost in the first year;
+    // - WDV charges the rate on the opening value; SLM charges (cost − residual) ÷ useful life
+    //   (default 5) but never below the residual; "No depreciation" methods are skipped;
+    // - in the year the asset is put to use (capitalisation date, else purchase date) only the
+    //   days from that date to 31 March count; assets put to use after the year are skipped;
+    // - charges are whole rupees; accumulated depreciation is cost less closing value;
+    // - removed, disposed, sold, retired and scrapped assets are not depreciated.
     const results = await this.db.query(
       `
       WITH last AS MATERIALIZED (
@@ -328,20 +355,31 @@ export class DepreciationService {
                coalesce(nullif(a.useful_life_years, 0), 5) AS life,
                COALESCE(asset_rule.calculation_type, default_rule.calculation_type, 'WDV') AS calculation_type,
                COALESCE(asset_rule.rate_percent, default_rule.rate_percent, 15) AS rate_percent,
+               coalesce(a.capitalisation_date, a.purchase_date) AS in_service,
                last.closing_value AS last_closing
           FROM assets a
           LEFT JOIN last ON last.asset_id = a.id
           LEFT JOIN depreciation_method_rules asset_rule ON asset_rule.method_code = a.depreciation_method
           LEFT JOIN depreciation_method_rules default_rule ON default_rule.method_code = $1
          WHERE a.purchase_cost IS NOT NULL AND a.removed_at IS NULL
+           AND a.status NOT IN ('Disposed', 'Sold', 'Retired', 'Scrapped')
       ),
       opened AS (
-        SELECT *, coalesce(last_closing, cost - residual) AS opening FROM base
+        SELECT *,
+               coalesce(last_closing, cost) AS opening,
+               CASE WHEN in_service IS NULL OR in_service < make_date($2, 4, 1) THEN 365
+                    ELSE make_date($2 + 1, 3, 31) - in_service + 1 END AS days
+          FROM base
+         WHERE calculation_type <> 'NONE'
+           AND (in_service IS NULL OR in_service <= make_date($2 + 1, 3, 31))
       ),
       charged AS (
         SELECT *,
-               CASE WHEN calculation_type = 'SLM' THEN (cost - residual) / life
-                    ELSE opening * (rate_percent / 100) END AS charge
+               greatest(0, round(
+                 CASE WHEN calculation_type = 'SLM'
+                      THEN least((cost - residual) / life, opening - residual)
+                      ELSE opening * (rate_percent / 100) END
+                 * least(days, 365) / 365.0, 0)) AS charge
           FROM opened WHERE opening > 0
       )
       INSERT INTO depreciation_schedules
@@ -349,9 +387,8 @@ export class DepreciationService {
          opening_value, depreciation_charge, closing_value, accumulated_depreciation)
       SELECT id, $2, calculation_type,
              CASE WHEN calculation_type = 'SLM' THEN round(100.0 / life, 2) ELSE rate_percent END,
-             cost, opening, charge, greatest(0, opening - charge),
-             cost - residual - greatest(0, opening - charge)
-        FROM charged
+             cost, opening, charge, opening - charge, cost - (opening - charge)
+        FROM charged WHERE charge > 0
       ON CONFLICT (asset_id, financial_year_start) DO UPDATE SET
         method = EXCLUDED.method,
         rate = EXCLUDED.rate,

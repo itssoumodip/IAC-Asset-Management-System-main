@@ -158,4 +158,24 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     assert.equal(store.liveValue, null);
     assert.ok(store.byDepartment.every((s: any) => !('value' in s)));
   });
+
+  it('narrows every chart to one team and lists the teams to choose from', async () => {
+    const all = await insights.insights({ user: admin } as any);
+    const it = await insights.insights({ user: admin } as any, IT_TEAM_ID);
+    assert.equal(it.teamId, IT_TEAM_ID);
+    assert.deepEqual(it.teams, all.teams);
+    assert.ok(all.teams.some((t: any) => t.id === IT_TEAM_ID));
+    const [count] = await db.query(
+      'SELECT count(*)::int AS n FROM assets WHERE owning_team_id=$1 AND removed_at IS NULL',
+      [IT_TEAM_ID],
+    );
+    assert.equal(it.total, count.n);
+    assert.ok(it.byCategory.some((c: any) => c.label === 'IT Hardware'));
+    // Our holder's laptops are IT's, so they still count; another team's view has none of them.
+    const itHolders = await insights.holders({ user: admin } as any, IT_TEAM_ID);
+    assert.equal(itHolders.find((h) => h.userId === holder)?.count, 2);
+    const other = await insights.insights({ user: admin } as any, randomUUID());
+    assert.equal(other.total, 0);
+    await assert.rejects(insights.insights({ user: admin } as any, 'not-a-team'), (e: any) => e.status === 400);
+  });
 });

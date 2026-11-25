@@ -42,7 +42,7 @@ interface DepreciationMethodOption {
   code: string;
   label: string;
   active: boolean;
-  calculationType: 'SLM' | 'WDV';
+  calculationType: 'SLM' | 'WDV' | 'NONE';
   ratePercent: number | null;
   teamName: string | null;
   categoryLabel: string | null;
@@ -154,8 +154,9 @@ export function Depreciation() {
           </button>
         </div>
         <p className="muted small-text">
-          SLM uses the asset’s useful life and residual value. WDV applies the selected method’s
-          configured annual rate. Capitalisation date is set automatically at first assignment.
+          Each asset uses its own method; the one chosen here covers assets without a method. In
+          the year an asset is put to use, only the days from its capitalisation date count.
+          Capitalisation date is set automatically at first assignment.
         </p>
         {query.isPending ? (
           <Loading />
@@ -207,8 +208,10 @@ export function Depreciation() {
           above to run for the selected year and method.
         </p>
         <div className="muted small-text">
-          SLM: (Purchase cost − Residual value) ÷ Useful life years, capped at residual value.
-          WDV: configured rate × opening written-down value, reducing balance each year.
+          SLM: (Purchase cost − Residual value) ÷ Useful life years, never below the residual value.
+          WDV: rate × opening written-down value (the rate already allows for scrap value).
+          First year: × days in service ÷ 365. Charges are rounded to whole rupees, like the
+          finance register. No-depreciation methods (land) are skipped.
         </div>
       </Panel>
     </>

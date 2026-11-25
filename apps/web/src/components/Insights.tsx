@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { formatInr } from '../admin-insights';
 import { BarList, Card, ColumnChart, DonutChart, StatTile } from './charts';
-import { ErrorNotice } from './ui';
+import { ErrorNotice, Select } from './ui';
 
 interface Slice {
   label: string;
@@ -17,6 +18,8 @@ export interface Holder {
 }
 interface InsightsData {
   money: boolean;
+  teamId: string | null;
+  teams: { id: string; name: string; count: number }[];
   topHolders: Holder[];
   multiHolders: number;
   total: number;
@@ -24,6 +27,7 @@ interface InsightsData {
   liveValue: number | null;
   byStatus: Slice[];
   byType: Slice[];
+  byCategory: Slice[];
   byDepartment: Slice[];
   byCondition: Slice[];
   byYear: Slice[];
@@ -48,6 +52,7 @@ export type InsightsVariant =
 
 type ChartKey =
   | 'holders'
+  | 'category'
   | 'department'
   | 'type'
   | 'status'
@@ -62,13 +67,13 @@ type ChartKey =
   | 'valueDepartment';
 
 const CHARTS: Record<InsightsVariant, ChartKey[]> = {
-  overview: ['department', 'holders', 'type', 'status', 'year', 'warranty', 'age', 'custody'],
+  overview: ['department', 'holders', 'category', 'type', 'status', 'year', 'warranty', 'age', 'custody'],
   finance: ['valueDepartment', 'year', 'supplier', 'age', 'type', 'warranty'],
   store: ['custody', 'status', 'condition', 'type', 'department', 'holders'],
   auditor: ['audit', 'department', 'condition', 'holders', 'status', 'custody'],
   insurer: ['insurance', 'warranty', 'department', 'type', 'age', 'condition'],
   procurement: ['year', 'supplier', 'age', 'type', 'warranty', 'department'],
-  team: ['department', 'holders', 'type', 'status', 'warranty', 'condition'],
+  team: ['department', 'holders', 'category', 'type', 'status', 'warranty', 'condition'],
   employee: ['type', 'warranty'],
 };
 
@@ -82,8 +87,6 @@ function topWithOther(items: { label: string; value: number }[], keep: number) {
   const rest = sorted.slice(keep).reduce((sum, i) => sum + i.value, 0);
   return [...sorted.slice(0, keep), { label: 'Other', value: rest }];
 }
-const assetsLink = (key: string, value: string) => `/assets?${new URLSearchParams({ [key]: value })}`;
-
 export function useHolders() {
   return useQuery({
     queryKey: ['dashboard', 'holders'],
@@ -101,17 +104,48 @@ export function useBrands() {
 }
 
 /** Charts below each role dashboard, computed over the assets that person may see. */
+const TEAM_KEY = 'iac.insights.team';
+function savedTeam() {
+  try {
+    return localStorage.getItem(TEAM_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function AssetInsights({ variant }: { variant: InsightsVariant }) {
+  // '' = every team the viewer can see; remembered per browser.
+  const [teamId, setTeamId] = useState(savedTeam);
   const query = useQuery({
-    queryKey: ['dashboard', 'insights'],
-    queryFn: ({ signal }) => api<InsightsData>('/dashboard/insights', { signal }),
+    queryKey: ['dashboard', 'insights', teamId],
+    queryFn: ({ signal }) =>
+      api<InsightsData>(`/dashboard/insights${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ''}`, { signal }),
     staleTime: 60_000,
+    placeholderData: (previous) => previous,
   });
+  const chooseTeam = (value: string) => {
+    setTeamId(value);
+    try {
+      if (value) localStorage.setItem(TEAM_KEY, value);
+      else localStorage.removeItem(TEAM_KEY);
+    } catch {
+      // The choice still applies for this visit.
+    }
+  };
+  // A remembered team the viewer no longer sees falls back to all teams.
+  const staleTeam = !!teamId && !!query.data && !query.data.teams.some((t) => t.id === teamId);
+  useEffect(() => {
+    if (staleTeam) chooseTeam('');
+  }, [staleTeam]); // eslint-disable-line react-hooks/exhaustive-deps
   if (query.error) return <ErrorNotice error={query.error} retry={() => void query.refetch()} />;
   const d = query.data;
-  if (!d || d.total === 0) return null;
+  if (!d || staleTeam || (d.total === 0 && !teamId)) return null;
 
   const counts = (items: Slice[]) => items.map((s) => ({ label: s.label, value: s.count }));
+  // Chart links open the asset catalog with the same team chosen.
+  const assetsLink = (key: string, value: string) =>
+    `/assets?${new URLSearchParams({ [key]: value, ...(teamId ? { owningTeamId: teamId } : {}) })}`;
+  const teamName = d.teams.find((t) => t.id === teamId)?.name;
   const card = (key: ChartKey) => {
     switch (key) {
       case 'holders':
@@ -156,10 +190,38 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
             />
           </Card>
         );
+      case 'category':
+        return (
+          <Card key={key} title="By category">
+            <div className="max-h-80 overflow-y-auto pr-1">
+              <BarList
+                items={d.byCategory.map((s) => ({
+                  label: s.label,
+                  value: s.count,
+                  note: d.money ? shortInr(s.value ?? 0) : undefined,
+                  to: assetsLink('category', s.label),
+                }))}
+                limit={Number.POSITIVE_INFINITY}
+                valueLabel="Assets"
+              />
+            </div>
+          </Card>
+        );
       case 'type':
         return (
           <Card key={key} title="By subcategory">
-            <DonutChart items={counts(d.byType).map((s) => ({ ...s, to: assetsLink('assetType', s.label) }))} valueLabel="Assets" labelHeader="Subcategory" centerLabel="Assets" />
+            {/* Every subcategory (there are dozens, too many for a donut); the list scrolls. */}
+            <div className="max-h-80 overflow-y-auto pr-1">
+              <BarList
+                items={counts(d.byType).map((s, _, all) => ({
+                  ...s,
+                  note: `${Math.round((s.value / all.reduce((sum, t) => sum + t.value, 0)) * 100)}%`,
+                  to: assetsLink('assetType', s.label),
+                }))}
+                limit={Number.POSITIVE_INFINITY}
+                valueLabel="Assets"
+              />
+            </div>
           </Card>
         );
       case 'status':
@@ -278,10 +340,29 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
 
   return (
     <section className="mt-8" aria-label="Asset charts">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-        <h2 className="text-base font-medium text-gray-900">Asset insights</h2>
-        <span className="text-xs text-gray-500">Based on the assets you can see</span>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-medium text-gray-900">Asset insights</h2>
+          <span className="text-xs text-gray-500">
+            {teamName ? `${teamName} team’s assets` : 'Based on the assets you can see'}
+          </span>
+        </div>
+        {d.teams.length > 1 ? (
+          <div className="w-56">
+            <Select
+              label="Team"
+              htmlFor="insights-team"
+              value={teamId}
+              onChange={chooseTeam}
+              options={[
+                { value: '', label: 'All teams' },
+                ...d.teams.map((t) => ({ value: t.id, label: `${t.name} (${plain(t.count)})` })),
+              ]}
+            />
+          </div>
+        ) : null}
       </div>
+      {d.total === 0 ? <p className="mb-4 text-sm text-gray-500">This team has no assets yet.</p> : null}
       {variant !== 'employee' ? (
         <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile label="Assets in use or in store" value={plain(d.live)} detail={`${plain(d.total)} on the register`} to="/assets" />

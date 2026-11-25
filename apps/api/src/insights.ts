@@ -1,8 +1,21 @@
-import { Controller, Get, Inject, Injectable, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Inject, Injectable, Query, Req, UseGuards } from '@nestjs/common';
 import { Db } from './db';
 import { assetScope } from './domain-helpers';
 import { can } from './policy';
 import { AuthRequest, SessionGuard } from './security';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The viewer's asset scope, optionally narrowed to one owning team (the dashboard's team picker). */
+function scopeFor(req: AuthRequest, values: unknown[], teamId?: string) {
+  let scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
+  if (teamId) {
+    if (!UUID.test(teamId)) throw new BadRequestException('Invalid team');
+    values.push(teamId);
+    scope += ` AND a.owning_team_id = $${values.length}::uuid`;
+  }
+  return scope;
+}
 
 /**
  * Chart data for every dashboard, computed over exactly the assets the viewer may
@@ -13,9 +26,9 @@ import { AuthRequest, SessionGuard } from './security';
 export class InsightsService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
-  async insights(req: AuthRequest) {
+  async insights(req: AuthRequest, teamId?: string) {
     const values: unknown[] = [];
-    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
+    const scope = scopeFor(req, values, teamId);
     const money = can(req.user, 'asset.view_private');
     const [row] = await this.db.query(
       `WITH scoped AS (
@@ -31,6 +44,8 @@ export class InsightsService {
             (SELECT status AS label, count(*)::int AS count FROM scoped GROUP BY status) x) AS by_status,
          (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
             (SELECT asset_type AS label, count(*)::int AS count, sum(cost)::float8 AS value FROM live GROUP BY asset_type) x) AS by_type,
+         (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
+            (SELECT category AS label, count(*)::int AS count, sum(cost)::float8 AS value FROM live GROUP BY category) x) AS by_category,
          (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
             (SELECT coalesce(d.name,'No department') AS label, count(*)::int AS count, sum(l.cost)::float8 AS value
              FROM live l LEFT JOIN departments d ON d.id=l.department_id GROUP BY 1) x) AS by_department,
@@ -70,9 +85,29 @@ export class InsightsService {
     );
     const stripMoney = (items: { label: string; count: number; value?: number | null }[]) =>
       items.map((item) => (money ? { ...item, value: item.value ?? 0 } : { label: item.label, count: item.count }));
-    const holders = await this.holders(req);
+    const holders = await this.holders(req, teamId);
+    // Teams for the picker (never narrowed by it): every active team for people who see the whole
+    // register, otherwise their own teams plus any team owning assets they can see. Teams with no
+    // assets yet are listed too, with 0.
+    const teamValues: unknown[] = [];
+    const visible = scopeFor(req, teamValues);
+    const wholeRegister = req.user.roles.some((r) => ['SUPER_ADMIN', 'FINANCE', 'EXECUTIVE'].includes(r));
+    teamValues.push((req.user.teams ?? []).map((t) => t.teamId));
+    const mine = teamValues.length;
+    const teams = await this.db.query(
+      `WITH counts AS (
+         SELECT a.owning_team_id AS id, count(*)::int AS count FROM assets a WHERE ${visible} GROUP BY 1
+       )
+       SELECT t.id, t.name, coalesce(c.count, 0) AS count
+         FROM teams t LEFT JOIN counts c ON c.id = t.id
+        WHERE t.active AND (${wholeRegister ? 'TRUE' : 'FALSE'} OR c.id IS NOT NULL OR t.id = ANY($${mine}::uuid[]))
+        ORDER BY t.name`,
+      teamValues,
+    );
     return {
       money,
+      teamId: teamId ?? null,
+      teams,
       topHolders: holders.slice(0, 10),
       multiHolders: holders.filter((h) => h.count > 1).length,
       total: row.total,
@@ -80,6 +115,7 @@ export class InsightsService {
       liveValue: money ? row.live_value : null,
       byStatus: row.by_status,
       byType: stripMoney(row.by_type),
+      byCategory: stripMoney(row.by_category),
       byDepartment: stripMoney(row.by_department),
       byCondition: row.by_condition,
       byYear: stripMoney(row.by_year),
@@ -108,9 +144,9 @@ export class InsightsService {
   }
 
   /** People who currently hold assets the viewer may see, most first (for charts and the filter). */
-  async holders(req: AuthRequest) {
+  async holders(req: AuthRequest, teamId?: string) {
     const values: unknown[] = [];
-    const scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
+    const scope = scopeFor(req, values, teamId);
     const rows = await this.db.query(
       `SELECT u.id AS "userId", u.display_name AS name, d.name AS department, count(*)::int AS count
        FROM assets a
@@ -133,8 +169,8 @@ export class InsightsController {
   constructor(@Inject(InsightsService) private readonly service: InsightsService) {}
 
   @Get('insights')
-  insights(@Req() req: AuthRequest) {
-    return this.service.insights(req);
+  insights(@Req() req: AuthRequest, @Query('teamId') teamId?: string) {
+    return this.service.insights(req, teamId || undefined);
   }
 
   @Get('holders')

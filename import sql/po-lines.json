@@ -1,0 +1,4304 @@
+[
+ {
+  "po": "IACPF/Office/001",
+  "date_cell": null,
+  "date_text": "22-07-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Canon Printer MF2720DW 5621C016AA",
+    "user": "Training Academy",
+    "unit": 19000.0,
+    "total": 19000,
+    "more": []
+   }
+  ],
+  "vendor": "Odyssey Computer Services Pvt Ltd",
+  "notes": [],
+  "gst_included": false,
+  "total": 22420.0,
+  "date": "2024-07-22",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/002",
+  "date_cell": null,
+  "date_text": "19.09.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP DESKJET GT 5811 HEAD",
+    "user": "IAC ROOM",
+    "unit": 1300.0,
+    "total": 1300.0,
+    "more": []
+   }
+  ],
+  "vendor": "ODYSSEY",
+  "notes": [
+   "KOL-700001"
+  ],
+  "gst_included": false,
+  "total": 1534.0,
+  "date": "2024-09-19",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/003",
+  "date_cell": null,
+  "date_text": "30.09.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Laptop for Madhu",
+    "user": "3rd Floor",
+    "unit": 31000.0,
+    "total": null,
+    "more": [
+     "HP Laptop 15,12th Gen Intel Core i3-1215U,15.6 inch(39.6 cm),FHD,Anti-Glare,8 GB DDR4,512 GB SSD,Windows 11,MSO,Dual Speakers,1.69 kg,Natural Silver,15s-fq5326TU\n With Bag 3rd Floor"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 36580.0,
+  "date": "2024-09-30",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/004",
+  "date_cell": null,
+  "date_text": "30.09.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Mouse for Avijit Dutta",
+    "user": "Site",
+    "unit": 480.0,
+    "total": 480.0,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 566.4,
+  "date": "2024-09-30",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/005",
+  "date_cell": null,
+  "date_text": "30.09.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Mobile Phone for Site (MyGate App)",
+    "user": "Sirakol Site",
+    "unit": 9745.76,
+    "total": 9745.76,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 11499.9968,
+  "date": "2024-09-30",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/006",
+  "date_cell": null,
+  "date_text": "03.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "fujitsu sp 1130N",
+    "user": "Account",
+    "unit": 19250.0,
+    "total": 19250,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 22715.0,
+  "date": "2024-10-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/007",
+  "date_cell": null,
+  "date_text": "03.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Laptop for Intern (Training Academy)",
+    "user": "3rd Floor",
+    "unit": 31000.0,
+    "total": null,
+    "more": [
+     "HP Laptop 15,12th Gen Intel Core i3-1215U,15.6 inch(39.6 cm),FHD,Anti-Glare,8 GB DDR4,512 GB SSD,Windows 11,MSO,Dual Speakers,1.69 kg,Natural Silver,15s-fq5326TU\n With Bag 3rd Floor"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 36580.0,
+  "date": "2024-10-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/008",
+  "date_cell": null,
+  "date_text": "03.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Wireless Mouse for Madhu Das",
+    "user": "3rd Floor",
+    "unit": 480.0,
+    "total": 480.0,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 566.4,
+  "date": "2024-10-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/009",
+  "date_cell": null,
+  "date_text": "03.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Nishant Shah Laptop Warranty Extend",
+    "user": null,
+    "unit": 62692.71,
+    "total": 6283.0,
+    "more": []
+   }
+  ],
+  "vendor": "Lenovo Services",
+  "notes": [
+   "7390.0"
+  ],
+  "gst_included": false,
+  "total": 7413.94,
+  "date": "2024-10-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/010",
+  "date_cell": null,
+  "date_text": "17.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Intel 12th Gen i3-1215U 8 GB 512 GB SSD Intel UHD Graphics Windows  11  Microsoft Office  Home  & Student Edition 2021 TNR + Backlit KBD; Alexa Built-in 15.6\" FHD/Natural Silver Natural Silver 15s-fq5327TU with BackliT with Bag",
+    "user": "Debopriya",
+    "unit": 32203.27,
+    "total": 32203.27,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 37999.8586,
+  "date": "2024-10-17",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/011",
+  "date_cell": null,
+  "date_text": "14.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "4GB Ram for Board Room NUC System",
+    "user": "Shared",
+    "unit": 1000.0,
+    "total": 1000,
+    "more": []
+   }
+  ],
+  "vendor": "Odyssey Computer Services Pvt Ltd",
+  "notes": [],
+  "gst_included": false,
+  "total": 1180.0,
+  "date": "2024-10-14",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/012",
+  "date_cell": null,
+  "date_text": "21.10.24",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "TimeWatch Biometric",
+    "user": "Shared",
+    "unit": 5700.0,
+    "total": 5700,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "EM Lock 600LBS",
+    "user": "Shared",
+    "unit": 1200.0,
+    "total": 1200,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "L Bracket",
+    "user": "Shared",
+    "unit": 250.0,
+    "total": 250,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Installation & Configuration With Lock Paint Charge",
+    "user": "Shared",
+    "unit": 2500.0,
+    "total": 2500,
+    "more": []
+   }
+  ],
+  "vendor": "Cognitech IT Consultancy",
+  "notes": [
+   "Kolkata 700068"
+  ],
+  "gst_included": false,
+  "total": 11387.0,
+  "date": "2024-10-21",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/013",
+  "date_cell": null,
+  "date_text": "14-11-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "\"15-fc0155AU\t9D3M9PA\tRyzen 5-7520U  \t8 GB\t512GB SSD\tAMD Radeon Integrated Graphics  \tWindows  11  Microsoft Office  Home  & Student Edition 2021\tFHD Camera+TNR +Backlit KBD\t15.6\"\" FHD/Natural Silver\tNatural Silver\t1 year onsite warranty , International warranty in Select Countries\"",
+    "user": null,
+    "unit": 34325.0,
+    "total": 34325,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 40499.5,
+  "date": "2024-11-14",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/014",
+  "date_cell": null,
+  "date_text": "04-11-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop Keyboard For Intern",
+    "user": "Debopriya",
+    "unit": 1800.0,
+    "total": 1800,
+    "more": []
+   }
+  ],
+  "vendor": null,
+  "notes": [],
+  "gst_included": false,
+  "total": 2124.0,
+  "date": "2024-11-04",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/015",
+  "date_cell": null,
+  "date_text": "30-10-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Printer Cartridge Model 335X",
+    "user": "Common",
+    "unit": 2300.0,
+    "total": 2300,
+    "more": []
+   }
+  ],
+  "vendor": null,
+  "notes": [
+   "Kolkata 700004"
+  ],
+  "gst_included": false,
+  "total": 2300.0,
+  "date": "2024-10-30",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/016",
+  "date_cell": null,
+  "date_text": "14-11-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "15-fc0155AU\t9D3M9PA\tRyzen 5-7520U  \t8 GB\t512GB SSD\tAMD Radeon Integrated Graphics  \tWindows  11  Microsoft Office  Home  & Student Edition 2021\tFHD Camera+TNR +Backlit KBD\t15.6\" FHD/Natural Silver\tNatural Silver\t1 year onsite warranty , International warranty in Select Countries",
+    "user": "Manas for Site",
+    "unit": 34325.0,
+    "total": 34325,
+    "more": [
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 40499.5,
+  "date": "2024-11-14",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/017",
+  "date_cell": null,
+  "date_text": "15-11-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "15-fc0155AU        5CD435H1GZ        Ryzen 5-7520U          8 GB        512GB SSD        AMD Radeon Integrated Graphics          Windows  11  Microsoft Office  Home  & Student Edition 2021        FHD Camera+TNR +Backlit KBD        15.6\" FHD/Natural Silver        Natural Silver        1 year o435H1GZnsite warranty , International warranty in Select Countries",
+    "user": "Shamim",
+    "unit": 34325.0,
+    "total": 34325,
+    "more": [
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 40499.5,
+  "date": "2024-11-15",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/018",
+  "date_cell": null,
+  "date_text": "18-11-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "15-fc0155AU        5CD435H1GZ        Ryzen 5-7520U          8 GB        512GB SSD        AMD Radeon Integrated Graphics          Windows  11  Microsoft Office  Home  & Student Edition 2021        FHD Camera+TNR +Backlit KBD        15.6\" FHD/Natural Silver        Natural Silver        1 year o435H1GZnsite warranty , International warranty in Select Countries",
+    "user": "Tehiya Das",
+    "unit": 34325.0,
+    "total": 34325,
+    "more": [
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 40499.5,
+  "date": "2024-11-18",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/019",
+  "date_cell": null,
+  "date_text": "06-12-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "15fc0155AU Ryzen 5-7520U          8 GB        512GB SSD        AMD Radeon Integrated Graphics          Windows  11  Microsoft Office  Home  & Student Edition 2021        FHD Camera+TNR +Backlit KBD        15.6\" FHD/Natural Silver        Natural Silver        1 year o435H1GZnsite warranty , International warranty in Select Countries",
+    "user": "Shanta Kumar Biswas",
+    "unit": 34325.0,
+    "total": 34325,
+    "more": [
+     "S/N 5CD435H4VV",
+     "Site",
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 40499.5,
+  "date": "2024-12-06",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/020",
+  "date_cell": null,
+  "date_text": "06-12-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "15fc0155AU Ryzen 5-7520U          8 GB        512GB SSD        AMD Radeon Integrated Graphics          Windows  11  Microsoft Office  Home  & Student Edition 2021        FHD Camera+TNR +Backlit KBD        15.6\" FHD/Natural Silver        Natural Silver        1 year o435H1GZnsite warranty , International warranty in Select Countries",
+    "user": "Anisha Singh",
+    "unit": 34325.0,
+    "total": 34325,
+    "more": [
+     "S/N 5CD435FPZH",
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 40499.5,
+  "date": "2024-12-06",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/021",
+  "date_cell": null,
+  "date_text": "12-12-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Zoom Account",
+    "user": "Research Dept",
+    "unit": 13760.0,
+    "total": 13760,
+    "more": [
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Zoom Online",
+  "notes": [
+   "NS Credit Card",
+   "Whatsapp Screenshot Attached"
+  ],
+  "gst_included": false,
+  "total": 16236.8,
+  "date": "2024-12-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/022",
+  "date_cell": null,
+  "date_text": "18-12-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Jio 3rd Floor Internet Renewal for 3 Months",
+    "user": "IAC Office",
+    "unit": 12003.0,
+    "total": 12003,
+    "more": [
+     "GST 18 %",
+     "324327 is the OTP for transaction RelianceRetailLtd for  INR 14163.54 using IDFC Bank card ending 9425 Please do not share. To raise a dispute, call 1800 10 888"
+    ]
+   }
+  ],
+  "vendor": "Jio Internet",
+  "notes": [
+   "NS Credit Card",
+   "Whatsapp Screenshot Attached"
+  ],
+  "gst_included": false,
+  "total": 14163.54,
+  "date": "2024-12-18",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/023",
+  "date_cell": null,
+  "date_text": "30-12-2024",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Ross Heating Bag, Hot Water Bags for Pain Relief, Heating Pad-Heat Pouch Hot Water Bottle Bag, Electric Hot Water Bag, Heating Pad for Pain Relief- with Hand Warmer Pockets (assorted)",
+    "user": "IAC Office",
+    "unit": 400.84,
+    "total": 400.84,
+    "more": [
+     "2 pcs",
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": null,
+  "notes": [
+   "Hard Copy Approval Attached"
+  ],
+  "gst_included": false,
+  "total": 472.9912,
+  "date": "2024-12-30",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/024",
+  "date_cell": null,
+  "date_text": "28-12-2024",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Shakti Technology GB-96 4 Stroke Brush Cutter Machine/Grass Cutting Machine with 37.7cc Extra Power Torque Engine with 80 Teeth Blade, 3T Blades, Paddy Guard for Agriculture, Gardening, Lawn Cuttin",
+    "user": "Site Sirakol",
+    "unit": 8448.31,
+    "total": 16896.62,
+    "more": [
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Amazon Online",
+  "notes": [
+   "Purchased from Amazon  | ADDRESS:",
+   "(Already payment processed from NS Credit Card)",
+   "Hard Copy Approval Attached",
+   "Email and Whatsapp Approval attached"
+  ],
+  "gst_included": false,
+  "total": 19938.0116,
+  "date": "2024-12-28",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/025",
+  "date_cell": null,
+  "date_text": "08-01-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Printer Cartridge Model 335X",
+    "user": "Common",
+    "unit": 2300.0,
+    "total": 2300,
+    "more": []
+   }
+  ],
+  "vendor": null,
+  "notes": [
+   "Kolkata 700004"
+  ],
+  "gst_included": false,
+  "total": 2300.0,
+  "date": "2025-01-08",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/026",
+  "date_cell": null,
+  "date_text": "16-01-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Autism Books from Amazon",
+    "user": "Training Academy",
+    "unit": null,
+    "total": null,
+    "more": [
+     "List and Approval Attached",
+     "Pending"
+    ]
+   }
+  ],
+  "vendor": null,
+  "notes": [],
+  "gst_included": false,
+  "total": 0.0,
+  "date": "2025-01-16",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/027",
+  "date_cell": null,
+  "date_text": "24-01-2025",
+  "lines": [
+   {
+    "qty": 30.0,
+    "desc": "Treo By Milton Clearvue Borosilicate Glass Water Bottle, 800 ml, Transparent, Fridge Bottle, Wide Mouth, 1 Piece, Suitable for Hot & Cold Beverages",
+    "user": "Common Office",
+    "unit": 254.24,
+    "total": 7627.2,
+    "more": [
+     "GST"
+    ]
+   }
+  ],
+  "vendor": null,
+  "notes": [],
+  "gst_included": false,
+  "total": 9000.096,
+  "date": "2025-01-24",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/028",
+  "date_cell": null,
+  "date_text": "24.1.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "TimeWatch Biometric",
+    "user": "Shared",
+    "unit": 5700.0,
+    "total": 5700,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "EM Lock 600LBS",
+    "user": "Shared",
+    "unit": 1200.0,
+    "total": 1200,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "L Bracket",
+    "user": "Shared",
+    "unit": 250.0,
+    "total": 250,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Installation & Configuration With Lock Paint Charge",
+    "user": "Shared",
+    "unit": 2500.0,
+    "total": 2500,
+    "more": []
+   }
+  ],
+  "vendor": "Cognitech IT Consultancy",
+  "notes": [
+   "Kolkata 700068"
+  ],
+  "gst_included": false,
+  "total": 11387.0,
+  "date": "2025-01-24",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/029",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 3.0,
+    "desc": "Adobe Package renewal",
+    "user": "Training Academy and Communication",
+    "unit": 31500.0,
+    "total": 94500,
+    "more": [
+     "TERMS & CONDITIONS",
+     "1. Prices : GST @18% Included",
+     "2. Freight Charges are not Included in the above prices so it will be as per actual",
+     "GST18% 3. Validity : 15 days from the date of Quotation.",
+     "4.Delivery: will be made within 2 to 4 working days Only after getting the confirmed purchase order",
+     "5.Equipment Warranty : As per OEM.",
+     "7.Order Placing: Your purchase order should be addressed to DYGICOM VISUAL TECHNOLOGY PVT LTD.",
+     "8. Electricals , AC , Furnitures, Internet, and Studio Design/Light are not included in the above prices"
+    ]
+   }
+  ],
+  "vendor": "Dygicom Visual technology Pvt Ltd",
+  "notes": [
+   "26694.91525",
+   "10. After installation if any support require they need to send material by his own cost.",
+   "As per attached quotation",
+   "Bose Road Kolkata 700047"
+  ],
+  "gst_included": true,
+  "total": null,
+  "date": "2025-01-24",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/030",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "15fc0155AU Ryzen 5-7520U          8 GB        512GB SSD        AMD Radeon Integrated Graphics          Windows  11  Microsoft Office  Home  & Student Edition 2021        FHD Camera+TNR +Backlit KBD        15.6\" FHD/Natural Silver        Natural Silver        1 year o435H1GZnsite warranty , International warranty in Select Countries",
+    "user": "Ritwika Basu",
+    "unit": 34000.0,
+    "total": 34000,
+    "more": [
+     "S/N: - 5CD435H49F"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Laptop Bag",
+    "user": null,
+    "unit": 322.0,
+    "total": 322,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [
+   "Attached "
+  ],
+  "gst_included": false,
+  "total": 40499.96,
+  "date": "2025-01-24",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/031",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Printer Service Charges",
+    "user": "Sira, Site",
+    "unit": 1400.0,
+    "total": 1400,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [
+   "As per Invoice | ADDRESS: | 138 Canning Street kolkata 01"
+  ],
+  "gst_included": false,
+  "total": 1652.0,
+  "date": "2025-01-24",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/032",
+  "date_cell": "2025-01-02",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "NS laptop Adapter",
+    "user": "Nishan Shah",
+    "unit": 1350.0,
+    "total": 1350,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [
+   "As per Invoice | ADDRESS: | 138 Canning Street kolkata 01"
+  ],
+  "gst_included": false,
+  "total": 1593.0,
+  "date": "2025-01-02",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/033",
+  "date_cell": "2025-01-02",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Bajaj platina 110",
+    "user": "Satyendra",
+    "unit": 56063.3,
+    "total": 56063.3,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Insurance, Road tax and Other Expenses",
+    "user": null,
+    "unit": 16739.0,
+    "total": 16739,
+    "more": [
+     "GST28%"
+    ]
+   }
+  ],
+  "vendor": "OSL Auto Pvt Ltd",
+  "notes": [
+   "As per Qoutation",
+   "31395.448"
+  ],
+  "gst_included": false,
+  "total": 88500.024,
+  "date": "2025-01-02",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/034",
+  "date_cell": "2025-08-02",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Bajaj platina 110",
+    "user": "Gourav & Parveg",
+    "unit": 56063.3,
+    "total": 112126.6,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "Insurance, Road tax and Other Expenses",
+    "user": null,
+    "unit": 16739.0,
+    "total": 33478,
+    "more": [
+     "GST28%"
+    ]
+   }
+  ],
+  "vendor": "OSL Auto Pvt Ltd",
+  "notes": [
+   "As per the last Bank Details | ADDRESS: | 234/3A, AJC Bose Road"
+  ],
+  "gst_included": false,
+  "total": 177000.048,
+  "date": "2025-02-08",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/035",
+  "date_cell": "2025-01-02",
+  "date_text": null,
+  "lines": [],
+  "vendor": null,
+  "notes": [
+   "1.0 | GST18% | 0"
+  ],
+  "gst_included": false,
+  "total": 0.0,
+  "date": "2025-01-02",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/036",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "IAC Domain Renewal for 2 years",
+    "user": "Shared",
+    "unit": 2328.86,
+    "total": 2328.86,
+    "more": [
+     "www.indiaautismcenter.org"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Full Domain Privacy And Protection for 2 years",
+    "user": null,
+    "unit": 2018.14,
+    "total": 2018.14,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Fees",
+    "user": null,
+    "unit": 30.24,
+    "total": null,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "GoDaddy Software, Inc",
+  "notes": [],
+  "gst_included": false,
+  "total": 5165.1432,
+  "date": "2025-01-02",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/037",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Jio Internet for 3rd Floor",
+    "user": "Common",
+    "unit": 40812.0,
+    "total": 40812,
+    "more": [
+     "1 Year 03-03-2025 to 02-03-2026",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Reliance Jio Infocomm Limited",
+  "notes": [
+   "9775730691.0"
+  ],
+  "gst_included": false,
+  "total": 48158.16,
+  "date": "2025-01-02",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/038",
+  "date_cell": "2025-03-03",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Airtel Internet for 3rd Floor (Backup Line)",
+    "user": "Common",
+    "unit": 4497.0,
+    "total": 4497,
+    "more": [
+     "3 Months (March to May)",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Bharti Airtel Limited",
+  "notes": [],
+  "gst_included": false,
+  "total": 5306.46,
+  "date": "2025-03-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/039",
+  "date_cell": "2025-03-03",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver",
+    "user": "Rahul Sanyal",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security"
+  ],
+  "gst_included": false,
+  "total": 39530.0,
+  "date": "2025-03-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/040",
+  "date_cell": "2025-03-03",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "WD 5TB External Hard Disk for Site (Drone Videos Backup)",
+    "user": "Rakesh Kumar Barik",
+    "unit": 9750.0,
+    "total": 9750,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Amazon",
+   "5tb External Hdd | 12000.0 | 11505.0 | 12799.0"
+  ],
+  "gst_included": false,
+  "total": 11505.0,
+  "date": "2025-03-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/041",
+  "date_cell": "2025-07-03",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "512GB SSD in Old Laptop",
+    "user": "Satyendra",
+    "unit": 2400.0,
+    "total": 2400,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Service Charges",
+    "user": null,
+    "unit": 1.0,
+    "total": null,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Odyssey Computer Services Pvt Ltd",
+  "notes": [
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Odyssey Computer",
+   "512GB SSD and Servce Charges | 4250.0 | 4300.0 | 4012.0"
+  ],
+  "gst_included": false,
+  "total": 4012.0,
+  "date": "2025-03-07",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/042",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "AutoCad LT version",
+    "user": "Barnali",
+    "unit": 25750.0,
+    "total": 25750,
+    "more": [
+     "Contract #110003931581",
+     "shamim@indiaautismcenter.org",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 30385.0,
+  "date": "2025-03-07",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/043",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Prodot Laser Toner for 2nd Floor Printer",
+    "user": "Account Team",
+    "unit": 900.0,
+    "total": 900,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 1062.0,
+  "date": "2025-03-07",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/044",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Lenovo LOQ Intel Core i5 12th Gen 12450HX - (16 GB/512 GB SSD/Windows 11 Home/6 GB Graphics/NVIDIA GeForce RTX 4050) 15IAX9 Gaming Laptop  (15.6 inch, Luna Grey, 2.38 Kg, With MS Office)",
+    "user": "Communication Team",
+    "unit": 62025.0,
+    "total": 62025,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 73189.5,
+  "date": "2025-03-07",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/045",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Wireless Mouse",
+    "user": "Sreerupa",
+    "unit": 500.0,
+    "total": 500,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 590.0,
+  "date": "2025-03-07",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/046",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Asus Vivo Book\nX1605ZAC-MB540WS\nIntel\u00ae Core\u2122 i5-12500H /  /  /  / 16GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 16.0-inch / WUXGA (1920 x 1200) 16:10  /  / Transparent Silver /  /  / FingerPrint / Backlit KB / Win 11 Home / MS Office /",
+    "user": "Mukut Mukherjee",
+    "unit": 45000.0,
+    "total": 45000,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 53100.0,
+  "date": "2025-03-07",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/047",
+  "date_cell": "2025-07-04",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Site Colour Printer Ink",
+    "user": "Black",
+    "unit": 750.0,
+    "total": 750,
+    "more": []
+   },
+   {
+    "qty": 3.0,
+    "desc": "Site Colour Printer Ink",
+    "user": "Colour",
+    "unit": 340.0,
+    "total": 1020,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [],
+  "gst_included": false,
+  "total": 2088.6,
+  "date": "2025-04-07",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/048",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Lenovo 65W Small Pin Adapter (PGX20K78585)",
+    "user": "Medha",
+    "unit": 1200.0,
+    "total": 1200,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "31000.0",
+  "notes": [
+   "Optima Infotech | 5580",
+   "HDFC Bank Limited | ADDRESS: | 36580",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 1416.0,
+  "date": "2025-04-07",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/049",
+  "date_cell": null,
+  "date_text": "16-04-2024",
+  "lines": [
+   {
+    "qty": 10.0,
+    "desc": "10 Email id's on indiaautismcenter.org",
+    "user": "IAC Domain",
+    "unit": 551.0,
+    "total": 5510,
+    "more": []
+   }
+  ],
+  "vendor": "Odyssey Computer Services Pvt Ltd",
+  "notes": [],
+  "gst_included": false,
+  "total": 6501.8,
+  "date": "2025-04-16",
+  "date_note": "PO says 2024-04-16; taken as 2025-04-16 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/050",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver",
+    "user": "Vartika Arora",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive | Rs. 40500/- With GST | Rs. 39530/- With GST | Rs. 40000/- With GST"
+  ],
+  "gst_included": false,
+  "total": 39530.0,
+  "date": "2025-04-16",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/051",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Wireless Keyboard & Mouse",
+    "user": "Raunak Kachhwaha",
+    "unit": 1100.0,
+    "total": 1100,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 1298.0,
+  "date": "2025-04-16",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/052",
+  "date_cell": "2025-04-22",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Training Academy Mobile Payment",
+    "user": "Training Academy",
+    "unit": 449.0,
+    "total": 449,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Bharti Airtel Limited",
+  "notes": [
+   "NS Credit Card | ADDRESS: | Online"
+  ],
+  "gst_included": false,
+  "total": 529.82,
+  "date": "2025-04-22",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/053",
+  "date_cell": null,
+  "date_text": "25-04-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Compitable Toner Cartridge",
+    "user": "Sirakol",
+    "unit": 540.0,
+    "total": 540,
+    "more": []
+   }
+  ],
+  "vendor": null,
+  "notes": [
+   "Kolkata 700004"
+  ],
+  "gst_included": false,
+  "total": 540.0,
+  "date": "2025-04-25",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/054",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Asus RNUC12WSHI50000I",
+    "user": "Board Room",
+    "unit": 29750.0,
+    "total": 29750,
+    "more": [
+     "8 GB DDR4 SODIMM Board Room",
+     "500 GB WD NVME SSD SN5000",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 39825.0,
+  "date": "2025-04-25",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/055",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver",
+    "user": "Vartika Arora",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive | Rs. 40500/- With GST | Rs. 39530/- With GST | Rs. 40000/- With GST"
+  ],
+  "gst_included": false,
+  "total": 39530.0,
+  "date": "2025-04-25",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/056",
+  "date_cell": "2025-02-05",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Laptop Stand LS02",
+    "user": "Medha",
+    "unit": 600.0,
+    "total": 600,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "HDMI Cable",
+    "user": "NS Room",
+    "unit": 450.0,
+    "total": 450,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 1239.0,
+  "date": "2025-05-02",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/057",
+  "date_cell": "2025-05-12",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Training Academy Mobile Payment",
+    "user": "Training Academy",
+    "unit": 349.0,
+    "total": 349,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "IAC Mobile Payment",
+    "user": "IAC Common",
+    "unit": 314.1,
+    "total": 314.1,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Waiver late fee",
+    "user": null,
+    "unit": 1.0,
+    "total": null,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Bharti Airtel Limited",
+  "notes": [
+   "NS Credit Card | ADDRESS: | Online"
+  ],
+  "gst_included": false,
+  "total": 782.458,
+  "date": "2025-05-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/058",
+  "date_cell": null,
+  "date_text": "13.05.25",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Compitable toner cartridge",
+    "user": "Site",
+    "unit": 540.0,
+    "total": 1080,
+    "more": []
+   }
+  ],
+  "vendor": "Cartridge Hub",
+  "notes": [
+   "Kolkata 700004"
+  ],
+  "gst_included": false,
+  "total": 1080.0,
+  "date": "2025-05-13",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/059",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "AMD Ryzen\u2122 3 processor\nWindows 11 Home Single Language\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 MHz RAM\n512 GB SSD Hard Drive\nDual speakers, HP True Vision 1080p FHD camera, Full-size keyboard with numeric keypad, Mic mute key, Camera privacy shutter",
+    "user": "Interns & Spare laptop for Urgent use",
+    "unit": 26000.0,
+    "total": 52000,
+    "more": [
+     "Basic Laptop for Interns",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security | HP Official Website | Amazon",
+   "AMD Ryzen\u2122 3 processor\nWindows 11 Home Single Language\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 MHz RAM\n512 GB SSD Hard Drive\nDual speakers, HP True Vision 1080p FHD camera, Full-size keyboard with numeric keypad, Mic mute key, Camera privacy shutter | Rs. 31860/- With Gst | Rs. 30680/- with GST | Rs. 31860/- With GST | Rs. 34500/- With Gst | Rs. 30990/- With Gst"
+  ],
+  "gst_included": false,
+  "total": 61360.0,
+  "date": "2025-05-13",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/060",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Naukri Subscription",
+    "user": "HR Team & NS",
+    "unit": 30000.0,
+    "total": 30000,
+    "more": [
+     "hr@indiaautismcenter.org",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": null,
+  "notes": [
+   "IAC Research FOUNDATION"
+  ],
+  "gst_included": false,
+  "total": 35400.0,
+  "date": "2025-05-13",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/061",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "UGREEN MINI DP to HDMI Converter",
+    "user": "Research",
+    "unit": 850.0,
+    "total": 850,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Oritech Computer Service",
+  "notes": [],
+  "gst_included": false,
+  "total": 1003.0,
+  "date": "2025-05-13",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/062",
+  "date_cell": null,
+  "date_text": "16.05.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Compitable toner cartridge",
+    "user": "Account Team",
+    "unit": 750.0,
+    "total": 750,
+    "more": []
+   }
+  ],
+  "vendor": "Cartridge Hub",
+  "notes": [
+   "Kolkata 700004",
+   "IAC Research FOUNDATION"
+  ],
+  "gst_included": false,
+  "total": 750.0,
+  "date": "2025-05-16",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/063",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Laptop Stand LS02",
+    "user": "Kiran",
+    "unit": 600.0,
+    "total": 600,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693"
+  ],
+  "gst_included": false,
+  "total": 708.0,
+  "date": "2025-05-16",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/064",
+  "date_cell": null,
+  "date_text": "23.05.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "External SSD",
+    "user": "Communication",
+    "unit": 10250.0,
+    "total": 10250,
+    "more": [
+     "Samsung T 9 Team"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 12095.0,
+  "date": "2025-05-23",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/065",
+  "date_cell": null,
+  "date_text": "12.06.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "newsindiaautismcenter.org",
+    "user": "Communication Department",
+    "unit": 4597.0,
+    "total": 4597,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "indiaautismcenter.in",
+    "user": null,
+    "unit": 1499.0,
+    "total": 1499,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "indiaautismcenter.net",
+    "user": null,
+    "unit": 3399.0,
+    "total": 3399,
+    "more": []
+   }
+  ],
+  "vendor": "Go Daddy",
+  "notes": [
+   "NS Credit Card"
+  ],
+  "gst_included": false,
+  "total": 11204.1,
+  "date": "2025-06-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/066",
+  "date_cell": "2025-12-06",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Training Academy Mobile Payment",
+    "user": "Training Academy",
+    "unit": 349.0,
+    "total": 349,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "IAC Mobile Payment",
+    "user": "IAC Common",
+    "unit": 349.0,
+    "total": 349,
+    "more": [
+     "GST18% Included"
+    ]
+   }
+  ],
+  "vendor": "Bharti Airtel Limited",
+  "notes": [
+   "NS Credit Card | ADDRESS: | Online"
+  ],
+  "gst_included": false,
+  "total": 823.64,
+  "date": "2025-06-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/067",
+  "date_cell": "2025-12-06",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 3.0,
+    "desc": "PoE Adapter",
+    "user": "Sirakol, Site",
+    "unit": 800.0,
+    "total": 2400,
+    "more": [
+     "48 Volt DC"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Service Charges",
+    "user": null,
+    "unit": 1500.0,
+    "total": 1500,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "CRM Enterprise Business Pvt Ltd",
+  "notes": [
+   "700081.0"
+  ],
+  "gst_included": false,
+  "total": 4602.0,
+  "date": "2025-06-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/068",
+  "date_cell": "2025-12-06",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "ERD PS-10 (5V DC-1A)",
+    "user": "Sirakol, Site",
+    "unit": 200.0,
+    "total": 400,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Service Charges",
+    "user": null,
+    "unit": 1000.0,
+    "total": 1000,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "CRM Enterprise Business Pvt Ltd",
+  "notes": [
+   "700081.0"
+  ],
+  "gst_included": false,
+  "total": 1652.0,
+  "date": "2025-06-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/069",
+  "date_cell": null,
+  "date_text": "12.06.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Logitech 331",
+    "user": "Nishant Sir",
+    "unit": 1100.0,
+    "total": 1100,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Power code of Laptop Adapter",
+    "user": "Madhu",
+    "unit": 100.0,
+    "total": 100,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [
+   "FMC Fortuna Building, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 1416.0,
+  "date": "2025-06-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/070",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver",
+    "user": "Debobani Saha",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive | Rs. 40500/- With GST | Rs. 39530/- With GST | Rs. 40000/- With GST",
+   "IAC Research FOUNDATION"
+  ],
+  "gst_included": false,
+  "total": 39530.0,
+  "date": "2025-06-12",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/070",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver",
+    "user": "Dr. Ragitha Radhakrishnan",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+    "user": "Sampreeti Dutta",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive | Rs. 40500/- With GST | Rs. 39530/- With GST | Rs. 40000/- With GST",
+   "FMC Fortuna Building, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 79060.0,
+  "date": "2025-06-12",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/071",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 20.0,
+    "desc": "Glass Bottle",
+    "user": "IAC Common",
+    "unit": 240.0,
+    "total": 4800,
+    "more": []
+   }
+  ],
+  "vendor": "Khan Gift House",
+  "notes": [
+   "Bank  | Kotak Mahindra Bank",
+   "Acc No | 3647284321.0 | ADDRESS:",
+   "IFSC Code | KKBK0006573",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 4800.0,
+  "date": "2025-06-12",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/072",
+  "date_cell": null,
+  "date_text": "17.06.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "newsindiaautismcenter.org",
+    "user": "Communication Department",
+    "unit": 468.0,
+    "total": 468,
+    "more": []
+   }
+  ],
+  "vendor": "Go Daddy",
+  "notes": [
+   "NS Credit Card"
+  ],
+  "gst_included": false,
+  "total": 552.24,
+  "date": "2025-06-17",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/073",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Airtel Internet for 3rd Floor (Backup Line)",
+    "user": "Common",
+    "unit": 4497.0,
+    "total": 4497,
+    "more": [
+     "3 Months (June to Aug)",
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Bharti Airtel Limited",
+  "notes": [
+   "IAC Research FOUNDATION"
+  ],
+  "gst_included": false,
+  "total": 5306.46,
+  "date": "2025-06-17",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/074",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Hikvision DVR 8CH DS-7108NI-Q1/M",
+    "user": "2ND FLOOR",
+    "unit": 3900.0,
+    "total": 3900,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "IAC Research FOUNDATION"
+  ],
+  "gst_included": false,
+  "total": 4602.0,
+  "date": "2025-06-17",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/075",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+    "user": "Abheepsa Bagchi",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver\n",
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive | Rs. 40500/- With GST | Rs. 39530/- With GST | Rs. 40000/- With GST"
+  ],
+  "gst_included": false,
+  "total": 39530.0,
+  "date": "2025-06-17",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/076",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+    "user": "Chayan Mondal",
+    "unit": 33500.0,
+    "total": 33500,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU, Silver\n",
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0155AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n8 GB LPDDR5-5500 RAM\n512 GB SSD Solid State Drive | Rs. 40500/- With GST | Rs. 39530/- With GST | Rs. 40000/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 39530.0,
+  "date": "2025-06-17",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/077",
+  "date_cell": null,
+  "date_text": "12.06.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "SSL Certificate for indiaautismcenter.org",
+    "user": "Common",
+    "unit": 0,
+    "total": null,
+    "more": []
+   }
+  ],
+  "vendor": "Go Daddy",
+  "notes": [
+   "NS Credit Card",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 0.0,
+  "date": "2025-06-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/078",
+  "date_cell": null,
+  "date_text": "09.07.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "1.8 Inch LED Large Digital Countdown Clock Event Timer with Remote",
+    "user": "Common",
+    "unit": 11108.47,
+    "total": 11108.47,
+    "more": []
+   }
+  ],
+  "vendor": "Amazon",
+  "notes": [
+   "NS Credit Card",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 13107.9946,
+  "date": "2025-07-09",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/079",
+  "date_cell": null,
+  "date_text": "11.07.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Repair & Maintenance",
+    "user": "Tushar Site",
+    "unit": 2250.0,
+    "total": 2250,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "8 GB Ram",
+    "user": null,
+    "unit": 1750.0,
+    "total": 1750,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 4720.0,
+  "date": "2025-07-11",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/080",
+  "date_cell": null,
+  "date_text": "19.07.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Jio Internet Installation for IAC Training Academy (Ground Floor)",
+    "user": null,
+    "unit": 12003.0,
+    "total": 12003,
+    "more": []
+   }
+  ],
+  "vendor": "Jio Business",
+  "notes": [
+   "From NS Credit Card",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 14163.54,
+  "date": "2025-07-19",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/081",
+  "date_cell": null,
+  "date_text": "28.07.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Hikvision NVR -DS 7116in- Q1/n",
+    "user": null,
+    "unit": 6136.0,
+    "total": 6136,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "CP Plus 4U-Rack - 4535VN-4U",
+    "user": null,
+    "unit": 2150.0,
+    "total": 2150,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Cable Box (Cat 6)",
+    "user": null,
+    "unit": 7000.0,
+    "total": 7000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Seagate Hard Disk",
+    "user": "ST2000VX002",
+    "unit": 4956.0,
+    "total": 4956,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Installation Charges",
+    "user": null,
+    "unit": 4000.0,
+    "total": 4000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Hikvision Camera",
+    "user": "DS2CD1023G0E-I",
+    "unit": 3500.0,
+    "total": 3500,
+    "more": []
+   }
+  ],
+  "vendor": "Soma IT Solutions",
+  "notes": [
+   "0.0 | CCTV Setup for Sirakol Community Center | CCTV Setup for Sirakol Community Center | 0",
+   "Bank Name | Punjab National Bank | ADDRESS: | Amtala",
+   "Account No | 136010643399.0",
+   "IFSC Code | PUNB0013620 | CONTACT PERSON | Bapan Mondal",
+   "Branch | Amtala",
+   "IAC Research FOUNDATION"
+  ],
+  "gst_included": false,
+  "total": 27742.0,
+  "date": "2025-07-28",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACRF/Office/076",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+    "user": "Sudipta Pal",
+    "unit": 35499.0,
+    "total": 35499,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 1,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "HP Laptop 39.6 cm (15.6) 15-fc0389AU, Silver",
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0389AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive | Rs. 42000/- With GST | Rs. 41890/- With GST | Rs. 42500/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 41890.0,
+  "date": "2025-07-28",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/082",
+  "date_cell": "2025-12-08",
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera",
+    "user": "Bhargab",
+    "unit": 35499.0,
+    "total": 35499,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 1,
+    "more": [
+     "GST18%"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "HP Laptop 39.6 cm (15.6) 15-fc0389AU, Silver",
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laptop 39.6 cm (15.6) 15-fc0389AU,\nAMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive | Rs. 42000/- With GST | Rs. 41890/- With GST | Rs. 42500/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 41890.0,
+  "date": "2025-08-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/083",
+  "date_cell": null,
+  "date_text": "12-08-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Zoom Account",
+    "user": "Research Dept",
+    "unit": 13760.0,
+    "total": 12384,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Discount",
+    "user": null,
+    "unit": 1376.0,
+    "total": null,
+    "more": [
+     "GST 18 %"
+    ]
+   }
+  ],
+  "vendor": "Zoom Online",
+  "notes": [
+   "NS Credit Card",
+   "Email Approval",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 14613.12,
+  "date": "2025-08-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/084",
+  "date_cell": null,
+  "date_text": "20-08-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Model: RNUC11PAHI30Z00\nProcessor: Intel i3\nRAM: 8GB DDR4\nStorage: SN5000 NVMe\nMonitor: 21.5\" Samsung IPS\nAccessories: Logitech Keyboard & Mouse\nWarranty: 3 years",
+    "user": null,
+    "unit": null,
+    "total": null,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 69999.96,
+  "date": "2025-08-20",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/085",
+  "date_cell": null,
+  "date_text": "22-08-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Eaton 9E-IN 2KVa UPS",
+    "user": "For Network",
+    "unit": 28500.0,
+    "total": 28500,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "APC 1100VA UPS (BX1100C-IN)",
+    "user": "Emergency Light",
+    "unit": 5600.0,
+    "total": 5600,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 40238.0,
+  "date": "2025-08-22",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/086",
+  "date_cell": null,
+  "date_text": "24-08-2025",
+  "lines": [
+   {
+    "qty": 3.0,
+    "desc": "CP Plus IP Dome 4MP (CP-UNC-DA41PL3C-L-Y)",
+    "user": "Ground Floor",
+    "unit": 2550.0,
+    "total": 7650,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "CP Plus IP Bullet 4MP (CP-UNC-TA41PL3C-L-Y)",
+    "user": "Ground Floor",
+    "unit": 2650.0,
+    "total": 5300,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 15281.0,
+  "date": "2025-08-24",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/087",
+  "date_cell": null,
+  "date_text": "22-08-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "DVM 20V 3.25AMP USB TYPE TIP ADAPTER",
+    "user": "Rakesh Barik",
+    "unit": 650.0,
+    "total": 650,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "DVM DC-132 POWER CORD",
+    "user": "Rakesh Barik",
+    "unit": 100.0,
+    "total": 100,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 885.0,
+  "date": "2025-08-22",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/088",
+  "date_cell": null,
+  "date_text": "08-09-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "ASUS NUC with Ultra 5",
+    "user": "Board Room & Training Room",
+    "unit": 34750.0,
+    "total": 69500,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "Crucial 16GB DDR5",
+    "user": "Board Room & Training Room",
+    "unit": 3500.0,
+    "total": 7000,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "500GB WD",
+    "user": "Board Room & Training Room",
+    "unit": 2750.0,
+    "total": 5500,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "ASUS NUC with Ultra 5\nCrucial 16GB DDR5\n500GB WD SSD | Rs. 41500/- With GST | Rs. 41000/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 96760.0,
+  "date": "2025-09-08",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/089",
+  "date_cell": null,
+  "date_text": "08-09-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Printer",
+    "user": "Ground Floor",
+    "unit": 17300.0,
+    "total": 17300,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "HP Laserjet Tank MFP 2606sdw, Wireless, Print, Copy, Scan, 40-Sheet ADF, Hi-Speed USB 2.0, Ethernet, Bluetooth LE, Up to 22 ppm, 250-sheet Input Tray, 1-Year Warranty, Black and White, 381U2A | Rs. 17300/- With GST | Rs. 17900/- With GST | Rs. 17800/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 20414.0,
+  "date": "2025-09-08",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/090",
+  "date_cell": null,
+  "date_text": "08-09-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Printer Repairing",
+    "user": "Sirakol",
+    "unit": 1750.0,
+    "total": 1750,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "IAC Research FOUNDATION",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 2065.0,
+  "date": "2025-09-08",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACRF/Office/059",
+  "date_cell": null,
+  "date_text": "12-09-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Lenovo Laptop Adaptor (S/N GM0XZ6NX) 1 Year Warranty",
+    "user": "Dr. Ragitha",
+    "unit": 1250.0,
+    "total": 1250,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 1475.0,
+  "date": "2025-09-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/092",
+  "date_cell": null,
+  "date_text": "17-09-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Logitech Wireless Keyboard & Mouse",
+    "user": "Ground Floor",
+    "unit": 1100.0,
+    "total": 2200,
+    "more": [
+     "Model: - MK235\nS/N 2524CE01TBL9\nS/N 2524CED1TFP9 Board Room & Class Room"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 2596.0,
+  "date": "2025-09-17",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/093",
+  "date_cell": null,
+  "date_text": "22-09-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Logitech Wireless Keyboard & Mouse",
+    "user": "Site, Kamal Rathi",
+    "unit": 1100.0,
+    "total": 1100,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 1298.0,
+  "date": "2025-09-22",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/094",
+  "date_cell": null,
+  "date_text": "03-10-2025",
+  "lines": [
+   {
+    "qty": 4.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0389AU, Silver",
+    "user": "Subhajyoti Marik,\nDebasmita Saha,\nDebaleena Saha\nSharmishtha",
+    "unit": 35499.0,
+    "total": 141996,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 4.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 4,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 167560.0,
+  "date": "2025-10-03",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/095",
+  "date_cell": null,
+  "date_text": "08-10-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0389AU, Silver",
+    "user": "Anindita Sinha\nSourav Mondal",
+    "unit": 35499.0,
+    "total": 70998,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 2.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 2,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 83780.0,
+  "date": "2025-10-08",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/096",
+  "date_cell": null,
+  "date_text": "17-10-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Apple Macbook Air",
+    "user": "Admin & Finance",
+    "unit": 93983.0,
+    "total": 93983,
+    "more": [
+     "Sl No: - JYVT0231XW"
+    ]
+   }
+  ],
+  "vendor": "Limton Pvt Ltd",
+  "notes": [
+   "Limton Pvt Ltd",
+   "Payment via NS Credit Card",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 110899.94,
+  "date": "2025-10-17",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/097",
+  "date_cell": null,
+  "date_text": "14-10-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Mouse",
+    "user": "Admin & Finance",
+    "unit": 847.46,
+    "total": 847.46,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Laptop Adaptor",
+    "user": "Madhu",
+    "unit": 1000.0,
+    "total": 1000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 2180.0028,
+  "date": "2025-10-14",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/098",
+  "date_cell": null,
+  "date_text": "14-10-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Single Door Electro Magnetic Lock",
+    "user": null,
+    "unit": 1950.0,
+    "total": 1950,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "L Clamp for Lock",
+    "user": null,
+    "unit": 650.0,
+    "total": 650,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "RJ45 Connector",
+    "user": null,
+    "unit": 5.0,
+    "total": 5,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Attendance Device Installation Charges",
+    "user": null,
+    "unit": 8000.0,
+    "total": 8000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Service Charges for powder coating of E M Lock & L Clamp Etc",
+    "user": null,
+    "unit": 2000.0,
+    "total": 2000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Face & Fingerprint Based Standalone Attendance System",
+    "user": null,
+    "unit": 21700.0,
+    "total": 21700,
+    "more": []
+   }
+  ],
+  "vendor": "Siemtel Telenetwork Pvt Ltd",
+  "notes": [
+   "Bank Name | HDFC Bank",
+   "Account No | 142320006444.0 | ADDRESS: | 4, Lee Road, Vaibhav Plaza, Kolkata - 20",
+   "IFS Code | HDFC0000014",
+   "Branch | Central Plaza | CONTACT PERSON | Vishal ",
+   "Note | Please check Invoice before Payment",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 40479.9,
+  "date": "2025-10-14",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/099",
+  "date_cell": null,
+  "date_text": "17-10-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "AMD Ryzen 9 9950X ( Batch - 9AHC052M50057)",
+    "user": null,
+    "unit": 47250.0,
+    "total": 47250,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Zotac RTX5070ti 16GB (Batch - N253300028908)",
+    "user": null,
+    "unit": 71500.0,
+    "total": 71500,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "MB MSI Tomahawk Mag B850 Max Wifi (Batch - 601-7E62-020B2508007500)",
+    "user": null,
+    "unit": 20000.0,
+    "total": 20000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "64 GB DDR5 32 * 2 GSkill Trident G5 6000",
+    "user": null,
+    "unit": 27750.0,
+    "total": 27750,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "1TB WD NVME SSD SN7100",
+    "user": null,
+    "unit": 6500.0,
+    "total": 13000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Arctic Freezer III 360 ARGB Pro Fan",
+    "user": null,
+    "unit": 9250.0,
+    "total": 9250,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "SMPS Cosair RM850X (CP-9020270)",
+    "user": null,
+    "unit": 9500.0,
+    "total": 9500,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Cabinet Lian Li 011 Mini V2",
+    "user": null,
+    "unit": 9000.0,
+    "total": 9000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "27\" BenQ PD2706QN",
+    "user": null,
+    "unit": 25000.0,
+    "total": 25000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Installation and Services",
+    "user": null,
+    "unit": 1000.0,
+    "total": 1000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "37800",
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 275235.0,
+  "date": "2025-10-17",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/100",
+  "date_cell": null,
+  "date_text": "17-11-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0389AU, Silver",
+    "user": "Sudipto Ghosh\nHR Department",
+    "unit": 35499.0,
+    "total": 35499,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 1,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "IAC Research FOUNDATION",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 41890.0,
+  "date": "2025-11-17",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACRF/Office/062",
+  "date_cell": null,
+  "date_text": "13-11-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Victus Gaming 15-fa2309TX (C25MSPA)",
+    "user": "Research",
+    "unit": 87250.0,
+    "total": 87250,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Windows Professional 64 Bit (OEM)",
+    "user": "Research",
+    "unit": 9000.0,
+    "total": 9000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 113575.0,
+  "date": "2025-11-13",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/101",
+  "date_cell": null,
+  "date_text": "10-11-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Time Watch Bio 1",
+    "user": "Site, Sirakol",
+    "unit": 5950.0,
+    "total": 5950,
+    "more": []
+   }
+  ],
+  "vendor": "Cognitech IT Consultancy",
+  "notes": [
+   "Bank | ICICI Bank Ltd | ADDRESS: | 5/14, Poddar Nagar,Jadavpur",
+   "Account No | 83705003722.0",
+   "IFSC Code | ICIC0000837 | CONTACT PERSON | Abhijit",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 7021.0,
+  "date": "2025-11-10",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/102",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "COCO HDMI cable 1.5 Mts",
+    "user": "Ground Floor",
+    "unit": 300.0,
+    "total": 300,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 354.0,
+  "date": "2025-11-10",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/103",
+  "date_cell": null,
+  "date_text": "16-11-2025",
+  "lines": [
+   {
+    "qty": 4.0,
+    "desc": "PoE Switch",
+    "user": "Site, Sirakol",
+    "unit": 1200.0,
+    "total": 4800,
+    "more": [
+     "2505012658040573, 2505012658040578, 2505012658040556, 2505012658040564"
+    ]
+   },
+   {
+    "qty": 6.0,
+    "desc": "Media Convertor",
+    "user": "Site, Sirakol",
+    "unit": 1300.0,
+    "total": 7800,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Fiber Splicing",
+    "user": "Site, Sirakol",
+    "unit": 4500.0,
+    "total": 4500,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Dismental all the network & Camera",
+    "user": null,
+    "unit": 2000.0,
+    "total": 2000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Installed All the camera & configure the network",
+    "user": null,
+    "unit": 4000.0,
+    "total": 4000,
+    "more": []
+   }
+  ],
+  "vendor": "Soma IT Solutions",
+  "notes": [
+   "Bank | PNB",
+   "Account No | 136010643399.0 | ADDRESS: | Diamond Harbour Road",
+   "IFSC Code | PUNB0013620",
+   "Branch | AMTALA | CONTACT PERSON | Bapan",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 23100.0,
+  "date": "2025-11-16",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/104",
+  "date_cell": null,
+  "date_text": "29-10-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Time Watch TrueFace6000FP",
+    "user": "GroundFloor",
+    "unit": 16153.0,
+    "total": 32306,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "BioMetric Installation Charges",
+    "user": "GroundFloor",
+    "unit": 2000.0,
+    "total": 2000,
+    "more": []
+   }
+  ],
+  "vendor": "Cognitech IT Consultancy",
+  "notes": [
+   "Bank Name | ICICI Bank",
+   "Account No | 83705003722.0 | ADDRESS: | 5/14 Poddar Nagar Jadavpur",
+   "Branch Name | Park Street | Kolkata 700068",
+   "IFSC Code | ICIC0000837 | CONTACT PERSON | Abhijit ",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 40481.08,
+  "date": "2025-10-29",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/105",
+  "date_cell": null,
+  "date_text": "11-11-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Epson Printer L 14150 Colour Printer",
+    "user": "3Rd Floor (Shared)",
+    "unit": 32000.0,
+    "total": 32000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 37760.0,
+  "date": "2025-11-11",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/106",
+  "date_cell": null,
+  "date_text": "16-12-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0690AU, SLNo: -5CD5356ZWV",
+    "user": "Anubhav Das",
+    "unit": 35499.0,
+    "total": 35499,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 1,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 41890.0,
+  "date": "2025-12-16",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/107",
+  "date_cell": null,
+  "date_text": "07-01-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD3341GHJ\nHP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD333FFR9",
+    "user": "Poonam\nJossy",
+    "unit": 38999.0,
+    "total": 77998,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 2.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 2,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 92040.0,
+  "date": "2026-01-07",
+  "date_note": "PO says 2025-01-07; taken as 2026-01-07 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/108",
+  "date_cell": null,
+  "date_text": "08-01-2025",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD3341GHJ\nHP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD333FFR9",
+    "user": "Shantanu Chaudhuri\nStock",
+    "unit": 38999.0,
+    "total": 77998,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 2.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 2,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "\"AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera\"\t | Rs. 395000/- With GST | Rs. 38999/- With GST | Rs. 40000/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 92040.0,
+  "date": "2026-01-08",
+  "date_note": "PO says 2025-01-08; taken as 2026-01-08 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/109",
+  "date_cell": null,
+  "date_text": "28-01-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD3341GHJ\nHP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD333FFR9",
+    "user": "CEO Office Intern Soumodip Das",
+    "unit": 38999.0,
+    "total": 38999,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 1,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "\"AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera\"\t | Rs. 46520/- With GST | Rs. 47000/- With GST | Rs. 48200/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 46020.0,
+  "date": "2026-01-28",
+  "date_note": "PO says 2025-01-28; taken as 2026-01-28 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/110",
+  "date_cell": null,
+  "date_text": "08-01-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Shredder \u2013 GS 1488 CD",
+    "user": "3rd Floor",
+    "unit": 4000.0,
+    "total": 4000,
+    "more": [
+     "Paper shredder machine"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Shredder \u2013 GS 1488 CD | 4800.0 | 4720.0 | 4700.0",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 4720.0,
+  "date": "2026-01-08",
+  "date_note": "PO says 2025-01-08; taken as 2026-01-08 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/111",
+  "date_cell": null,
+  "date_text": "05-02-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Brother HL- B2180DWB Printer",
+    "user": "Site NS Cabin",
+    "unit": 13000.0,
+    "total": 13000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Brother HL- B2180DWB Printer | 13250.0 | 13000.0 | 14000.0",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 15340.0,
+  "date": "2026-02-05",
+  "date_note": "PO says 2025-02-05; taken as 2026-02-05 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/112",
+  "date_cell": null,
+  "date_text": "09-02-2025",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "HP Laptop 39.6 cm (15.6) 15-fc0030AU, SLNo: -5CD3341GHJ",
+    "user": "Animesh Sir\nSite",
+    "unit": 39999.0,
+    "total": 39999,
+    "more": [
+     "AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera"
+    ]
+   },
+   {
+    "qty": 1.0,
+    "desc": "Backpack",
+    "user": null,
+    "unit": 1.0,
+    "total": 1,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "\"AMD Ryzen\u2122 5-7520U processor\nWindows 11 Home\n39.6 cm (15.6) diagonal, FHD display with AMD Radeon\u2122 Graphics\n16 GB LPDDR5-3200 RAM\n512 GB SSD Solid State Drive\nBacklit keyboard with numeric keypad, True Vision 1080p FHD camera\"\t | Rs. 47300/- With GST | Rs. 47201/- With GST | Rs. 48200/- With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 47200.0,
+  "date": "2026-02-09",
+  "date_note": "PO says 2025-02-09; taken as 2026-02-09 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/113",
+  "date_cell": null,
+  "date_text": "12.06.25",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Renewal of AutoCad LT Version",
+    "user": "Barnali",
+    "unit": 29500.0,
+    "total": 29500,
+    "more": [
+     "Contract #110003931581"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 34810.0,
+  "date": "2026-06-12",
+  "date_note": "PO says 2025-06-12; taken as 2026-06-12 from the PO order",
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/114",
+  "date_cell": null,
+  "date_text": "31-03-2026",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "APC BR1000G-IN UPS",
+    "user": "Site CCTV",
+    "unit": 11750.0,
+    "total": 23500,
+    "more": [
+     "SZB2536011376",
+     "SZB2536020264"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "APC BR1000G-IN UPS\t | Rs. 11780/- Without GST | Rs. 11750/- Without GST | Rs. 12500/- Without GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 27730.0,
+  "date": "2026-03-31",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/115",
+  "date_cell": null,
+  "date_text": "29.04.26",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "G STAR CAD STANDARD",
+    "user": "Animesh Chakraborty",
+    "unit": 27900.0,
+    "total": 27900,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "G STAR CAD STANDARD",
+    "user": "Nishant Shah",
+    "unit": 27900.0,
+    "total": 27900,
+    "more": [
+     "The Above is Inclusive of all",
+     "The Above rates are inclusive of all Applicable GST",
+     "LifeTime validity"
+    ]
+   }
+  ],
+  "vendor": "Comp Tech Computer & Services",
+  "notes": [
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": true,
+  "total": 65844.0,
+  "date": "2026-04-29",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/115",
+  "date_cell": null,
+  "date_text": "13-05-2026",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Core i3\tX1504VA-BQ341WS\t90NB10J2-M041L0\tIntel\u00ae Core\u2122 i3-1315U  / 8GB+8GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 15.6-inch / 15.6\" FHD ANTI-GLARE NON-TOUCH,250NITS,NTSC:45%,VIPS-NB(BQ) /  / COOL SILVER / Backlit KB / Win 11 Home / MS Office 2024 + MSO 365 /",
+    "user": null,
+    "unit": 37300.0,
+    "total": 37300,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Core i3\tX1504VA-BQ341WS\t90NB10J2-M041L0\tIntel\u00ae Core\u2122 i3-1315U  / 8GB+8GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 15.6-inch / 15.6\" FHD ANTI-GLARE NON-TOUCH,250NITS,NTSC:45%,VIPS-NB(BQ) /  / COOL SILVER / Backlit KB / Win 11 Home / MS Office 2024 + MSO 365 /",
+    "user": null,
+    "unit": 37300.0,
+    "total": 37300,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "BagPack",
+    "user": null,
+    "unit": 835.59,
+    "total": 1671.18,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | Rs. 45500 with GST | Rs. 45000 With GST | Rs. 46000 With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 89999.9924,
+  "date": "2026-05-13",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/116",
+  "date_cell": null,
+  "date_text": "13-05-2026",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Core i3\tX1504VA-BQ341WS\t90NB10J2-M041L0\tIntel\u00ae Core\u2122 i3-1315U  / 8GB+8GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 15.6-inch / 15.6\" FHD ANTI-GLARE NON-TOUCH,250NITS,NTSC:45%,VIPS-NB(BQ) /  / COOL SILVER / Backlit KB / Win 11 Home / MS Office 2024 + MSO 365 /",
+    "user": null,
+    "unit": 38550.0,
+    "total": 38550,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Core i3\tX1504VA-BQ341WS\t90NB10J2-M041L0\tIntel\u00ae Core\u2122 i3-1315U  / 8GB+8GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 15.6-inch / 15.6\" FHD ANTI-GLARE NON-TOUCH,250NITS,NTSC:45%,VIPS-NB(BQ) /  / COOL SILVER / Backlit KB / Win 11 Home / MS Office 2024 + MSO 365 /",
+    "user": null,
+    "unit": 38550.0,
+    "total": 38550,
+    "more": []
+   },
+   {
+    "qty": 2.0,
+    "desc": "BagPack",
+    "user": null,
+    "unit": 9.25,
+    "total": 18.5,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Sales & Services",
+  "notes": [
+   "As per invoice attached",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | Rs. 45500 with GST | Rs. 45000 With GST | Rs. 46000 With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 90999.83,
+  "date": "2026-05-13",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/117",
+  "date_cell": null,
+  "date_text": "29-05-2026",
+  "lines": [
+   {
+    "qty": 4.0,
+    "desc": "Core i3        X1404VA-NK760WS       90NB10J2-M041L0        Intel\u00ae Core\u2122 i3-1315U  / 8GB+8GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 15.6-inch / 15.6\" FHD ANTI-GLARE NON-TOUCH,250NITS,NTSC:45%,VIPS-NB(BQ) /  / COOL SILVER / Backlit KB / Win 11 Home / MS Office 2024 + MSO 365 /",
+    "user": null,
+    "unit": 35700.0,
+    "total": 142800,
+    "more": []
+   },
+   {
+    "qty": 4.0,
+    "desc": "BagPack",
+    "user": null,
+    "unit": 800.0,
+    "total": 3200,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693 | 35700.0",
+   "42126",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | Rs. 42600 with GST | Rs. 42126 With GST | Rs. 43000 With GST"
+  ],
+  "gst_included": false,
+  "total": 172280.0,
+  "date": "2026-05-29",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/118",
+  "date_cell": null,
+  "date_text": "18.6.26",
+  "lines": [
+   {
+    "qty": 190.0,
+    "desc": "Email Renewal (Workspace Business Starter 190)",
+    "user": "Shared",
+    "unit": 3200.0,
+    "total": 608000,
+    "more": []
+   }
+  ],
+  "vendor": "Odyssey Computer Services Pvt Ltd",
+  "notes": [
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 717440.0,
+  "date": "2026-06-18",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/119",
+  "date_cell": null,
+  "date_text": "27-06-2026",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Brother HL-L2440DW Printer",
+    "user": "2nd Floor",
+    "unit": 11000.0,
+    "total": 11000,
+    "more": [
+     "E82911A6N209003 Account Team"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | Rs. 12980 with GST | Rs. 12980 with GST | Rs. 13500 With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 12980.0,
+  "date": "2026-06-27",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/120",
+  "date_cell": null,
+  "date_text": "26-06-2026",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "GrandStream GWN7710R",
+    "user": "Site Testing",
+    "unit": 7750.0,
+    "total": 7750,
+    "more": [
+     "SN: -34A01Y7984"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | Rs. 9500 with GST | Rs. 9145 with GST | Rs. 9500 With GST",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 9145.0,
+  "date": "2026-06-26",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/121",
+  "date_cell": null,
+  "date_text": "01-07-2026",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Laptop Adapter Lenovo Lapcare 65W",
+    "user": "Rakesh Barik Site",
+    "unit": 750.0,
+    "total": 750,
+    "more": [
+     "LB691930292"
+    ]
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Adapter",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 885.0,
+  "date": "2026-07-01",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/122",
+  "date_cell": null,
+  "date_text": "12-07-2026",
+  "lines": [
+   {
+    "qty": 4.0,
+    "desc": "Core i3        X1404VA-NK760WS       90NB10J2-M041L0        Intel\u00ae Core\u2122 i3-1315U  / 8GB+8GB DDR4  / 512GB PCIe\u00ae 4.0 SSD / 15.6-inch / 15.6\" FHD ANTI-GLARE NON-TOUCH,250NITS,NTSC:45%,VIPS-NB(BQ) /  / COOL SILVER / Backlit KB / Win 11 Home / MS Office 2024 + MSO 365 /",
+    "user": "1. Devdeep Roy Chowdhury\n2. Sreetama Bhaduri\n3. Aparajita Saha\n4. Will provide name later",
+    "unit": 41800.0,
+    "total": 167200,
+    "more": []
+   },
+   {
+    "qty": 4.0,
+    "desc": "Laptop Bag",
+    "user": null,
+    "unit": 572.8,
+    "total": 2291.2,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | 50000 With all Tax | 50000 With all Tax | 52000 With All tax",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 199999.616,
+  "date": "2026-07-12",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/123",
+  "date_cell": null,
+  "date_text": "27-07-2026",
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Cat 6",
+    "user": "Admin Block",
+    "unit": 12000.0,
+    "total": 24000,
+    "more": []
+   },
+   {
+    "qty": 1.0,
+    "desc": "Cat 6A",
+    "user": "Admin Block",
+    "unit": 18000.0,
+    "total": 18000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Items | Com Tech | Optima Infotech | Manshi Cyber Security"
+  ],
+  "gst_included": false,
+  "total": 49560.0,
+  "date": "2026-07-27",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/124",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 2.0,
+    "desc": "Lenovo tab K11 (ZADC0000IN)\nMediaTek Helio G88 Octa-Core Wifi only 8GB +128GB upto 1TB WUXGA (1920*1200) 11 Iinch 13MP & 8MP 7040 mAh Android 13",
+    "user": "Clinical Team",
+    "unit": 20762.5,
+    "total": 41525,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Sales & Services",
+  "notes": [],
+  "gst_included": false,
+  "total": 48999.5,
+  "date": "2026-07-27",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/125",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 3.0,
+    "desc": "Lenovo tab K11 (ZADC0000IN)\nMediaTek Helio G88 Octa-Core Wifi only 8GB +128GB upto 1TB WUXGA (1920*1200) 11 Iinch 13MP & 8MP 7040 mAh Android 13",
+    "user": "Clinical Team",
+    "unit": 19067.79,
+    "total": 57203.37,
+    "more": []
+   }
+  ],
+  "vendor": "Comp Tech Sales & Services",
+  "notes": [
+   "Comparison | With Out GST",
+   "Items | Com Tech | Optima Infotech | Aim Technosoft India Pvt. Ltd",
+   "Each Tab without GST | 19067.79 | 20500.0 | 19068.0"
+  ],
+  "gst_included": false,
+  "total": 67499.9766,
+  "date": "2026-07-27",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/126",
+  "date_cell": null,
+  "date_text": null,
+  "lines": [
+   {
+    "qty": 5.0,
+    "desc": "Lenovo tab K11 (ZADC0000IN)\nMediaTek Helio G88 Octa-Core Wifi only 8GB +128GB upto 1TB WUXGA (1920*1200) 11 Iinch 13MP & 8MP 7040 mAh Android 13",
+    "user": "Clinical Team",
+    "unit": 19068.0,
+    "total": 95340,
+    "more": []
+   }
+  ],
+  "vendor": "AIM TECHNOSOFT INDIA PRIVATE LIMITED",
+  "notes": [
+   "HDFC BANK\nA/c Name- AIM TECHNOSOFT INDIA PRIVATE LIMITED\nA/c No-50200065109283\nBank Name- HDFC Bank\nBranch Name- G C AVENUE\nIFSC Code: HDFC0000382\nBranch Address: 31 G C Avenue, kolkata-700013, \nWest Bengal",
+   "Comparison | With Out GST",
+   "Items | Com Tech | Optima Infotech | Aim Technosoft India Pvt. Ltd",
+   "Each Tab without GST | 19067.79 | 20500.0 | 19068.0",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 112501.2,
+  "date": "2026-07-27",
+  "date_note": "no date on the PO",
+  "date_estimated": true
+ },
+ {
+  "po": "IACPF/Office/127",
+  "date_cell": null,
+  "date_text": "22-09-2026",
+  "lines": [
+   {
+    "qty": 1.0,
+    "desc": "Frontech UPS FT-2569 Force 725",
+    "user": "Site (Ayan System)",
+    "unit": 1750.0,
+    "total": 1750,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Note | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "No Comparison ",
+   "FMC Fortuna Building, 3rd Floor A1 to A3, 234/3A, A J C Bose Road, Kolkata 700020"
+  ],
+  "gst_included": false,
+  "total": 2065.0,
+  "date": "2026-09-22",
+  "date_note": null,
+  "date_estimated": false
+ },
+ {
+  "po": "IACPF/Office/128",
+  "date_cell": null,
+  "date_text": "03-11-2026",
+  "lines": [
+   {
+    "qty": 5.0,
+    "desc": "Processor\uff1a Intel\u00ae Core\u2122 3 Processor 100U 1.2 GHz (10MB Cache, up to 4.7 GHz, 6 cores, 8 Threads)\nGraphics\uff1a Intel\u00ae Graphics\nDisplay\uff1a 39.62 cm (15.6) FHD (1920 x 1080) display having 16:9 Aspect Ratio || 60Hz Refresh rate || 250nits Brightness\nMemory\uff1a 8GB DDR5 on board RAM) expandable upto 24GB using 1x DDR5 SO-DIMM slot || *Dual-channel memory support requires at least one SO-DIMM module.\nStorage\uff1a 512GB M.2 NVMe\u2122 PCIe\u00ae 4.0 SSD + 100GB Cloud Storage with Microsoft 365 Basic for 1 Year",
+    "user": null,
+    "unit": 44000.0,
+    "total": 220000,
+    "more": []
+   }
+  ],
+  "vendor": "Optima Infotech",
+  "notes": [
+   "Optima Infotech",
+   "HDFC Bank Limited | ADDRESS:",
+   "Park Street Branch",
+   "Current Account # 06932320000548 | CONTACT PERSON | Anil Bader",
+   "IFSC Code: HDFC0000693",
+   "Comparison",
+   "Note | Com Tech | Optima Infotech | Manshi Cyber Security",
+   "Laptop | Rs. 45500/- With GST | Rs. 44000/- With GST | Rs. 45000/- With GSt"
+  ],
+  "gst_included": false,
+  "total": 259600.0,
+  "date": "2026-11-03",
+  "date_note": null,
+  "date_estimated": false
+ }
+]

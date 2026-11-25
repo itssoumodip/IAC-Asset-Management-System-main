@@ -23,7 +23,7 @@ interface Method {
   label: string;
   active: boolean;
   version: number;
-  calculationType: 'SLM' | 'WDV';
+  calculationType: 'SLM' | 'WDV' | 'NONE';
   ratePercent: number | null;
   teamId: string | null;
   teamName: string | null;
@@ -33,7 +33,7 @@ interface Method {
 
 const emptyForm = {
   label: '',
-  calculationType: 'SLM' as 'SLM' | 'WDV',
+  calculationType: 'SLM' as 'SLM' | 'WDV' | 'NONE',
   ratePercent: '15',
   reason: '',
   active: true,
@@ -178,12 +178,18 @@ export function DepreciationSettings() {
                         <div className="muted small-text">{method.code}</div>
                       </td>
                       <td>
-                        {method.calculationType === 'SLM' ? 'Straight Line' : 'Written Down Value'}
+                        {method.calculationType === 'SLM'
+                          ? 'Straight Line'
+                          : method.calculationType === 'NONE'
+                            ? 'No depreciation'
+                            : 'Written Down Value'}
                       </td>
                       <td>
                         {method.calculationType === 'SLM'
                           ? 'Useful life per asset'
-                          : `${method.ratePercent ?? 15}% yearly`}
+                          : method.calculationType === 'NONE'
+                            ? '—'
+                            : `${method.ratePercent ?? 15}% yearly`}
                       </td>
                       <td>{method.categoryLabel ?? 'All categories'}</td>
                       <td>{method.teamName ?? 'All teams'}</td>
@@ -236,10 +242,11 @@ export function DepreciationSettings() {
                 label=""
                 htmlFor="method-calculation"
                 value={form.calculationType}
-                onChange={(value) => setForm({ ...form, calculationType: value as 'SLM' | 'WDV' })}
+                onChange={(value) => setForm({ ...form, calculationType: value as 'SLM' | 'WDV' | 'NONE' })}
                 options={[
                   { value: 'SLM', label: 'Straight Line (SLM)' },
                   { value: 'WDV', label: 'Written Down Value (WDV)' },
+                  { value: 'NONE', label: 'No depreciation (land and similar)' },
                 ]}
               />
             </Field>
@@ -256,6 +263,10 @@ export function DepreciationSettings() {
                   onChange={(event) => setForm({ ...form, ratePercent: event.target.value })}
                 />
               </Field>
+            ) : form.calculationType === 'NONE' ? (
+              <p className="muted small-text">
+                Assets with this method keep their full cost; the yearly run skips them.
+              </p>
             ) : (
               <p className="muted small-text">
                 SLM uses the asset’s useful life and residual value to calculate the annual charge.

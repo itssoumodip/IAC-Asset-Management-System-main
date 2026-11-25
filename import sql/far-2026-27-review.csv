@@ -1,0 +1,48 @@
+﻿row,name,group,cost,note
+6,Website Development,Intangible Assets,268450.0,no rate in register; not depreciated
+7,Canteen & Store,Temporary Building,38791.0,no rate in register; used 63.16%; 2025-26 not filled in the register; worked out 22566 with its formula
+8,Canteen & Store,Temporary Building,45000.0,no rate in register; used 63.16%; 2025-26 not filled in the register; worked out 26178 with its formula
+9,Infra Electrical Installation,Electrical Installation,2048067.0,2025-26 not filled in the register; worked out 498126 with its formula
+10,Bulbs,Electrical Installation,1500.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 280 with its formula
+11,Socket Fitting,Electrical Installation,7672.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 729 with its formula
+12,Interior_Ground Floor,Furniture & Fixture,8042918.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 5705 with its formula
+13,Ground Floor Office Equipment,Office Equipment,742950.0,no rate in register; used 45.07%; 2025-26 not filled in the register; worked out 917 with its formula
+14,Civil construction,Furniture & Fixture,1170920.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 303151 with its formula
+15,CWIP Infra Plumbing,Furniture & Fixture,1331854.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 344817 with its formula
+16,Water Purifier,Office Equipment,1500.0,no rate in register; used 45.07%; 2025-26 not filled in the register; worked out 441 with its formula
+17,Air Conditions,Office Equipment,1699.0,no rate in register; used 45.07%; 2025-26 not filled in the register; worked out 491 with its formula
+18,Universal Foot,Office Equipment,19767.0,no rate in register; used 45.07%; 2025-26 not filled in the register; worked out 4052 with its formula
+19,Kitchen items,Office Equipment,5430.0,no rate in register; used 45.07%; 2025-26 not filled in the register; worked out 530 with its formula
+20,Kent Elite II,Office Equipment,16700.0,no rate in register; used 45.07%; 2025-26 not filled in the register; worked out 4516 with its formula
+21,Fan Amtalla Guest House,Furniture & Fixture,2500.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 647 with its formula
+22,Examination table,Furniture & Fixture,9470.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 974 with its formula
+23,Ground Floor Furniture and Fixture,Furniture & Fixture,187021.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 133 with its formula
+24,Orient Fan,Furniture & Fixture,6400.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 1185 with its formula
+25,Almirah,Furniture & Fixture,21079.0,no rate in register; used 25.89%; 2025-26 not filled in the register; worked out 4291 with its formula
+44,Air Conditions,Office Equipment,38650.0,register figures do not add up (cost 38650 − dep to 31-3-2025 62153 ≠ WDV + 2025-26 dep 7197); used the register WDV
+45,Air Conditions,Office Equipment,46350.0,register figures do not add up (cost 46350 − dep to 31-3-2025 63329 ≠ WDV + 2025-26 dep 8632); used the register WDV
+137,IMAC - Desktop,Computer & Softwares,201724.5,gross block 185204.54 differs from purchase value 201724.50; used the gross block
+252,Civil Construction,Building,14492718.0,gross block 2351739.00 differs from purchase value 14492718.00; used the gross block
+260,Electrical Installation_Ground Floor,Electrical Installation,109948.0,gross block 27700.00 differs from purchase value 109948.00; used the gross block
+265,Civil Construction,Building,491320.0,gross block 57317987.35 differs from purchase value 491320.00; used the gross block
+274,Portable Office Cabin,Temporary Building,34220.0,register uses 106 days for 2026-27 although the asset was in use all year; the software will charge the full year
+290,Motor Vehicle Bike,Motor Vehicle,2654.0,no rate in register; used 31.23%; no purchase or capitalisation date
+315,Sanitary Fixture FA,Furniture & Fixture,19972.0,no rate in register; used 25.89%
+348,Godown - Fitting and Fixture,Furniture & Fixture,41969.05,no rate in register; used 25.89%
+352,Land,Land,1134850.0,gross block 1346971.00 differs from purchase value 1134850.00; used the gross block
+353,Land,Land,45800.0,gross block 2470363.00 differs from purchase value 45800.00; used the gross block
+381,Air Conditions,Office Equipment,321213.04,gross block 355001.82 differs from purchase value 321213.04; used the gross block
+447,Books And Periodicals,Books And Periodicals,42651.7,no rate in register; not depreciated
+448,Books And Periodicals,Books And Periodicals,29500.0,no rate in register; not depreciated
+472,Books and Periodicals,Books and Periodicals,16683.0,no rate in register; not depreciated; no purchase or capitalisation date
+474,Training Kit - Clay,Office Equipment,1050.0,no purchase or capitalisation date
+475,Training Kit - TLM Material for PSS,Office Equipment,2725.0,no purchase or capitalisation date
+476,Land,Land,495757.0,no rate in register; not depreciated
+477,Land,Land,1436363.0,no rate in register; not depreciated
+478,Stamp Duty land,Land,134108.0,no rate in register; not depreciated
+483,Training Kit,Office Equipment,1186.0,no purchase or capitalisation date
+491,Books and Periodicals,Books and Periodicals,9722.0,no rate in register; not depreciated
+492,Books and Periodicals,Books and Periodicals,11180.0,no rate in register; not depreciated
+493,Books and Periodicals,Books and Periodicals,1212.0,no rate in register; not depreciated
+498,Silver,,87796.0,no rate in register; not depreciated
+501,Land,Land,2359636.0,no rate in register; not depreciated
