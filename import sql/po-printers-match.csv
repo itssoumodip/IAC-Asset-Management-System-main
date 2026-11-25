@@ -1,0 +1,7 @@
+﻿category,asset_type,po,line,unit_no,date,date_estimated,date_note,vendor,description,person,price_ex_gst,price_incl_gst,serial_on_po,action,asset_code,confidence,why,asset_holder,asset_cost,asset_bought
+Office Equipment,Printer,IACPF/Office/001,1,1,2024-07-22,False,,Odyssey Computer Services Pvt Ltd,Canon Printer MF2720DW 5621C016AA,Training Academy,19000.0,22420.0,,new,,,no laptop in the software matches,,,
+Office Equipment,Scanner,IACPF/Office/006,1,1,2024-10-03,False,,Comp Tech Computer & Services,fujitsu sp 1130N,Account,19250.0,22715.0,,new,,,no laptop in the software matches,,,
+Office Equipment,Printer,IACPF/Office/089,1,1,2025-09-08,False,,Optima Infotech,Printer,Ground Floor,17300.0,20414.0,,new,,,no laptop in the software matches,,,
+Office Equipment,Printer,IACPF/Office/105,1,1,2025-11-11,False,,Optima Infotech,Epson Printer L 14150 Colour Printer,3Rd Floor (Shared),32000.0,37760.0,,new,,,no laptop in the software matches,,,
+Office Equipment,Printer,IACPF/Office/111,1,1,2026-02-05,False,PO says 2025-02-05; taken as 2026-02-05 from the PO order,Optima Infotech,Brother HL- B2180DWB Printer,Site NS Cabin,13000.0,15340.0,,new,,,no laptop in the software matches,,,
+Office Equipment,Printer,IACPF/Office/119,1,1,2026-06-27,False,,Optima Infotech,Brother HL-L2440DW Printer,2nd Floor,11000.0,12980.0,E82911A6N209003,new,,,no laptop in the software matches,,,

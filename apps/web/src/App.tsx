@@ -1,6 +1,7 @@
 import { Children, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { useCatalogHref } from './catalog-return';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, resetCsrf, setViewAs } from './api';
 import { ViewAsBanner, ViewAsMenu } from './components/ViewAs';
@@ -358,6 +359,8 @@ function TopbarGreeting({ name }: { name: string }) {
 }
 function Shell() {
   const { user } = useSession();
+  // The sidebar's catalog link reopens the last search and filters.
+  const catalogLink = useCatalogHref();
   if (!user) return null;
   const [menuOpen, setMenuOpen] = useState(false);
   // Desktop only: hide the sidebar to give pages the full width. Remembered per browser.
@@ -467,7 +470,7 @@ function Shell() {
           </NavGroup>
           <NavGroup label="Assets" ariaLabel="Assets navigation">
             {can(user, 'asset.view_all') && (
-              <SideLink to="/assets" icon="assets" end>
+              <SideLink to={catalogLink} icon="assets" end>
                 Asset catalog
               </SideLink>
             )}

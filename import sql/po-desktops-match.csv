@@ -1,0 +1,8 @@
+﻿category,asset_type,po,line,unit_no,date,date_estimated,date_note,vendor,description,person,price_ex_gst,price_incl_gst,serial_on_po,action,asset_code,confidence,why,asset_holder,asset_cost,asset_bought
+IT Hardware,Desktop,IACPF/Office/054,1,1,2025-04-25,True,no date on the PO,Optima Infotech,"Asus NUC RNUC12WSHI50000I (8 GB RAM, 500 GB SSD)",Board Room,33750.0,39825.0,,new,,,no laptop in the software matches,,,
+IT Hardware,Desktop,IACPF/Office/084,1,1,2025-08-20,False,,Optima Infotech,"Asus NUC RNUC11PAHI30Z00 i3 (8 GB RAM) with 21.5"" Samsung monitor",,29661.0,34999.98,,new,,,no laptop in the software matches,,,
+IT Hardware,Desktop,IACPF/Office/084,1,2,2025-08-20,False,,Optima Infotech,"Asus NUC RNUC11PAHI30Z00 i3 (8 GB RAM) with 21.5"" Samsung monitor",,29661.0,34999.98,,new,,,no laptop in the software matches,,,
+IT Hardware,Desktop,IACPF/Office/088,1,1,2025-09-08,False,,Optima Infotech,"ASUS NUC Ultra 5 (16 GB DDR5, 500 GB WD SSD)",Board Room,41000.0,48380.0,,new,,,no laptop in the software matches,,,
+IT Hardware,Desktop,IACPF/Office/088,1,2,2025-09-08,False,,Optima Infotech,"ASUS NUC Ultra 5 (16 GB DDR5, 500 GB WD SSD)",Training Room,41000.0,48380.0,,new,,,no laptop in the software matches,,,
+IT Hardware,Desktop,IACPF/Office/099,1,1,2025-10-17,False,,Optima Infotech,"Workstation: AMD Ryzen 9 9950X, RTX 5070 Ti 16 GB, 64 GB DDR5, 2 x 1 TB SSD",,208250.0,245735.0,,new,,,no laptop in the software matches,,,
+IT Hardware,Monitor,IACPF/Office/099,9,1,2025-10-17,False,,Optima Infotech,"BenQ PD2706QN 27"" monitor",,25000.0,29500.0,,new,,,no laptop in the software matches,,,

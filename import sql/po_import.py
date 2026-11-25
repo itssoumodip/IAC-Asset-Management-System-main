@@ -136,6 +136,16 @@ CATEGORIES = {
         'min_unit': 20000,
         'type': lambda text: ('IT Hardware', 'Laptop'),
     },
+    'desktops': {'type': lambda text: ('IT Hardware', 'Desktop')},
+    'printers': {
+        'want': re.compile(r'printer|scanner|fujitsu|mf2720|l14150|hl-?\s?[bl]\d{4}', re.I),
+        # Heads, ink, toner and repairs are running costs, not printers.
+        'skip': re.compile(r'head|cartridge|toner|ink|service|repair', re.I),
+        'min_unit': 5000,
+        'gst_from_total': True,
+        'type': lambda text: ('Office Equipment', 'Scanner') if re.search(r'scanner|fujitsu|sp ?1130', text, re.I)
+                             else ('Office Equipment', 'Printer'),
+    },
     'mouse-adapters': {
         'want': re.compile(r'mouse|adapt[eo]r|logitech|hdmi convert', re.I),
         'skip': re.compile(r'^\s*power (cord|code)', re.I),
@@ -148,7 +158,19 @@ CATEGORIES = {
 }
 # Subcategories the software may not have yet: code → needs a custodian (held by a person)?
 NEW_TYPES = {'Charger & Adapter': True}
-SN = re.compile(r'(?:S/?N|SL\s*No)\s*[:\-]*\s*([A-Z0-9]{6,})', re.I)
+SN = re.compile(r'(?:S/?N|SL\s*No)\s*[:\-]*\s*([A-Z0-9]{6,})|\b([A-Z][0-9]{4}[A-Z0-9]{9,})\b', re.I)
+
+# Where room-kept items sit, from the PO's "user name" (location codes made by the IT register
+# import, present in production). Unknown places are left blank.
+LOCATION_HINTS = [
+    (r'3rd floor', 'IAC-HO-3F'), (r'2nd floor|account', 'IAC-HO-2F'),
+    (r'ground ?floor|training academy', 'IAC-HO-GF'), (r'sirakol', 'IAC-SITE-SIRAKOL'), (r'\bsite\b', 'IAC-SITE'),
+]
+
+def location_for(text):
+    for pattern, code in LOCATION_HINTS:
+        if text and re.search(pattern, text, re.I): return code
+    return None
 
 PLACE = re.compile(r'\b(site|sirakol|floor|room|office|academy|common|shared|team|block|board)\b', re.I)
 
@@ -162,7 +184,43 @@ def people(user, qty):
 
 SERIAL = re.compile(r'\b(5CD[0-9A-Z]{7}|SPF[0-9A-Z]{6}|[A-Z0-9]{2}N0[A-Z0-9]{8,12}|JYVT[0-9A-Z]{6})\b')
 
+# Desktops are bought as parts (NUC box + RAM + SSD; a self-built workstation), so each one is
+# spelled out: which PO lines make one computer, what it is called and where it sits.
+DESKTOPS = [  # (po, line numbers, units, description, subcategory, people / places per unit)
+    ('IACPF/Office/054', [1], 1, 'Asus NUC RNUC12WSHI50000I (8 GB RAM, 500 GB SSD)', 'Desktop', ['Board Room']),
+    ('IACPF/Office/084', [1], 2, 'Asus NUC RNUC11PAHI30Z00 i3 (8 GB RAM) with 21.5" Samsung monitor', 'Desktop', [None, None]),
+    ('IACPF/Office/088', [1, 2, 3], 2, 'ASUS NUC Ultra 5 (16 GB DDR5, 500 GB WD SSD)', 'Desktop', ['Board Room', 'Training Room']),
+    ('IACPF/Office/099', [1, 2, 3, 4, 5, 6, 7, 8, 10], 1,
+     'Workstation: AMD Ryzen 9 9950X, RTX 5070 Ti 16 GB, 64 GB DDR5, 2 x 1 TB SSD', 'Desktop', [None]),
+    ('IACPF/Office/099', [9], 1, 'BenQ PD2706QN 27" monitor', 'Monitor', [None]),
+]
+
+def pick_desktops(pos):
+    by_po = {p['po']: p for p in pos}
+    out = []
+    for po, lines, units, desc, typ, places in DESKTOPS:
+        p = by_po[po]
+        base_all = sum(l['qty'] * l['unit'] for l in p['lines'] if l['unit'])
+        gst = (p['total'] / base_all) if p.get('total') and base_all else 1.18
+        picked = [p['lines'][n - 1] for n in lines]
+        if gst > 1.30:  # some parts on the PO carry no price (PO 054): the total is the set's price
+            gst = 1.18
+            each = p['total'] / units / gst
+        elif all(l['unit'] for l in picked):
+            each = sum(l['qty'] * l['unit'] for l in picked) / units
+        else:  # the PO prices the sets only as a total (PO 084)
+            each = p['total'] / units / gst
+        for k in range(units):
+            out.append({
+                'category': 'IT Hardware', 'asset_type': typ, 'po': po, 'line': lines[0], 'unit_no': k + 1,
+                'date': p['date'], 'date_estimated': p.get('date_estimated', False), 'date_note': p.get('date_note'),
+                'vendor': p['vendor'], 'description': desc, 'person': places[k],
+                'price_ex_gst': round(each, 2), 'price_incl_gst': round(each * gst, 2), 'serial_on_po': None,
+            })
+    return out
+
 def pick(pos, category):
+    if category == 'desktops': return pick_desktops(pos)
     rule = CATEGORIES[category]
     out = []
     for p in pos:
@@ -176,7 +234,7 @@ def pick(pos, category):
                 base = sum(x['qty'] * x['unit'] for x in p['lines'] if x['unit'])
                 ratio = p['total'] / base if base else 0
                 if 0.99 <= ratio <= 1.30: gst = ratio
-            serials = SERIAL.findall(text) or SN.findall(' '.join([L['desc']] + L['more']))
+            serials = SERIAL.findall(text) or [a or b for a, b in SN.findall(' '.join([L['desc']] + L['more']))]
             cat, typ = rule['type'](L['desc'])
             for k, person in enumerate(people(L['user'], qty)):
                 out.append({
@@ -294,12 +352,12 @@ def write_sql(category):
             'priceExGst': float(r['price_ex_gst']), 'priceInclGst': float(r['price_incl_gst']),
             'description': r['description'],
         }.items() if v is not None}
-        remark = f"PO {r['po']}" + (f" ({r['date']})" if r['date'] else '') + (f" for {r['person']}" if r['person'] else '') + '.'
+        remark = f"PO {r['po']}" + (f" ({date})" if date else ' (no date on the PO)') + (f" for {r['person']}" if r['person'] else '') + '.'
         vals.append('  (' + ', '.join([
             str(n), q(action), q(r['asset_code'].strip() or None), q(short_description(r['description'])),
             q(serial), q(float(r['price_incl_gst'])), (f"DATE '{date}'" if date else 'NULL'), q(r['vendor'] or None),
             q(json.dumps(meta, ensure_ascii=False)) + '::jsonb', q(remark),
-            q(r.get('category') or default_cat), q(r.get('asset_type') or default_typ),
+            q(r.get('category') or default_cat), q(r.get('asset_type') or default_typ), q(location_for(r['person'])),
         ]) + ')')
     tag = f'po-{category}'
     L = [
@@ -317,8 +375,8 @@ def write_sql(category):
         "CREATE TEMP TABLE importer ON COMMIT DROP AS",
         "  SELECT ur.user_id AS id FROM user_roles ur WHERE ur.role_code='SUPER_ADMIN' ORDER BY ur.granted_at LIMIT 1;",
         'CREATE TEMP TABLE po (n int PRIMARY KEY, action text, asset_code text, description text, serial text,',
-        '  price numeric, po_date date, vendor text, meta jsonb, remark text, category text, asset_type text, asset_id uuid) ON COMMIT DROP;',
-        'INSERT INTO po (n, action, asset_code, description, serial, price, po_date, vendor, meta, remark, category, asset_type) VALUES',
+        '  price numeric, po_date date, vendor text, meta jsonb, remark text, category text, asset_type text, location_code text, asset_id uuid) ON COMMIT DROP;',
+        'INSERT INTO po (n, action, asset_code, description, serial, price, po_date, vendor, meta, remark, category, asset_type, location_code) VALUES',
         ',\n'.join(vals) + ';',
         '',
         "UPDATE po SET asset_id = a.id FROM assets a WHERE po.action = 'fill' AND a.asset_code = po.asset_code AND a.removed_at IS NULL;",
@@ -353,9 +411,10 @@ def write_sql(category):
         '      EXIT WHEN NOT EXISTS (SELECT 1 FROM assets WHERE asset_code = acode); nxt := nxt + 1; END LOOP;',
         '    UPDATE team_asset_counters SET next_value = nxt + 1 WHERE team_id = tid;',
         '    INSERT INTO assets(asset_code, category, asset_type, description, serial_number, ownership_type, status, condition,',
-        '      risk_level, owning_team_id, purchase_date, purchase_cost, currency, supplier, finance_pending, finance_status,',
+        '      risk_level, owning_team_id, location_id, purchase_date, purchase_cost, currency, supplier, finance_pending, finance_status,',
         '      remarks, legacy_metadata, created_by)',
         "    VALUES (acode, r.category, r.asset_type, r.description, r.serial, 'Owned', 'In Store', 'Unknown', 'Low', tid,",
+        "      (SELECT id FROM locations WHERE code = r.location_code),",
         "      r.po_date, r.price, 'INR', r.vendor, true, 'PENDING', r.remark, jsonb_build_object('purchaseOrder', r.meta),",
         '      (SELECT id FROM importer))',
         '    RETURNING id INTO aid;',

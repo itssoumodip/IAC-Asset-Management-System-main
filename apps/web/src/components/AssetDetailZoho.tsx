@@ -2,6 +2,7 @@ import { SupplierLink } from './Vendors';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { catalogHref } from '../catalog-return';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '../api';
 import { useAction } from '../hooks';
@@ -158,7 +159,7 @@ export function AssetDetailZoho() {
 
   return (
     <>
-      <Link to="/assets" className={backLinkClass}>
+      <Link to={catalogHref()} className={backLinkClass}>
         ← Asset catalog
       </Link>
       <header className="zoho-header">

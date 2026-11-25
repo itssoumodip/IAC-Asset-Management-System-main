@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
+import { catalogHref } from '../catalog-return';
 import QRCode from 'qrcode';
 import { api, queryString } from '../api';
 import { useAction, usePages } from '../hooks';
@@ -419,7 +420,7 @@ export function LabelPrintPage() {
   return (
     <>
       <div className="no-print">
-        <Link to="/assets" className={backLinkClass}>
+        <Link to={catalogHref()} className={backLinkClass}>
           ← Asset catalog
         </Link>
         <PageTitle

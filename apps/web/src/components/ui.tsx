@@ -527,6 +527,7 @@ export function Select({
   required = false,
   ariaDescribedBy,
   className,
+  menuAlign = 'start',
 }: {
   label: string;
   htmlFor: string;
@@ -538,6 +539,8 @@ export function Select({
   required?: boolean;
   ariaDescribedBy?: string;
   className?: string;
+  /** 'end' opens the list from the right edge (for pickers near the right of the screen). */
+  menuAlign?: 'start' | 'end';
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -655,7 +658,12 @@ export function Select({
         {isOpen && !disabled && (
           <ul
             id={listboxId}
-            className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-md"
+            // At least as wide as the field, wider when an option needs it (no wrapping of short
+            // labels in narrow pickers), capped so it never runs off a phone screen.
+            className={cx(
+              'absolute z-30 mt-1 max-h-64 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-md',
+              menuAlign === 'end' ? 'right-0' : 'left-0',
+            )}
             role="listbox"
           >
             {visibleOptions.length ? visibleOptions.map((option, index) => (

@@ -7,6 +7,7 @@ import { useAction, usePages } from '../hooks';
 import { can, useSession } from '../session';
 import type { Asset, AssignablePerson, InvoiceMeta } from '../types';
 import { fetchAllPages } from '../transfer-files';
+import { catalogHref, rememberCatalogSearch } from '../catalog-return';
 import { AssetPhoto } from './AssetPhoto';
 import { AssetTags } from './AssetTags';
 import { PersonPicker } from './PersonPicker';
@@ -225,6 +226,11 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
   const manage = can(user, 'asset.view_all');
   const [params, setParams] = useSearchParams();
   const refs = useReferences();
+  // Remember this search and filters so coming back from an asset reopens the same list.
+  const searchKey = params.toString();
+  useEffect(() => {
+    if (!assignmentMode) rememberCatalogSearch(searchKey);
+  }, [assignmentMode, searchKey]);
   const filters = {
     q: params.get('q') || undefined,
     asset: params.get('asset') || undefined,
@@ -482,7 +488,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
   return (
     <>
       {assignmentMode ? (
-        <Link to="/assets" className={backLinkClass}>
+        <Link to={catalogHref()} className={backLinkClass}>
           ← Asset catalog
         </Link>
       ) : null}
@@ -964,7 +970,7 @@ export function AssetDetail() {
   }
   return (
     <>
-      <Link to="/assets" className={backLinkClass}>
+      <Link to={catalogHref()} className={backLinkClass}>
         ← Asset catalog
       </Link>
       <PageTitle

@@ -58,7 +58,8 @@ export function ViewAsMenu() {
       <Select
         label=""
         htmlFor="view-as-select"
-        className={cx('h-9 max-w-44', error ? 'border-red-400' : 'border-gray-200')}
+        className={cx('h-9 w-44', error ? 'border-red-400' : 'border-gray-200')}
+        menuAlign="end"
         value=""
         disabled={busy}
         onChange={(target) => void choose(target)}
