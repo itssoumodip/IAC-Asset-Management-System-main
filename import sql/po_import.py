@@ -197,7 +197,7 @@ DESKTOPS = [  # (po, line numbers, units, description, subcategory, people / pla
 ]
 
 # CCTV, biometric and door access: each device carries its own lock, bracket and installation
-# (the cost of putting it to use). PO 028 repeats PO 012 exactly and is left out until confirmed.
+# (the cost of putting it to use). PO 028 repeats PO 012 exactly: confirmed a duplicate, never imported.
 SEC = 'Security & ELV'
 SECURITY = [  # (po, line numbers, units, description, subcategory, people / places, location code)
     ('IACPF/Office/012', [1, 2, 3, 4], 1, 'TimeWatch biometric with EM lock 600 lbs (installed)', 'Biometric Device', ['Shared'], None),
