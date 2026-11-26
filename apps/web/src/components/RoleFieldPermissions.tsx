@@ -103,6 +103,91 @@ function fieldLabel(name: string): string {
   return labels[name] ?? name.replaceAll('_', ' ');
 }
 
+/**
+ * Pages with field settings. Other pages' fields are saved as `<prefix><field>` (for example
+ * `subscription_cost`); the API applies them on that page (see page-fields.ts).
+ */
+interface PageFields {
+  key: string;
+  title: string;
+  prefix: string;
+  /** No editing on this page, so only "Can see" applies. */
+  viewOnly?: boolean;
+  groups: Record<string, string[]>;
+  labels?: Record<string, string>;
+}
+const PAGES: PageFields[] = [
+  { key: 'asset', title: 'Asset catalog', prefix: '', groups: FIELD_GROUPS },
+  {
+    key: 'subscription',
+    title: 'Subscriptions',
+    prefix: 'subscription_',
+    groups: {
+      Plan: ['vendor', 'plan', 'cost', 'billingCycle', 'renewal', 'seats'],
+      'Who uses it': ['people', 'department'],
+      Account: ['accountEmail', 'paymentMethod', 'website', 'notes'],
+    },
+    labels: {
+      vendor: 'Vendor',
+      plan: 'Plan',
+      cost: 'Cost and spend totals',
+      billingCycle: 'Billing cycle',
+      renewal: 'Start, renewal date and auto-renew',
+      seats: 'Seats',
+      people: 'People using it',
+      department: 'Department',
+      accountEmail: 'Account email',
+      paymentMethod: 'Payment method',
+      website: 'Website',
+      notes: 'Notes',
+    },
+  },
+  {
+    key: 'vendor',
+    title: 'Vendors',
+    prefix: 'vendor_',
+    groups: {
+      Contact: ['contactPerson', 'phone', 'email', 'address', 'website'],
+      Details: ['services', 'gstin', 'score', 'notes', 'referencePeople'],
+      'Linked records': ['assets', 'subscriptions'],
+    },
+    labels: {
+      contactPerson: 'Contact person',
+      phone: 'Phone',
+      email: 'Email',
+      address: 'Address',
+      website: 'Website',
+      services: 'Services',
+      gstin: 'GSTIN',
+      score: 'Score',
+      notes: 'Notes',
+      referencePeople: 'Reference people',
+      assets: 'Assets bought (and their value)',
+      subscriptions: 'Subscriptions from this vendor',
+    },
+  },
+  {
+    key: 'person',
+    title: 'People',
+    prefix: 'person_',
+    viewOnly: true,
+    groups: {
+      Details: ['email', 'employeeCode', 'designation', 'department', 'manager'],
+      'What they hold': ['assets', 'subscriptions', 'tickets'],
+    },
+    labels: {
+      email: 'Email',
+      employeeCode: 'Employee code',
+      designation: 'Designation',
+      department: 'Department',
+      manager: 'Manager',
+      assets: 'Assets held (now and before)',
+      subscriptions: 'Subscriptions',
+      tickets: 'Support tickets',
+    },
+  },
+];
+
 const ROLE_NAMES: Record<string, string> = {
   SUPER_ADMIN: 'Super Admin',
   EXECUTIVE: 'Executive',
@@ -119,7 +204,8 @@ const ROLE_NAMES: Record<string, string> = {
 function roleLabel(role: string): string {
   return ROLE_NAMES[role] ?? role.replaceAll('_', ' ');
 }
-const ALL_FIELDS = Object.values(FIELD_GROUPS).flat();
+/** Every saved field name across all pages. */
+const ALL_FIELDS = PAGES.flatMap((page) => Object.values(page.groups).flat().map((f) => page.prefix + f));
 
 /**
  * Field permissions: per role, which asset fields can be seen and changed.
@@ -133,6 +219,13 @@ export function RoleFieldPermissions() {
   });
   const action = useAction<{ updated: number }>();
   const [selectedRole, setSelectedRole] = useState<string>('EMPLOYEE');
+  const [pageKey, setPageKey] = useState('asset');
+  const page = PAGES.find((p) => p.key === pageKey) ?? PAGES[0]!;
+  const pageFields = Object.values(page.groups).flat().map((f) => page.prefix + f);
+  const label = (stored: string) => {
+    const short = stored.slice(page.prefix.length);
+    return page.labels?.[short] ?? fieldLabel(short);
+  };
   const [reason, setReason] = useState('');
   const [edits, setEdits] = useState<Record<string, { canView: boolean; canEdit: boolean }>>({});
 
@@ -158,8 +251,9 @@ export function RoleFieldPermissions() {
         : { canView: !now.canView, canEdit: !now.canView ? now.canEdit : false };
     setEdits((prev) => ({ ...prev, [field]: next }));
   }
+  // "Allow all" / "View only" apply to the page being shown.
   function setAll(canView: boolean, canEdit: boolean) {
-    setEdits(Object.fromEntries(ALL_FIELDS.map((f) => [f, { canView, canEdit }])));
+    setEdits((prev) => ({ ...prev, ...Object.fromEntries(pageFields.map((f) => [f, { canView, canEdit }])) }));
   }
 
   const dirty = Object.keys(edits).length > 0;
@@ -194,7 +288,7 @@ export function RoleFieldPermissions() {
       <PageTitle
         eyebrow="Administration"
         title="Field permissions"
-        description="Choose which asset fields each role can see and change. Unticked fields are removed from what that role receives."
+        description="Choose which fields each role can see and change on the asset catalog, subscriptions, vendors and people pages. Unticked fields are removed from what that role receives."
       />
       <ErrorNotice error={action.error} />
       <div className="grid items-start gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
@@ -261,8 +355,34 @@ export function RoleFieldPermissions() {
             </p>
           ) : (
             <>
+              {/* One tab per page that has its own fields. */}
+              <div role="tablist" aria-label="Page" className="mb-5 flex flex-wrap gap-1 border-b border-gray-200">
+                {PAGES.map((p) => {
+                  const changed = Object.keys(edits).filter((f) =>
+                    Object.values(p.groups).flat().some((short) => p.prefix + short === f),
+                  ).length;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={p.key === page.key}
+                      onClick={() => setPageKey(p.key)}
+                      className={cx(
+                        '-mb-px border-b-2 px-3 py-2 text-sm transition-colors',
+                        p.key === page.key
+                          ? 'border-navy-600 font-medium text-navy-700'
+                          : 'border-transparent text-gray-600 hover:text-gray-900',
+                      )}
+                    >
+                      {p.title}
+                      {changed ? <span className="ml-1.5 text-xs text-yellow-700">({changed})</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
               <div className="grid gap-x-8 gap-y-6 xl:grid-cols-2">
-                {Object.entries(FIELD_GROUPS).map(([groupName, fields]) => (
+                {Object.entries(page.groups).map(([groupName, shortFields]) => (
                   <section key={groupName}>
                     <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
                       {groupName}
@@ -272,29 +392,32 @@ export function RoleFieldPermissions() {
                         <tr>
                           <th>Field</th>
                           <th className="w-20 text-center">Can see</th>
-                          <th className="w-24 text-center">Can change</th>
+                          {page.viewOnly ? null : <th className="w-24 text-center">Can change</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {fields.map((field) => {
+                        {shortFields.map((short) => {
+                          const field = page.prefix + short;
                           const value = current(field);
                           return (
                             <tr key={field} className={edits[field] ? 'bg-yellow-50' : undefined}>
-                              <td className="text-gray-800">{fieldLabel(field)}</td>
+                              <td className="text-gray-800">{label(field)}</td>
                               <td className="text-center">
                                 <Checkbox
-                                  ariaLabel={`${roleLabel(selectedRole)} can see ${fieldLabel(field)}`}
+                                  ariaLabel={`${roleLabel(selectedRole)} can see ${label(field)}`}
                                   checked={value.canView}
                                   onChange={() => toggle(field, 'canView')}
                                 />
                               </td>
-                              <td className="text-center">
-                                <Checkbox
-                                  ariaLabel={`${roleLabel(selectedRole)} can change ${fieldLabel(field)}`}
-                                  checked={value.canEdit}
-                                  onChange={() => toggle(field, 'canEdit')}
-                                />
-                              </td>
+                              {page.viewOnly ? null : (
+                                <td className="text-center">
+                                  <Checkbox
+                                    ariaLabel={`${roleLabel(selectedRole)} can change ${label(field)}`}
+                                    checked={value.canEdit}
+                                    onChange={() => toggle(field, 'canEdit')}
+                                  />
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -303,6 +426,12 @@ export function RoleFieldPermissions() {
                   </section>
                 ))}
               </div>
+              {page.viewOnly ? (
+                <p className="mt-3 text-xs text-gray-500">
+                  Nothing is edited on this page, so only "Can see" applies. A person always sees
+                  everything on their own page.
+                </p>
+              ) : null}
               <p className="mt-4 text-xs text-gray-500">
                 A person with several roles keeps a field if any of their roles allows it. Changing
                 a field also needs the role's normal edit permission.

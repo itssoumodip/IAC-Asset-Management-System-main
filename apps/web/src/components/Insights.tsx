@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { formatInr } from '../admin-insights';
 import { BarList, Card, ColumnChart, DonutChart, StatTile } from './charts';
@@ -28,8 +29,11 @@ interface InsightsData {
   byStatus: Slice[];
   byType: Slice[];
   byCategory: Slice[];
-  byDepartment: Slice[];
+  byDepartment: (Slice & { id?: string | null })[];
   byCondition: Slice[];
+  byLocation: (Slice & { id?: string | null })[];
+  completeness: { total: number; serial: number; model: number; brand: number; cost: number; purchaseDate: number; warranty: number; location: number };
+  idle: { under30: number; to90: number; to180: number; over180: number };
   byYear: Slice[];
   bySupplier: Slice[];
   age: { underOne: number; oneToThree: number; threeToFive: number; overFive: number; unknown: number };
@@ -64,29 +68,29 @@ type ChartKey =
   | 'insurance'
   | 'audit'
   | 'supplier'
-  | 'valueDepartment';
+  | 'valueDepartment'
+  | 'location'
+  | 'completeness'
+  | 'idle';
 
+// Even counts so the two-column grid has no empty half-rows.
 const CHARTS: Record<InsightsVariant, ChartKey[]> = {
-  overview: ['department', 'holders', 'category', 'type', 'status', 'year', 'warranty', 'age', 'custody'],
-  finance: ['valueDepartment', 'year', 'supplier', 'age', 'type', 'warranty'],
-  store: ['custody', 'status', 'condition', 'type', 'department', 'holders'],
-  auditor: ['audit', 'department', 'condition', 'holders', 'status', 'custody'],
+  overview: ['department', 'holders', 'category', 'type', 'location', 'status', 'completeness', 'idle', 'year', 'warranty', 'age', 'custody'],
+  finance: ['valueDepartment', 'year', 'supplier', 'age', 'type', 'completeness'],
+  store: ['custody', 'idle', 'status', 'condition', 'location', 'type', 'department', 'holders'],
+  auditor: ['audit', 'completeness', 'department', 'location', 'condition', 'holders', 'status', 'custody'],
   insurer: ['insurance', 'warranty', 'department', 'type', 'age', 'condition'],
   procurement: ['year', 'supplier', 'age', 'type', 'warranty', 'department'],
-  team: ['department', 'holders', 'category', 'type', 'status', 'warranty', 'condition'],
+  team: ['department', 'holders', 'category', 'type', 'location', 'status', 'completeness', 'idle', 'warranty', 'condition'],
   employee: ['type', 'warranty'],
 };
 
 const plain = (n: number) => n.toLocaleString('en-IN');
 const shortInr = (n: number) =>
   n >= 1e7 ? `₹${(n / 1e7).toFixed(1)}Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(1)}L` : formatInr(n);
-/** Largest first, the rest summed as "Other" so charts stay readable. */
-function topWithOther(items: { label: string; value: number }[], keep: number) {
-  const sorted = [...items].sort((a, b) => b.value - a.value);
-  if (sorted.length <= keep + 1) return sorted;
-  const rest = sorted.slice(keep).reduce((sum, i) => sum + i.value, 0);
-  return [...sorted.slice(0, keep), { label: 'Other', value: rest }];
-}
+/** Bar lists that show every row (no "Other"); long ones scroll inside the card. */
+const ALL_ROWS = Number.POSITIVE_INFINITY;
+const scrollBox = 'max-h-80 overflow-y-auto pr-1';
 export function useHolders() {
   return useQuery({
     queryKey: ['dashboard', 'holders'],
@@ -155,6 +159,7 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
             title="Who holds the most"
             action={<span className="text-xs text-gray-500">{plain(d.multiHolders)} hold more than one</span>}
           >
+            {/* The top 10 people, each with their own bar (no "Other"); everyone is on People. */}
             <BarList
               items={d.topHolders.map((h) => ({
                 label: h.name,
@@ -162,19 +167,94 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
                 note: h.department ?? undefined,
                 to: assetsLink('holderId', h.userId),
               }))}
+              limit={ALL_ROWS}
               valueLabel="Assets held"
               empty="Nobody holds an asset yet"
             />
+            <Link to="/people?holding=assets" className="mt-3 inline-block text-xs text-navy-700 no-underline hover:underline">
+              See everyone who holds assets →
+            </Link>
           </Card>
         );
       case 'department':
         return (
-          <Card key={key} title="Assets by department">
+          <Card key={key} title="Assets by department" action={<span className="text-xs text-gray-500">{plain(d.byDepartment.length)} departments</span>}>
+            {/* Every department, largest first; each row opens its assets. */}
+            <div className={scrollBox}>
+              <BarList
+                items={d.byDepartment.map((s) => ({
+                  label: s.label,
+                  value: s.count,
+                  note: d.money ? shortInr(s.value ?? 0) : undefined,
+                  to: assetsLink('departmentId', s.id ?? 'none'),
+                }))}
+                limit={ALL_ROWS}
+                valueLabel="Assets"
+              />
+            </div>
+          </Card>
+        );
+      case 'location':
+        return (
+          <Card key={key} title="By location" action={<span className="text-xs text-gray-500">{plain(d.byLocation.length)} places</span>}>
+            <div className={scrollBox}>
+              <BarList
+                items={d.byLocation.map((s) => ({
+                  label: s.label,
+                  value: s.count,
+                  note: d.money ? shortInr(s.value ?? 0) : undefined,
+                  to: assetsLink('locationId', s.id ?? 'none'),
+                }))}
+                limit={ALL_ROWS}
+                valueLabel="Assets"
+              />
+            </div>
+          </Card>
+        );
+      case 'completeness': {
+        // Share of assets with each detail filled in; a row opens the ones missing it.
+        const c = d.completeness;
+        const rows: [string, number, string, string][] = [
+          ['Serial number', c.serial, 'serialNumber', '__blank__'],
+          ['Model', c.model, 'model', '__blank__'],
+          ['Brand', c.brand, 'manufacturer', 'none'],
+          ['Location', c.location, 'locationId', 'none'],
+          ['Warranty date', c.warranty, 'warrantyExpiry', '__blank__'],
+          ['Purchase date', c.purchaseDate, 'purchaseDate', '__blank__'],
+          ...(d.money ? ([['Purchase cost', c.cost, 'purchaseCost', '__blank__']] as [string, number, string, string][]) : []),
+        ];
+        const filled = rows.reduce((sum, [, missing]) => sum + (c.total - missing), 0);
+        const score = c.total && rows.length ? Math.round((filled / (c.total * rows.length)) * 100) : 100;
+        return (
+          <Card key={key} title="Data completeness" action={<span className="text-xs text-gray-500">{score}% filled in</span>}>
+            <BarList
+              items={rows.map(([label, missing, param, blank]) => ({
+                label,
+                value: c.total ? Math.round(((c.total - missing) / c.total) * 100) : 100,
+                note: missing ? `${plain(missing)} missing` : 'complete',
+                to: missing ? assetsLink(param, blank) : undefined,
+              }))}
+              format={(v) => `${v}%`}
+              limit={ALL_ROWS}
+              valueLabel="Filled in"
+            />
+          </Card>
+        );
+      }
+      case 'idle':
+        return (
+          <Card key={key} title="Sitting in store" action={<span className="text-xs text-gray-500">Unassigned, by time since last moved</span>}>
             <ColumnChart
-              items={topWithOther(counts(d.byDepartment), 7).map((s) => ({ ...s, detail: `${s.label}: ${plain(s.value)}` }))}
+              items={[
+                { label: 'Under 30 days', value: d.idle.under30 },
+                { label: '30–90 days', value: d.idle.to90 },
+                { label: '3–6 months', value: d.idle.to180 },
+                { label: 'Over 6 months', value: d.idle.over180 },
+              ].map((s) => ({ ...s, detail: `${s.label}: ${plain(s.value)}` }))}
               format={plain}
               valueLabel="Assets"
-              labelHeader="Department"
+              labelHeader="Idle for"
+              empty="Nothing is sitting in store"
             />
           </Card>
         );

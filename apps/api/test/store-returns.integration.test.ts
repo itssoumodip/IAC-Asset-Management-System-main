@@ -207,6 +207,19 @@ describe('store returns PostgreSQL integration', { skip: !connection, concurrenc
     );
   });
 
+  it('clears the department when an asset comes back to store', async () => {
+    const { asset, assignment } = await assigned();
+    const [dept] = await db.query(
+      'INSERT INTO departments(code,name) VALUES($1,$1) RETURNING id',
+      [`dept-${randomUUID()}`],
+    );
+    await db.query('UPDATE assets SET department_id=$2 WHERE id=$1', [asset.id, dept.id]);
+    await store.receiveReturn(request(storeUser), assignment.id, { condition: 'Good', locationId: storeLocationId });
+    const [after] = await db.query('SELECT department_id, status FROM assets WHERE id=$1', [asset.id]);
+    assert.equal(after.status, 'In Store');
+    assert.equal(after.department_id, null);
+  });
+
   it('accepts an ordinary room but rejects an inactive location', async () => {
     const { assignment } = await assigned();
     const [{ id: closedId }] = await db.query(

@@ -47,10 +47,40 @@ export class InsightsService {
          (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
             (SELECT category AS label, count(*)::int AS count, sum(cost)::float8 AS value FROM live GROUP BY category) x) AS by_category,
          (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
-            (SELECT coalesce(d.name,'No department') AS label, count(*)::int AS count, sum(l.cost)::float8 AS value
-             FROM live l LEFT JOIN departments d ON d.id=l.department_id GROUP BY 1) x) AS by_department,
+            (SELECT l.department_id AS id, coalesce(d.name,'No department') AS label, count(*)::int AS count, sum(l.cost)::float8 AS value
+             FROM live l LEFT JOIN departments d ON d.id=l.department_id GROUP BY 1, 2) x) AS by_department,
          (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
             (SELECT condition AS label, count(*)::int AS count FROM live GROUP BY condition) x) AS by_condition,
+         -- Where assets are: the location's id (for the catalog link) and its name with its parent.
+         (SELECT coalesce(json_agg(x ORDER BY x.count DESC),'[]') FROM
+            (SELECT l.location_id AS id,
+                    coalesce(CASE WHEN p.name IS NOT NULL THEN p.name || ' › ' || loc.name ELSE loc.name END, 'No location') AS label,
+                    count(*)::int AS count, sum(l.cost)::float8 AS value
+               FROM live l LEFT JOIN locations loc ON loc.id = l.location_id LEFT JOIN locations p ON p.id = loc.parent_id
+              GROUP BY 1, 2) x) AS by_location,
+         -- How complete the register is (live assets missing each detail).
+         (SELECT json_build_object(
+            'total', count(*),
+            'serial', count(*) FILTER (WHERE nullif(btrim(serial_number),'') IS NULL),
+            'model', count(*) FILTER (WHERE nullif(btrim(model),'') IS NULL),
+            'brand', count(*) FILTER (WHERE nullif(btrim(manufacturer),'') IS NULL),
+            'cost', count(*) FILTER (WHERE purchase_cost IS NULL),
+            'purchaseDate', count(*) FILTER (WHERE purchase_date IS NULL),
+            'warranty', count(*) FILTER (WHERE warranty_expiry IS NULL),
+            'location', count(*) FILTER (WHERE location_id IS NULL)) FROM live) AS completeness,
+         -- Unassigned assets by how long since they last moved (returned, received, issued).
+         (SELECT json_build_object(
+            'under30', count(*) FILTER (WHERE idle < 30),
+            'to90', count(*) FILTER (WHERE idle >= 30 AND idle < 90),
+            'to180', count(*) FILTER (WHERE idle >= 90 AND idle < 180),
+            'over180', count(*) FILTER (WHERE idle >= 180))
+            -- One grouped pass over movements (a per-asset lookup is far too slow at scale).
+            FROM (SELECT current_date - coalesce(lm.last_moved, st.created_at::date) AS idle
+                    FROM (SELECT l.id, l.created_at FROM live l
+                           WHERE l.status IN ('In Store','Ready to Assign')
+                             AND NOT EXISTS (SELECT 1 FROM assignments s WHERE s.asset_id = l.id AND s.ended_at IS NULL)) st
+                    LEFT JOIN (SELECT m.asset_id, max(m.occurred_at)::date AS last_moved
+                                 FROM asset_movements m GROUP BY m.asset_id) lm ON lm.asset_id = st.id) i) AS idle,
          (SELECT coalesce(json_agg(x ORDER BY x.label),'[]') FROM
             (SELECT extract(year FROM purchase_date)::int::text AS label, count(*)::int AS count, sum(cost)::float8 AS value
              FROM scoped WHERE purchase_date IS NOT NULL GROUP BY 1) x) AS by_year,
@@ -83,8 +113,12 @@ export class InsightsService {
             'never', count(*) FILTER (WHERE last_audit_date IS NULL)) FROM live) AS audit`,
       values,
     );
-    const stripMoney = (items: { label: string; count: number; value?: number | null }[]) =>
-      items.map((item) => (money ? { ...item, value: item.value ?? 0 } : { label: item.label, count: item.count }));
+    const stripMoney = (items: { id?: string | null; label: string; count: number; value?: number | null }[]) =>
+      items.map((item) =>
+        money
+          ? { ...item, value: item.value ?? 0 }
+          : { ...('id' in item ? { id: item.id } : {}), label: item.label, count: item.count },
+      );
     const holders = await this.holders(req, teamId);
     // Teams for the picker (never narrowed by it): every active team for people who see the whole
     // register, otherwise their own teams plus any team owning assets they can see. Teams with no
@@ -118,6 +152,9 @@ export class InsightsService {
       byCategory: stripMoney(row.by_category),
       byDepartment: stripMoney(row.by_department),
       byCondition: row.by_condition,
+      byLocation: stripMoney(row.by_location),
+      completeness: row.completeness,
+      idle: row.idle,
       byYear: stripMoney(row.by_year),
       bySupplier: stripMoney(row.by_supplier),
       age: row.age,

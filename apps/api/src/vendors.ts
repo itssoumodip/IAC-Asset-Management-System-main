@@ -21,6 +21,7 @@ import { LIVE_ASSET, assetScope, parse, text, uuid } from './domain-helpers';
 import { can } from './policy';
 import { AuthRequest, SessionGuard, type Actor } from './security';
 import { canViewSubscriptions } from './subscriptions';
+import { hideFields, keepLockedValues, pageRestrictions } from './page-fields';
 
 /**
  * Vendors: companies the organisation buys from or works with, our rating of each, and the
@@ -114,7 +115,12 @@ export class VendorService {
         LIMIT 1000`,
       values,
     );
-    return { items: rows.map(mapVendor), showsSubscriptions: subs, showsMoney: money };
+    const { hidden } = await pageRestrictions(this.db, req.user, 'vendor');
+    return {
+      items: rows.map((row: any) => hideFields(mapVendor(row), 'vendor', hidden)),
+      showsSubscriptions: subs && !hidden.has('subscriptions'),
+      showsMoney: money && !hidden.has('assets'),
+    };
   }
 
   async detail(req: AuthRequest, id: string) {
@@ -156,10 +162,13 @@ export class VendorService {
           )
         : Promise.resolve(null),
     ]);
-    return {
+    const { hidden, locked } = await pageRestrictions(this.db, req.user, 'vendor');
+    return hideFields({
       ...mapVendor(v),
       createdBy: v.created_by_name,
       canManage: canManageVendors(req.user),
+      // Which fields the form should show read-only for this person.
+      lockedFields: [...locked],
       showsMoney: money,
       assets: assets.map((a: any) => ({
         id: a.id,
@@ -188,7 +197,7 @@ export class VendorService {
             billingCycle: s.billing_cycle,
           }))
         : null,
-    };
+    }, 'vendor', hidden);
   }
 
   /** Vendor names for suggestions on asset and subscription forms. */
@@ -223,6 +232,8 @@ export class VendorService {
   async create(req: AuthRequest, body: unknown) {
     this.assertManage(req.user);
     const input = parse(vendorInput, body);
+    // Locked fields start empty on a new vendor.
+    keepLockedValues('vendor', (await pageRestrictions(this.db, req.user, 'vendor')).locked, { status: 'ACTIVE' }, input);
     const people = [...new Set(input.referenceUserIds)];
     return this.db.tx(async (c) => {
       const [dup] = await this.db.query(`SELECT 1 FROM vendors WHERE ${KEY('name')} = ${KEY('$1')}`, [input.name], c);
@@ -244,11 +255,26 @@ export class VendorService {
     this.assertManage(req.user);
     const vid = parse(uuid, id);
     const { version, ...input } = parse(updateInput, body);
-    const people = [...new Set(input.referenceUserIds)];
     return this.db.tx(async (c) => {
       const [before] = await this.db.query('SELECT * FROM vendors WHERE id = $1 FOR UPDATE', [vid], c);
       if (!before) throw new NotFoundException('Vendor not found');
       if (before.version !== version) throw new ConflictException('Someone else changed this vendor. Reload and try again.');
+      // Locked fields keep their current values.
+      const { locked } = await pageRestrictions(this.db, req.user, 'vendor', c);
+      const currentPeople = (
+        await this.db.query('SELECT user_id FROM vendor_reference_people WHERE vendor_id = $1', [vid], c)
+      ).map((r: any) => r.user_id as string);
+      keepLockedValues(
+        'vendor',
+        locked,
+        {
+          services: before.services, contactPerson: before.contact_person, phone: before.phone, email: before.email,
+          address: before.address, website: before.website, gstin: before.gstin,
+          score: before.score != null ? Number(before.score) : null, notes: before.notes, referenceUserIds: currentPeople,
+        },
+        input,
+      );
+      const people = [...new Set(input.referenceUserIds)];
       const [dup] = await this.db.query(`SELECT 1 FROM vendors WHERE ${KEY('name')} = ${KEY('$1')} AND id <> $2`, [input.name, vid], c);
       if (dup) throw new ConflictException('A vendor with this name already exists');
       await this.checkPeople(c, people);

@@ -766,7 +766,8 @@ export class AssetDomain extends MasterDomain {
       if (assignment) throw new ConflictException('Return current custody before receiving into store');
       if (terminal.has(asset.status)) throw new ConflictException('Terminal assets cannot be received into store');
       await this.db.query(
-        "UPDATE assets SET location_id=$2,status='In Store',version=version+1,updated_at=now() WHERE id=$1 RETURNING *",
+        // In store = no department (it belonged to whoever held it).
+        "UPDATE assets SET location_id=$2,status='In Store',department_id=NULL,version=version+1,updated_at=now() WHERE id=$1 RETURNING *",
         [assetId, data.locationId],
         c,
       );
@@ -825,7 +826,8 @@ export class AssetDomain extends MasterDomain {
         this.db,
         'assets',
         asset.id,
-        { status: 'In Store', condition: data.condition, locationId: merged.locationId },
+        // Back in store, it no longer belongs to the holder's department.
+        { status: 'In Store', condition: data.condition, locationId: merged.locationId, departmentId: null },
         c,
       );
       await this.db.query(

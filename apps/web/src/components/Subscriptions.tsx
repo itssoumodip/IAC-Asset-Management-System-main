@@ -109,13 +109,13 @@ interface SubscriptionDetailData extends Subscription {
 interface SubscriptionSummary {
   live: number;
   trials: number;
-  monthlySpend: number;
-  yearlySpend: number;
+  monthlySpend: number | null; // null when Field permissions hide cost
+  yearlySpend: number | null;
   renewalsDue30: number;
   renewalsPassed: number;
   seatsTotal: number;
   seatsUsed: number;
-  peopleCount: number;
+  peopleCount: number | null; // null when Field permissions hide people
   withFreeSeats: number;
   rates: { asOf: string | null; stale: boolean; unconverted: number };
   byCategory: { label: string; count: number; monthly: number }[];
@@ -444,11 +444,11 @@ export function SubscriptionList() {
         <div className="mb-6 flex flex-col gap-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <StatTile label="Active subscriptions" value={n(s.live)} detail={s.trials ? `${s.trials} on trial` : 'In use now'} to="/subscriptions" />
-            <StatTile label="Monthly spend" value={formatInr(s.monthlySpend)} detail="Active plans, per month" />
-            <StatTile label="Yearly spend" value={formatInr(s.yearlySpend)} detail="At today's plans" />
+            <StatTile label="Monthly spend" value={s.monthlySpend == null ? '—' : formatInr(s.monthlySpend)} detail="Active plans, per month" />
+            <StatTile label="Yearly spend" value={s.yearlySpend == null ? '—' : formatInr(s.yearlySpend)} detail="At today's plans" />
             <StatTile label="Renew in 30 days" value={n(s.renewalsDue30)} detail={s.renewalsPassed ? `${s.renewalsPassed} renewal date passed` : 'Plan ahead'} to="/subscriptions?renewal=due30" />
             <StatTile label="Seats used" value={s.seatsTotal ? `${n(s.seatsUsed)} / ${n(s.seatsTotal)}` : n(s.seatsUsed)} detail={s.withFreeSeats ? `${s.withFreeSeats} with free seats` : 'On plans with a seat limit'} />
-            <StatTile label="People with access" value={n(s.peopleCount)} detail="At least one subscription" />
+            <StatTile label="People with access" value={s.peopleCount == null ? '—' : n(s.peopleCount)} detail="At least one subscription" />
           </div>
           <p className="-mt-3 text-xs text-gray-500">
             Spend is in rupees, converting other currencies at today's exchange rate
@@ -1322,7 +1322,7 @@ export function SubscriptionsCard() {
             </div>
             <div>
               <dt className="text-xs text-gray-500">Per month</dt>
-              <dd className="mt-0.5 text-lg font-semibold text-navy-900 tabular-nums">{formatInr(s.monthlySpend)}</dd>
+              <dd className="mt-0.5 text-lg font-semibold text-navy-900 tabular-nums">{s.monthlySpend == null ? '—' : formatInr(s.monthlySpend)}</dd>
             </div>
             <div>
               <dt className="text-xs text-gray-500">Renew in 30 days</dt>
@@ -1341,7 +1341,7 @@ export function SubscriptionsCard() {
               </dd>
             </div>
             <div className="col-span-2 text-xs text-gray-500">
-              {formatInr(s.yearlySpend)} a year · {s.peopleCount} people with access
+              {s.yearlySpend == null ? '' : `${formatInr(s.yearlySpend)} a year · `}{s.peopleCount == null ? '' : `${s.peopleCount} people with access`}
               {s.seatsTotal ? ` · ${s.seatsUsed} of ${s.seatsTotal} seats used` : ''}
             </div>
           </dl>

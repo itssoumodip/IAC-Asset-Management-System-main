@@ -178,7 +178,7 @@ export async function cascadeReturn(
       db,
       'assets',
       part.id,
-      { status: 'In Store', condition: data.condition, locationId },
+      { status: 'In Store', condition: data.condition, locationId, departmentId: null },
       c,
     );
     await db.query(

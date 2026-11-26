@@ -96,7 +96,7 @@ export class StoreService {
       }
 
       const [updated] = await this.db.query(
-        'UPDATE assets SET location_id=$1, status=\'In Store\', version=version+1, updated_at=now() WHERE id=$2 RETURNING id, asset_code, location_id',
+        'UPDATE assets SET location_id=$1, status=\'In Store\', department_id=NULL, version=version+1, updated_at=now() WHERE id=$2 RETURNING id, asset_code, location_id',
         [locationId, assetId],
         c,
       );
@@ -253,7 +253,8 @@ export class StoreService {
         this.db,
         'assets',
         asset.id,
-        { status: outcome.status, condition: outcome.condition, locationId: data.locationId },
+        // Returned: it no longer belongs to the holder's department.
+        { status: outcome.status, condition: outcome.condition, locationId: data.locationId, departmentId: null },
         c,
       );
       await this.db.query(

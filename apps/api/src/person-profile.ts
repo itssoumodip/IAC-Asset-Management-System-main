@@ -6,6 +6,7 @@ import { inrRates, toInr } from './exchange-rates';
 import { can } from './policy';
 import { AuthRequest, SessionGuard, type Actor } from './security';
 import { canViewSubscriptions } from './subscriptions';
+import { hideFields, pageRestrictions } from './page-fields';
 
 /**
  * Person pages: everything one person holds (assets, subscriptions), what they held before, and
@@ -63,21 +64,29 @@ export class PersonProfileService {
        LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values,
     );
+    // Field permissions for the People page (counts follow "assets" / "subscriptions").
+    const { hidden } = await pageRestrictions(this.db, req.user, 'person');
     return {
-      items: rows.slice(0, limit).map((r: any) => ({
-        id: r.id,
-        name: r.display_name,
-        email: r.email,
-        designation: r.designation,
-        employeeCode: r.employee_code,
-        department: r.department,
-        left: r.left_org,
-        hasPhoto: r.has_photo,
-        assets: r.assets,
-        subscriptions: r.subscriptions,
-      })),
+      items: rows.slice(0, limit).map((r: any) =>
+        hideFields(
+          {
+            id: r.id,
+            name: r.display_name,
+            email: r.email,
+            designation: r.designation,
+            employeeCode: r.employee_code,
+            department: r.department,
+            left: r.left_org,
+            hasPhoto: r.has_photo,
+            assets: hidden.has('assets') ? null : r.assets,
+            subscriptions: hidden.has('subscriptions') ? null : r.subscriptions,
+          },
+          'person',
+          new Set([...hidden].filter((f) => f !== 'assets' && f !== 'subscriptions')),
+        ),
+      ),
       nextOffset: rows.length > limit ? offset + limit : null,
-      showsSubscriptions: subs,
+      showsSubscriptions: subs && !hidden.has('subscriptions'),
     };
   }
 
@@ -164,7 +173,11 @@ export class PersonProfileService {
     });
     const assetValue = money ? current.reduce((sum: number, a: any) => sum + (toInr(a.purchase_cost != null ? Number(a.purchase_cost) : null, a.currency ?? 'INR', fx.rates) ?? 0), 0) : null;
 
-    return {
+    // Field permissions for the People page; a person's own page is never limited.
+    const hidden = self ? new Set<string>() : (await pageRestrictions(this.db, req.user, 'person')).hidden;
+    const noAssets = hidden.has('assets');
+    const noSubs = hidden.has('subscriptions');
+    const result = {
       person: {
         id: person.id,
         name: person.display_name,
@@ -178,13 +191,13 @@ export class PersonProfileService {
         hasPhoto: person.has_photo,
       },
       totals: {
-        assets: current.length,
-        assetValue,
-        pendingConfirmation: current.filter((a: any) => a.acknowledgement === 'PENDING').length,
-        subscriptions: subs ? subscriptionRows.length : null,
-        namedSubscriptions: subs ? subscriptionRows.filter((s) => s.via === 'PERSON').length : null,
-        monthlySubscriptionShare: money ? subscriptionRows.reduce((sum, s) => sum + (s.monthlyShareInr ?? 0), 0) : null,
-        pastAssets: past.length,
+        assets: noAssets ? 0 : current.length,
+        assetValue: noAssets ? null : assetValue,
+        pendingConfirmation: noAssets ? 0 : current.filter((a: any) => a.acknowledgement === 'PENDING').length,
+        subscriptions: subs && !noSubs ? subscriptionRows.length : null,
+        namedSubscriptions: subs && !noSubs ? subscriptionRows.filter((s) => s.via === 'PERSON').length : null,
+        monthlySubscriptionShare: money && !noSubs ? subscriptionRows.reduce((sum, s) => sum + (s.monthlyShareInr ?? 0), 0) : null,
+        pastAssets: noAssets ? 0 : past.length,
       },
       assets: current.map((a: any) => ({
         id: a.id,
@@ -223,6 +236,8 @@ export class PersonProfileService {
         : null,
       scopeNote: self || assetScope(req.user, []) === 'TRUE' ? null : 'Showing assets owned by your team only.',
     };
+    hideFields(result.person, 'person', hidden);
+    return hideFields(result, 'person', hidden);
   }
 }
 

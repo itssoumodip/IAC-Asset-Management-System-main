@@ -201,6 +201,14 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     // Our holder's laptops are IT's, so they still count; another team's view has none of them.
     const itHolders = await insights.holders({ user: admin } as any, IT_TEAM_ID);
     assert.equal(itHolders.find((h) => h.userId === holder)?.count, 2);
+    // Every department (with ids for the catalog link), locations, completeness and idle stock.
+    assert.ok(it.byDepartment.every((d: any) => 'id' in d));
+    assert.ok(it.byLocation.some((l: any) => l.label === 'No location'));
+    assert.equal(it.completeness.total, it.live);
+    assert.ok(it.completeness.serial >= 0 && it.completeness.location >= 0);
+    assert.equal(typeof it.idle.over180, 'number');
+    const store = await insights.insights({ user: actor(['STORE']) } as any);
+    assert.ok(store.byLocation.every((l: any) => !('value' in l)));
     const other = await insights.insights({ user: admin } as any, randomUUID());
     assert.equal(other.total, 0);
     await assert.rejects(insights.insights({ user: admin } as any, 'not-a-team'), (e: any) => e.status === 400);

@@ -24,6 +24,7 @@ import { IT_TEAM_ID, date, parse, text, uuid } from './domain-helpers';
 import { can } from './policy';
 import { inrRates, toInr } from './exchange-rates';
 import { AuthRequest, SessionGuard, type Actor } from './security';
+import { hideFields, keepLockedValues, pageRestrictions } from './page-fields';
 
 /**
  * Subscriptions: software, AI tools, cloud services and anything paid for on a cycle, and the
@@ -221,7 +222,8 @@ export class SubscriptionService {
       values,
     );
     const fx = await inrRates(this.db);
-    return { items: rows.map((row: any) => withInr(camelRow(row), fx.rates)) };
+    const { hidden } = await pageRestrictions(this.db, req.user, 'subscription');
+    return { items: rows.map((row: any) => hideFields(withInr(camelRow(row), fx.rates), 'subscription', hidden)) };
   }
 
   /** Numbers and chart data for the page and dashboards. */
@@ -271,33 +273,39 @@ export class SubscriptionService {
          WHERE sa.ended_at IS NULL AND ${live}
          GROUP BY u.id, u.display_name ORDER BY 4 DESC, 2 LIMIT 8`, r),
     ]);
+    // Field permissions: no money without "cost", no people without "people".
+    const { hidden } = await pageRestrictions(this.db, req.user, 'subscription');
+    const noCost = hidden.has('cost');
+    const noPeople = hidden.has('people');
     return {
       live: t.live,
       trials: t.trials,
-      monthlySpend: Number(t.monthly),
-      yearlySpend: Number(t.monthly) * 12,
+      monthlySpend: noCost ? null : Number(t.monthly),
+      yearlySpend: noCost ? null : Number(t.monthly) * 12,
       renewalsDue30: t.due30,
       renewalsPassed: t.passed,
       seatsTotal: t.seats_total,
       seatsUsed: t.seats_used,
-      peopleCount: t.people,
+      peopleCount: noPeople ? null : t.people,
       withFreeSeats: t.with_free_seats,
       // Totals are in rupees at these rates; plans in a currency without a rate are left out.
       rates: { asOf: fx.asOf, stale: fx.stale, unconverted: t.unconverted },
-      byCategory: byCategory.map((r: any) => ({ label: r.label, count: r.count, monthly: Number(r.monthly) })),
-      months: months.map((m: any) => ({ month: m.month, renewals: m.renewals, cost: Number(m.cost) })),
+      byCategory: byCategory.map((r: any) => ({ label: r.label, count: r.count, monthly: noCost ? 0 : Number(r.monthly) })),
+      months: months.map((m: any) => ({ month: m.month, renewals: m.renewals, cost: noCost ? 0 : Number(m.cost) })),
       upcoming: upcoming.map((r: any) => ({
         id: r.id,
         name: r.name,
-        vendor: r.vendor,
-        renewalDate: r.renewal_date,
-        days: r.days,
-        cost: r.cost,
-        costInr: toInr(r.cost, r.currency, fx.rates),
-        currency: r.currency,
-        autoRenew: r.auto_renew,
+        vendor: hidden.has('vendor') ? null : r.vendor,
+        renewalDate: hidden.has('renewal') ? null : r.renewal_date,
+        days: hidden.has('renewal') ? null : r.days,
+        cost: noCost ? null : r.cost,
+        costInr: noCost ? null : toInr(r.cost, r.currency, fx.rates),
+        currency: noCost ? null : r.currency,
+        autoRenew: hidden.has('renewal') ? null : r.auto_renew,
       })),
-      topPeople: people.map((r: any) => ({ userId: r.id, name: r.name, hasPhoto: r.has_photo, count: r.count, monthlyShare: Number(r.monthly_share) })),
+      topPeople: noPeople
+        ? []
+        : people.map((r: any) => ({ userId: r.id, name: r.name, hasPhoto: r.has_photo, count: r.count, monthlyShare: noCost ? null : Number(r.monthly_share) })),
     };
   }
 
@@ -368,13 +376,20 @@ export class SubscriptionService {
       endedBy: r.ended_by_name,
     });
     const fx = await inrRates(this.db);
-    return {
-      ...withInr(camelRow(row), fx.rates),
-      rateAsOf: fx.asOf,
-      people: people.filter((r: any) => !r.ended_at).map(mapPerson),
-      history: people.filter((r: any) => r.ended_at).map(mapPerson),
-      canManage: canManageSubscriptions(req.user),
-    };
+    const { hidden, locked } = await pageRestrictions(this.db, req.user, 'subscription');
+    return hideFields(
+      {
+        ...withInr(camelRow(row), fx.rates),
+        rateAsOf: fx.asOf,
+        people: people.filter((r: any) => !r.ended_at).map(mapPerson),
+        history: people.filter((r: any) => r.ended_at).map(mapPerson),
+        canManage: canManageSubscriptions(req.user),
+        // Which fields the form should show read-only for this person.
+        lockedFields: [...locked],
+      },
+      'subscription',
+      hidden,
+    );
   }
 
   private async checkReferences(input: { category: string; departmentId: string | null }) {
@@ -402,6 +417,11 @@ export class SubscriptionService {
     const { userIds, ...input } = parse(createInput, body);
     await this.checkReferences(input);
     const people = [...new Set(userIds)];
+    // Locked fields start empty or at their default on a new subscription (billing is required).
+    const { locked } = await pageRestrictions(this.db, req.user, 'subscription');
+    locked.delete('billingCycle');
+    keepLockedValues('subscription', locked, { currency: 'INR', autoRenew: true }, input);
+    if (people.length && locked.has('people')) throw new ForbiddenException('Your role cannot give subscriptions to people');
     if (input.seatsTotal != null && people.length > input.seatsTotal)
       throw new ConflictException(`You picked ${people.length} people but the plan has ${input.seatsTotal} seats`);
     if (people.length && !['ACTIVE', 'TRIAL'].includes(input.status))
@@ -444,6 +464,19 @@ export class SubscriptionService {
       if (!before) throw new NotFoundException('Subscription not found');
       if (before.version !== version)
         throw new ConflictException('Someone else changed this subscription. Reload and try again.');
+      const { locked } = await pageRestrictions(this.db, req.user, 'subscription', c);
+      keepLockedValues(
+        'subscription',
+        locked,
+        {
+          vendor: before.vendor, plan: before.plan, cost: before.cost, currency: before.currency,
+          billingCycle: before.billing_cycle, startDate: before.start_date, renewalDate: before.renewal_date,
+          autoRenew: before.auto_renew, seatsTotal: before.seats_total, departmentId: before.department_id,
+          accountEmail: before.account_email, paymentMethod: before.payment_method, website: before.website,
+          notes: before.notes,
+        },
+        input,
+      );
       if (input.seatsTotal != null) {
         const [{ used }] = await this.db.query(
           'SELECT count(*)::int AS used FROM subscription_assignments WHERE subscription_id = $1 AND ended_at IS NULL',
@@ -469,8 +502,14 @@ export class SubscriptionService {
     });
   }
 
+  private async assertPeopleEditable(actor: Actor) {
+    if ((await pageRestrictions(this.db, actor, 'subscription')).locked.has('people'))
+      throw new ForbiddenException('Your role cannot change who uses a subscription');
+  }
+
   async assign(req: AuthRequest, id: string, body: unknown) {
     this.assertManage(req.user);
+    await this.assertPeopleEditable(req.user);
     const sid = parse(uuid, id);
     const input = parse(assignInput, body);
     return this.db.tx(async (c) => {
@@ -551,6 +590,7 @@ export class SubscriptionService {
 
   async end(req: AuthRequest, id: string, assignmentId: string, body: unknown) {
     this.assertManage(req.user);
+    await this.assertPeopleEditable(req.user);
     const sid = parse(uuid, id);
     const aid = parse(uuid, assignmentId);
     const input = parse(endInput, body ?? {});

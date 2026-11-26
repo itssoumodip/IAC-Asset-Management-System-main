@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, PropsWithChildren, ReactNode } from 'react';
-import { useState, useEffect, useId, useRef } from 'react';
+import { useState, useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api';
 
@@ -546,13 +547,41 @@ export function Select({
   const [searchText, setSearchText] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const selectRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
   const listboxId = useId();
+  // The list is drawn on top of the page (a portal), so tables and panels that hide overflow
+  // cannot cut it off. It sits under the field, or above it when there is no room below.
+  const [place, setPlace] = useState<{ top?: number; bottom?: number; left?: number; right?: number; width: number; maxHeight: number }>();
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const update = () => {
+      const box = buttonRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const below = window.innerHeight - box.bottom;
+      const up = below < 220 && box.top > below;
+      const room = Math.max(120, Math.min(256, (up ? box.top : below) - 12));
+      setPlace({
+        ...(up ? { bottom: window.innerHeight - box.top + 4 } : { top: box.bottom + 4 }),
+        ...(menuAlign === 'end' ? { right: window.innerWidth - box.right } : { left: box.left }),
+        width: box.width,
+        maxHeight: room,
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [isOpen, menuAlign]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = event.target as Node;
+      if (selectRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setIsOpen(false);
     }
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
@@ -613,6 +642,7 @@ export function Select({
     <Field label={label} htmlFor={htmlFor} hint={hint}>
       <div ref={selectRef} className="relative" data-open={isOpen} data-disabled={disabled}>
         <button
+          ref={buttonRef}
           type="button"
           id={htmlFor}
           className={cx(
@@ -655,15 +685,21 @@ export function Select({
             <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        {isOpen && !disabled && (
+        {isOpen && !disabled && place && createPortal(
           <ul
+            ref={menuRef}
             id={listboxId}
             // At least as wide as the field, wider when an option needs it (no wrapping of short
             // labels in narrow pickers), capped so it never runs off a phone screen.
-            className={cx(
-              'absolute z-30 mt-1 max-h-64 w-max min-w-full max-w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-md',
-              menuAlign === 'end' ? 'right-0' : 'left-0',
-            )}
+            className="fixed z-[70] w-max max-w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-md"
+            style={{
+              top: place.top,
+              bottom: place.bottom,
+              left: place.left,
+              right: place.right,
+              minWidth: place.width,
+              maxHeight: place.maxHeight,
+            }}
             role="listbox"
           >
             {visibleOptions.length ? visibleOptions.map((option, index) => (
@@ -690,7 +726,8 @@ export function Select({
             )) : (
               <li className="px-3 py-2 text-sm text-gray-500" role="status">No matching options</li>
             )}
-          </ul>
+          </ul>,
+          document.body,
         )}
         {required && (
           <input
