@@ -1,4 +1,4 @@
-import { Children, useState } from 'react';
+import { Children, useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useCatalogHref } from './catalog-return';
@@ -48,7 +48,13 @@ import {
   canViewSubscriptions,
 } from './components/Subscriptions';
 import { PeopleDirectory, PersonPage, canBrowsePeople } from './components/People';
-import { VendorDetail, VendorForm, VendorList, canManageVendors, canViewVendors } from './components/Vendors';
+import {
+  VendorDetail,
+  VendorForm,
+  VendorList,
+  canManageVendors,
+  canViewVendors,
+} from './components/Vendors';
 import { Insurance, WarrantyExpiry, canSeeInsurance, canSeeWarranty } from './components/AssetCare';
 import { Procurement } from './components/Procurement';
 import { NotificationsPage, useUnreadNotificationCount } from './components/Notifications';
@@ -357,6 +363,523 @@ function TopbarGreeting({ name }: { name: string }) {
     </div>
   );
 }
+
+const paletteRoles = [
+  { id: 'primary', label: 'Primary' },
+  { id: 'positive', label: 'Positive' },
+  { id: 'attention', label: 'Attention' },
+  { id: 'critical', label: 'Critical' },
+] as const;
+const themeTemplates = [
+  {
+    id: 'iac',
+    label: 'IAC classic',
+    palette: { primary: '#333f90', positive: '#6fc0df', attention: '#f0c63e', critical: '#cc2632' },
+    surfaces: {
+      light: { page: '#f3f4f8', panels: '#ffffff', text: '#15181d' },
+      dark: { page: '#151824', panels: '#202435', text: '#f1f3fa' },
+    },
+  },
+  {
+    id: 'ocean',
+    label: 'Ocean',
+    palette: { primary: '#155e75', positive: '#06b6d4', attention: '#f59e0b', critical: '#e11d48' },
+    surfaces: {
+      light: { page: '#edf5f7', panels: '#ffffff', text: '#102c35' },
+      dark: { page: '#101923', panels: '#192737', text: '#edf5fb' },
+    },
+  },
+  {
+    id: 'forest',
+    label: 'Forest',
+    palette: { primary: '#166534', positive: '#22c55e', attention: '#eab308', critical: '#dc2626' },
+    surfaces: {
+      light: { page: '#f0f5f0', panels: '#ffffff', text: '#172d1d' },
+      dark: { page: '#141a17', panels: '#202a24', text: '#eff5f0' },
+    },
+  },
+  {
+    id: 'violet',
+    label: 'Violet',
+    palette: { primary: '#6d28d9', positive: '#38bdf8', attention: '#f59e0b', critical: '#f43f5e' },
+    surfaces: {
+      light: { page: '#f4f1f8', panels: '#ffffff', text: '#241735' },
+      dark: { page: '#191522', panels: '#282137', text: '#f5f0fc' },
+    },
+  },
+  {
+    id: 'slate',
+    label: 'Slate',
+    palette: { primary: '#475569', positive: '#38bdf8', attention: '#fbbf24', critical: '#fb7185' },
+    surfaces: {
+      light: { page: '#f1f4f8', panels: '#ffffff', text: '#172033' },
+      dark: { page: '#151a23', panels: '#202938', text: '#f0f4fa' },
+    },
+  },
+  {
+    id: 'rose',
+    label: 'Rose',
+    palette: { primary: '#be4562', positive: '#48a999', attention: '#e6a23c', critical: '#df3448' },
+    surfaces: {
+      light: { page: '#f8f1f3', panels: '#ffffff', text: '#321c25' },
+      dark: { page: '#20171c', panels: '#302229', text: '#fbf0f3' },
+    },
+  },
+  {
+    id: 'amber',
+    label: 'Amber',
+    palette: { primary: '#a85d16', positive: '#39866b', attention: '#e5a817', critical: '#d44538' },
+    surfaces: {
+      light: { page: '#f8f4ec', panels: '#ffffff', text: '#302516' },
+      dark: { page: '#201c16', panels: '#30291f', text: '#faf4e8' },
+    },
+  },
+  {
+    id: 'midnight',
+    label: 'Midnight',
+    palette: { primary: '#818cf8', positive: '#34d399', attention: '#fbbf24', critical: '#fb7185' },
+    surfaces: {
+      light: { page: '#f2f3fa', panels: '#ffffff', text: '#191a2d' },
+      dark: { page: '#10111b', panels: '#1b1d2b', text: '#f3f3ff' },
+    },
+  },
+] as const;
+
+function mixHex(color: string, target: string, amount: number) {
+  const channels = (hex: string) =>
+    hex
+      .slice(1)
+      .match(/../g)!
+      .map((part) => parseInt(part, 16));
+  const from = channels(color);
+  const to = channels(target);
+  return `#${from
+    .map((value, index) =>
+      Math.round(value * (1 - amount) + to[index] * amount)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
+}
+
+function contrastingText(color: string) {
+  const [r, g, b] = color
+    .slice(1)
+    .match(/../g)!
+    .map((part) => parseInt(part, 16) / 255);
+  const luminance = [r, g, b]
+    .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  const darkContrast = (luminance + 0.05) / 0.058;
+  return whiteContrast >= darkContrast ? '#ffffff' : '#15181d';
+}
+
+function AppearanceMenu() {
+  type Density = 'comfortable' | 'compact';
+  const [mode, setMode] = useState<'light' | 'dark' | 'system'>(() => {
+    try {
+      const saved = localStorage.getItem('iac.theme');
+      return saved === 'light' || saved === 'dark' ? saved : 'system';
+    } catch {
+      return 'system';
+    }
+  });
+  const [palette, setPalette] = useState<Record<(typeof paletteRoles)[number]['id'], string>>(
+    () => {
+      const defaults = { ...themeTemplates[0].palette };
+      try {
+        return Object.fromEntries(
+          paletteRoles.map(({ id }) => {
+            const value = localStorage.getItem(`iac.palette.${id}`);
+            return [id, value && /^#[\da-f]{6}$/i.test(value) ? value : defaults[id]];
+          }),
+        ) as typeof defaults;
+      } catch {
+        return defaults;
+      }
+    },
+  );
+  const [themeTemplate, setThemeTemplate] = useState(() => {
+    try {
+      const saved = localStorage.getItem('iac.template');
+      if (saved && (saved === 'custom' || themeTemplates.some((template) => template.id === saved)))
+        return saved;
+      if (['page', 'panels', 'text'].some((key) => localStorage.getItem(`iac.surface.${key}`))) {
+        return 'custom';
+      }
+      const match = themeTemplates.find((template) =>
+        paletteRoles.every(({ id }) => {
+          const savedColor = localStorage.getItem(`iac.palette.${id}`);
+          return (savedColor ?? themeTemplates[0].palette[id]) === template.palette[id];
+        }),
+      );
+      return match?.id ?? 'custom';
+    } catch {
+      return 'iac';
+    }
+  });
+  const [density, setDensity] = useState<Density>(() => {
+    try {
+      return localStorage.getItem('iac.density') === 'compact' ? 'compact' : 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+  const [fontScale, setFontScale] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem('iac.fontScale'));
+      return [90, 100, 110].includes(saved) ? saved : 100;
+    } catch {
+      return 100;
+    }
+  });
+  const [surfaceColors, setSurfaceColors] = useState(() => {
+    const read = (id: string) => {
+      try {
+        const value = localStorage.getItem(`iac.surface.${id}`);
+        return value && /^#[\da-f]{6}$/i.test(value) ? value : '';
+      } catch {
+        return '';
+      }
+    };
+    return { page: read('page'), panels: read('panels'), text: read('text') };
+  });
+  const applyTemplate = (id: string) => {
+    const template = themeTemplates.find((item) => item.id === id);
+    setThemeTemplate(id);
+    if (template) {
+      setPalette({ ...template.palette });
+      setSurfaceColors({ page: '', panels: '', text: '' });
+    }
+  };
+  const resetAppearance = () => {
+    setMode('system');
+    setThemeTemplate('iac');
+    setPalette({ ...themeTemplates[0].palette });
+    setDensity('comfortable');
+    setFontScale(100);
+    setSurfaceColors({ page: '', panels: '', text: '' });
+  };
+  useEffect(() => {
+    document.documentElement.dataset.theme = mode;
+    document.documentElement.dataset.density = density;
+    document.documentElement.style.setProperty('--ui-font-scale', `${fontScale}%`);
+    const root = document.documentElement.style;
+    const primary = palette.primary;
+    root.setProperty('--color-navy-dark-text', mixHex(primary, '#ffffff', 0.66));
+    root.setProperty('--color-navy-700', primary);
+    root.setProperty('--color-navy-800', mixHex(primary, '#000000', 0.18));
+    root.setProperty('--color-navy-900', mixHex(primary, '#000000', 0.38));
+    root.setProperty('--color-navy-500', mixHex(primary, '#ffffff', 0.3));
+    root.setProperty('--color-navy-300', mixHex(palette.primary, '#ffffff', 0.48));
+    root.setProperty('--color-navy-200', mixHex(palette.primary, '#ffffff', 0.68));
+    root.setProperty('--color-navy-100', mixHex(palette.primary, '#ffffff', 0.86));
+    root.setProperty('--color-navy-50', mixHex(palette.primary, '#ffffff', 0.94));
+    root.setProperty('--color-accent', primary);
+    root.setProperty('--color-chart-1', palette.primary);
+    root.setProperty('--color-accent-foreground', contrastingText(palette.primary));
+    const setFamily = (family: 'sky' | 'red', color: string) => {
+      root.setProperty(`--color-${family}-50`, mixHex(color, '#ffffff', 0.94));
+      root.setProperty(`--color-${family}-100`, mixHex(color, '#ffffff', 0.86));
+      if (family === 'sky') {
+        root.setProperty('--color-sky-500', color);
+        root.setProperty('--color-sky-600', mixHex(color, '#000000', 0.2));
+        root.setProperty('--color-sky-700', mixHex(color, '#000000', 0.42));
+        root.setProperty('--color-sky-800', mixHex(color, '#000000', 0.58));
+        root.setProperty('--color-sky-900', mixHex(color, '#000000', 0.74));
+        root.setProperty('--color-positive-foreground', contrastingText(color));
+      } else {
+        root.setProperty('--color-red-400', mixHex(color, '#ffffff', 0.48));
+        root.setProperty('--color-red-600', color);
+        root.setProperty('--color-red-700', mixHex(color, '#000000', 0.18));
+        root.setProperty('--color-red-800', mixHex(color, '#000000', 0.48));
+        root.setProperty('--color-red-900', mixHex(color, '#000000', 0.68));
+        root.setProperty('--color-critical-foreground', contrastingText(color));
+      }
+    };
+    setFamily('sky', palette.positive);
+    root.setProperty('--color-chart-2', palette.positive);
+    root.setProperty('--color-yellow-50', mixHex(palette.attention, '#ffffff', 0.94));
+    root.setProperty('--color-yellow-100', mixHex(palette.attention, '#ffffff', 0.84));
+    root.setProperty('--color-yellow-200', mixHex(palette.attention, '#ffffff', 0.62));
+    root.setProperty('--color-yellow-500', palette.attention);
+    root.setProperty('--color-yellow-600', mixHex(palette.attention, '#000000', 0.18));
+    root.setProperty('--color-yellow-800', mixHex(palette.attention, '#000000', 0.48));
+    root.setProperty('--color-yellow-900', mixHex(palette.attention, '#000000', 0.68));
+    root.setProperty('--iac-color-attention', palette.attention);
+    root.setProperty('--color-attention-foreground', contrastingText(palette.attention));
+    setFamily('red', palette.critical);
+    root.setProperty('--iac-color-critical', palette.critical);
+    const customSurfaceVariables = {
+      page: ['--color-frame'],
+      panels: ['--ui-surface', '--surface', '--sheet'],
+      text: ['--color-ink'],
+    } as const;
+    const darkSurface =
+      mode === 'dark' ||
+      (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const selectedTemplate = themeTemplates.find((template) => template.id === themeTemplate);
+    const templateSurfaces = selectedTemplate?.surfaces[darkSurface ? 'dark' : 'light'];
+    for (const [role, variables] of Object.entries(customSurfaceVariables) as [
+      keyof typeof customSurfaceVariables,
+      readonly string[],
+    ][]) {
+      const value = themeTemplate === 'custom' ? surfaceColors[role] : templateSurfaces?.[role];
+      for (const variable of variables) {
+        if (value) root.setProperty(variable, value);
+        else root.removeProperty(variable);
+      }
+    }
+    try {
+      localStorage.setItem('iac.theme', mode);
+      localStorage.setItem('iac.template', themeTemplate);
+      localStorage.setItem('iac.density', density);
+      localStorage.setItem('iac.fontScale', String(fontScale));
+      for (const [role, value] of Object.entries(palette))
+        localStorage.setItem(`iac.palette.${role}`, value);
+      for (const [role, value] of Object.entries(surfaceColors)) {
+        if (value) localStorage.setItem(`iac.surface.${role}`, value);
+        else localStorage.removeItem(`iac.surface.${role}`);
+      }
+    } catch {
+      /* The selection still applies for this page view. */
+    }
+  }, [mode, palette, density, fontScale, surfaceColors, themeTemplate]);
+
+  const darkSurface =
+    mode === 'dark' ||
+    (mode === 'system' &&
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const defaultSurfaceColors =
+    themeTemplate !== 'custom'
+      ? themeTemplates.find((template) => template.id === themeTemplate)!.surfaces[
+          darkSurface ? 'dark' : 'light'
+        ]
+      : darkSurface
+        ? { page: '#11151c', panels: '#1a2029', text: '#e7eaf0' }
+        : { page: '#f3f4f8', panels: '#ffffff', text: '#15181d' };
+  const switchToCustom = () => {
+    if (themeTemplate === 'custom') return;
+    const selected = themeTemplates.find((template) => template.id === themeTemplate);
+    setSurfaceColors(
+      selected ? { ...selected.surfaces[darkSurface ? 'dark' : 'light'] } : surfaceColors,
+    );
+    setThemeTemplate('custom');
+  };
+
+  return (
+    <details className="appearance-menu relative">
+      <summary aria-label="Appearance settings" title="Appearance settings">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="M12 2.5v2m0 15v2m9.5-9.5h-2m-15 0h-2m16.22-6.72-1.42 1.42M6.7 17.3l-1.42 1.42m13.44 0-1.42-1.42M6.7 6.7 5.28 5.28" />
+        </svg>
+      </summary>
+      <div className="appearance-panel">
+        <div className="appearance-heading">
+          <div>
+            <strong>Customize appearance</strong>
+            <span>Changes apply across this browser.</span>
+          </div>
+          <button type="button" className="appearance-reset" onClick={resetAppearance}>
+            Reset
+          </button>
+          <button
+            type="button"
+            className="appearance-close"
+            aria-label="Close appearance settings"
+            onClick={(event) => {
+              const details = event.currentTarget.closest('details');
+              if (details) details.open = false;
+            }}
+          >
+            ×
+          </button>
+        </div>
+        <section className="appearance-section">
+          <h3>Color mode</h3>
+          <div className="appearance-choice-row" role="group" aria-label="Color mode">
+            {(
+              [
+                { id: 'light', label: 'Light' },
+                { id: 'dark', label: 'Dark' },
+                { id: 'system', label: 'System' },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={mode === option.id ? 'active' : ''}
+                aria-pressed={mode === option.id}
+                onClick={() => setMode(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="appearance-palette" aria-label="Theme templates and colors">
+          <div className="palette-editor-heading theme-heading">
+            <h3>Theme templates</h3>
+            {themeTemplate === 'custom' ? <span className="custom-theme-label">Custom</span> : null}
+          </div>
+          <div className="theme-template-grid">
+            {themeTemplates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                className={themeTemplate === template.id ? 'selected' : ''}
+                aria-pressed={themeTemplate === template.id}
+                onClick={() => applyTemplate(template.id)}
+              >
+                <span className="theme-swatches" aria-hidden="true">
+                  {paletteRoles.map(({ id }) => (
+                    <i key={id} style={{ backgroundColor: template.palette[id] }} />
+                  ))}
+                  {(['page', 'panels', 'text'] as const).map((id) => (
+                    <b
+                      key={id}
+                      className={`theme-surface-${id}`}
+                      style={{
+                        backgroundColor: template.surfaces[darkSurface ? 'dark' : 'light'][id],
+                      }}
+                    />
+                  ))}
+                </span>
+                <span>{template.label}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className={themeTemplate === 'custom' ? 'selected' : ''}
+              aria-pressed={themeTemplate === 'custom'}
+              onClick={switchToCustom}
+            >
+              <span className="theme-swatches" aria-hidden="true">
+                {paletteRoles.map(({ id }) => (
+                  <i key={id} style={{ backgroundColor: palette[id] }} />
+                ))}
+                {(['page', 'panels', 'text'] as const).map((id) => (
+                  <b
+                    key={id}
+                    className={`theme-surface-${id}`}
+                    style={{ backgroundColor: surfaceColors[id] || defaultSurfaceColors[id] }}
+                  />
+                ))}
+              </span>
+              <span>Custom</span>
+            </button>
+          </div>
+          <div className="palette-editor-heading">
+            <h3>Customize colors</h3>
+            <span>Set each color to any value.</span>
+          </div>
+          {paletteRoles.map((role) => (
+            <div className="palette-role" key={role.id}>
+              <label htmlFor={`appearance-${role.id}`}>{role.label}</label>
+              <div className="palette-color-control">
+                <span>{palette[role.id].toUpperCase()}</span>
+                <input
+                  id={`appearance-${role.id}`}
+                  type="color"
+                  value={palette[role.id]}
+                  onChange={(event) => {
+                    switchToCustom();
+                    setPalette((current) => ({ ...current, [role.id]: event.target.value }));
+                  }}
+                  aria-label={`${role.label} color`}
+                />
+              </div>
+            </div>
+          ))}
+        </section>
+        <section
+          className="appearance-palette surface-colors"
+          aria-label="Background and text colors"
+        >
+          <div className="palette-editor-heading">
+            <h3>Background and text</h3>
+            <button
+              type="button"
+              className="appearance-reset"
+              onClick={() => setSurfaceColors({ page: '', panels: '', text: '' })}
+            >
+              Reset colors
+            </button>
+          </div>
+          {(
+            [
+              ['page', 'Page background'],
+              ['panels', 'Panels and cards'],
+              ['text', 'Main text'],
+            ] as const
+          ).map(([id, label]) => (
+            <div className="palette-role" key={id}>
+              <label htmlFor={`appearance-surface-${id}`}>{label}</label>
+              <div className="palette-color-control">
+                <span>{(surfaceColors[id] || defaultSurfaceColors[id]).toUpperCase()}</span>
+                <input
+                  id={`appearance-surface-${id}`}
+                  type="color"
+                  value={surfaceColors[id] || defaultSurfaceColors[id]}
+                  onChange={(event) => {
+                    switchToCustom();
+                    setSurfaceColors((current) => ({ ...current, [id]: event.target.value }));
+                  }}
+                  aria-label={`${label} color`}
+                />
+              </div>
+            </div>
+          ))}
+        </section>
+        <details className="appearance-more">
+          <summary>More customization</summary>
+          <section className="appearance-section">
+            <h3>Interface density</h3>
+            <div className="appearance-choice-row" role="group" aria-label="Interface density">
+              {(['comfortable', 'compact'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={density === value ? 'active' : ''}
+                  aria-pressed={density === value}
+                  onClick={() => setDensity(value)}
+                >
+                  {value === 'comfortable' ? 'Comfortable' : 'Compact'}
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="appearance-section">
+            <h3>Text size</h3>
+            <div className="appearance-choice-row" role="group" aria-label="Text size">
+              {[90, 100, 110].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={fontScale === value ? 'active' : ''}
+                  aria-pressed={fontScale === value}
+                  onClick={() => setFontScale(value)}
+                >
+                  {value === 90 ? 'Small' : value === 100 ? 'Default' : 'Large'}
+                </button>
+              ))}
+            </div>
+          </section>
+        </details>
+      </div>
+    </details>
+  );
+}
+
 function Shell() {
   const { user } = useSession();
   // The sidebar's catalog link reopens the last search and filters.
@@ -665,6 +1188,7 @@ function Shell() {
           <TopbarGreeting name={user.displayName} />
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
             <ViewAsMenu />
+            <AppearanceMenu />
             <NavLink
               to="/notifications"
               className={({ isActive }) =>

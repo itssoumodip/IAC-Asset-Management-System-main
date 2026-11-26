@@ -49,7 +49,10 @@ export function StatTile({
   const body = (
     <>
       <span className="text-xs font-medium text-gray-500">{label}</span>
-      <strong data-count className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-navy-900 tabular-nums">
+      <strong
+        data-count
+        className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-navy-900 tabular-nums"
+      >
         {value}
       </strong>
       {detail ? <span className="mt-0.5 text-xs text-gray-500">{detail}</span> : null}
@@ -288,8 +291,12 @@ export function ColumnChart({
   for colour-blind separation on the light chart surface (dataviz reference palette).
   Slices beyond the slots fold into a grey "Other".
 */
-const SLICE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'];
-const OTHER_COLOR = '#a8a7a1';
+const SLICE_COLORS = [
+  'var(--color-chart-1)',
+  'var(--color-chart-2)',
+  'var(--iac-color-attention)',
+  'var(--iac-color-critical)',
+];
 
 function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number) {
   const p = (r: number, a: number) => `${cx + r * Math.sin(a)} ${cy - r * Math.cos(a)}`;
@@ -318,18 +325,19 @@ export function DonutChart({
   const total = positive.reduce((sum, i) => sum + i.value, 0);
   if (!total) return <EmptyChart>{empty}</EmptyChart>;
   // Keep the given order; fold anything past the colour slots into Other.
-  const shown = positive.length > SLICE_COLORS.length
-    ? [
-        ...positive.slice(0, SLICE_COLORS.length - 1),
-        {
-          label: 'Other',
-          value: positive.slice(SLICE_COLORS.length - 1).reduce((s, i) => s + i.value, 0),
-        },
-      ]
-    : positive;
+  const shown =
+    positive.length > SLICE_COLORS.length
+      ? [
+          ...positive.slice(0, SLICE_COLORS.length - 1),
+          {
+            label: 'Other',
+            value: positive.slice(SLICE_COLORS.length - 1).reduce((s, i) => s + i.value, 0),
+          },
+        ]
+      : positive;
   const color = (index: number, label: string) =>
     label === 'Other' && index === shown.length - 1 && positive.length > SLICE_COLORS.length
-      ? OTHER_COLOR
+      ? 'var(--iac-color-critical)'
       : SLICE_COLORS[index];
   const pct = (v: number) => `${Math.round((v / total) * 100)}%`;
   const gap = shown.length > 1 ? 0.035 : 0; // ~2px surface gap at this size
@@ -339,7 +347,11 @@ export function DonutChart({
     const a0 = angle + gap / 2;
     const a1 = angle + sweep - gap / 2;
     angle += sweep;
-    return { item, index, path: sweep >= Math.PI * 2 - 0.001 ? null : arc(60, 60, 40, 56, a0, Math.max(a0 + 0.001, a1)) };
+    return {
+      item,
+      index,
+      path: sweep >= Math.PI * 2 - 0.001 ? null : arc(60, 60, 40, 56, a0, Math.max(a0 + 0.001, a1)),
+    };
   });
   const focus = hover === null ? null : shown[hover];
   return (
@@ -348,9 +360,12 @@ export function DonutChart({
         <div className="relative size-36 shrink-0">
           <svg
             viewBox="0 0 120 120"
-            data-grow="spin"            className="size-full"
+            data-grow="spin"
+            className="size-full"
             role="img"
-            aria-label={shown.map((i) => `${i.label}: ${format(i.value)} (${pct(i.value)})`).join('; ')}
+            aria-label={shown
+              .map((i) => `${i.label}: ${format(i.value)} (${pct(i.value)})`)
+              .join('; ')}
           >
             {slices.map(({ item, index, path }) =>
               path ? (
@@ -397,7 +412,9 @@ export function DonutChart({
                 />
                 <span className="min-w-0 flex-1 truncate text-gray-700">{item.label}</span>
                 <span className="font-medium text-gray-900 tabular-nums">{format(item.value)}</span>
-                <span className="w-10 text-right text-xs text-gray-500 tabular-nums">{pct(item.value)}</span>
+                <span className="w-10 text-right text-xs text-gray-500 tabular-nums">
+                  {pct(item.value)}
+                </span>
               </>
             );
             const to = (item as { to?: string }).to;
