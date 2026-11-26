@@ -17,7 +17,18 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { Db } from './db';
 import { AuthRequest, SessionGuard, loadTeams, type Actor } from './security';
-import { assetColumns, assetScope, filterList, parse, uuid } from './domain-helpers';
+import {
+  assetColumns,
+  assetScope,
+  brandClause,
+  filterList,
+  holderClause,
+  idOrNoneClause,
+  locationClause,
+  isIdOrNone,
+  parse,
+  uuid,
+} from './domain-helpers';
 import { assetFieldRestrictions } from './role-field';
 
 const BATCH = 2000;
@@ -42,9 +53,8 @@ const filtersInput = z
   .strict()
   .refine(
     (f) =>
-      [f.departmentId, f.owningTeamId, f.holderId, f.locationId].every((v) =>
-        filterList(v).every((id) => uuid.safeParse(id).success),
-      ),
+      filterList(f.owningTeamId).every((id) => uuid.safeParse(id).success) &&
+      [f.departmentId, f.holderId, f.locationId].every((v) => filterList(v).every(isIdOrNone)),
     'Invalid id list',
   );
 const createInput = z
@@ -107,7 +117,6 @@ export async function buildAssetCsv(
   for (const [key, column, cast] of [
     ['category', 'category', 'text'],
     ['assetType', 'asset_type', 'text'],
-    ['departmentId', 'department_id', 'uuid'],
     ['owningTeamId', 'owning_team_id', 'uuid'],
   ] as const) {
     const list = filterList(filters[key]);
@@ -116,33 +125,21 @@ export async function buildAssetCsv(
       where.push(`a.${column}=ANY($${values.length}::${cast}[])`);
     }
   }
-  const brands = filterList(filters.manufacturer).map((b) => b.toLowerCase());
-  if (brands.length) {
-    values.push(brands);
-    where.push(`lower(btrim(a.manufacturer))=ANY($${values.length}::text[])`);
-  }
+  const brands = filterList(filters.manufacturer);
+  if (brands.length) where.push(brandClause(brands, values));
   const statuses = filterList(filters.status);
   if (statuses.length) {
     if (statuses.some((s) => s === 'Assigned' || s === 'In Use')) statuses.push('Assigned', 'In Use');
     values.push([...new Set(statuses)]);
     where.push(`a.status=ANY($${values.length}::text[])`);
   }
+  // The chosen locations and everything inside them (or no location), like the catalog.
   const places = filterList(filters.locationId);
-  if (places.length) {
-    // The chosen locations and everything inside them, like the catalog.
-    values.push(places);
-    where.push(
-      `a.location_id IN (WITH RECURSIVE sub AS (SELECT id FROM locations WHERE id=ANY($${values.length}::uuid[])
-         UNION ALL SELECT c.id FROM locations c JOIN sub ON c.parent_id=sub.id) SELECT id FROM sub)`,
-    );
-  }
+  if (places.length) where.push(locationClause(places, values));
+  const departments = filterList(filters.departmentId);
+  if (departments.length) where.push(idOrNoneClause('a.department_id', departments, values));
   const holders = filterList(filters.holderId);
-  if (holders.length) {
-    values.push(holders);
-    where.push(
-      `EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL AND holder.user_id=ANY($${values.length}::uuid[]))`,
-    );
-  }
+  if (holders.length) where.push(holderClause(holders, values));
   if (filters.q) {
     values.push(`%${filters.q.replace(/[\\%_]/g, '\\$&')}%`);
     const n = values.length;

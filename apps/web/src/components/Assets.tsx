@@ -329,18 +329,25 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     {
       key: 'manufacturer',
       title: 'Brand',
-      options: (brands.data?.items ?? []).map((b) => ({
-        value: b.name,
-        label: `${b.name} (${b.count})`,
-      })),
+      options: [
+        { value: 'none', label: 'No brand' },
+        ...(brands.data?.items ?? []).map((b) => ({
+          value: b.name,
+          label: `${b.name} (${b.count})`,
+        })),
+      ],
       selected: sel('manufacturer'),
     },
     {
       key: 'departmentId',
       title: 'Department',
-      options: (refs.data?.departments ?? [])
-        .filter((d) => d.active || sel('departmentId').includes(d.id))
-        .map((d) => ({ value: d.id, label: d.name })),
+      // "No department" first, then the departments ("none" is understood by the API).
+      options: [
+        { value: 'none', label: 'No department' },
+        ...(refs.data?.departments ?? [])
+          .filter((d) => d.active || sel('departmentId').includes(d.id))
+          .map((d) => ({ value: d.id, label: d.name })),
+      ],
       selected: sel('departmentId'),
     },
     ...(!assignmentMode
@@ -349,10 +356,13 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             key: 'holderId',
             title: 'Held by',
             // Only people who hold something, with how many items each holds.
-            options: (holders.data?.items ?? [])
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((h) => ({ value: h.userId, label: `${h.name} (${h.count})` })),
+            options: [
+              { value: 'none', label: 'Not held by anyone' },
+              ...(holders.data?.items ?? [])
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((h) => ({ value: h.userId, label: `${h.name} (${h.count})` })),
+            ],
             selected: sel('holderId'),
           },
         ]
@@ -360,9 +370,12 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     {
       key: 'locationId',
       title: 'Location',
-      options: (refs.data?.locations ?? [])
-        .filter((l) => l.active || sel('locationId').includes(l.id))
-        .map((l) => ({ value: l.id, label: locationLabel(l) })),
+      options: [
+        { value: 'none', label: 'No location' },
+        ...(refs.data?.locations ?? [])
+          .filter((l) => l.active || sel('locationId').includes(l.id))
+          .map((l) => ({ value: l.id, label: locationLabel(l) })),
+      ],
       selected: sel('locationId'),
     },
     ...(manage
@@ -434,6 +447,18 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             : column.key === 'purchaseCost'
               ? 'Exact amount'
               : 'Contains…'
+        }
+        // Asset ID and description are always filled in; every other text column can be blank.
+        blankLabel={
+          column.key === 'asset'
+            ? null
+            : column.key === 'warrantyExpiry'
+              ? 'Only assets with no warranty date'
+              : column.key === 'purchaseDate'
+                ? 'Only assets with no purchase date'
+                : column.key === 'purchaseCost'
+                  ? 'Only assets with no purchase cost'
+                  : `Only assets with no ${column.label.toLowerCase()}`
         }
         onApply={(value) => update(column.key, value)}
       />

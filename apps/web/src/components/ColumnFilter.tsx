@@ -275,22 +275,34 @@ export function ColumnFilter({
 }
 
 /** Free text / exact value filter for a table column. */
+/** Sent as a text filter's value to mean "this field is not filled in" (the API knows it). */
+export const BLANK_FILTER = '__blank__';
+
 export function TextColumnFilter({
   title,
   value,
   onApply,
   placeholder = 'Filter value…',
+  blankLabel = 'Only blank (not filled in)',
 }: {
   title: string;
   value: string;
   onApply: (value: string) => void;
   placeholder?: string;
+  /** Label of the "not filled in" tick box; null hides it (for fields that are never blank). */
+  blankLabel?: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const blank = value === BLANK_FILTER;
+  const [draft, setDraft] = useState(blank ? '' : value);
+  const [draftBlank, setDraftBlank] = useState(blank);
   useEffect(() => {
-    if (open) setDraft(value);
+    if (open) {
+      setDraft(value === BLANK_FILTER ? '' : value);
+      setDraftBlank(value === BLANK_FILTER);
+    }
   }, [open, value]);
+  const result = () => (draftBlank ? BLANK_FILTER : draft.trim());
   return (
     <Popover
       open={open}
@@ -302,11 +314,11 @@ export function TextColumnFilter({
           type="button"
           onClick={onClick}
           aria-expanded={open}
-          aria-label={value ? `Filter ${title}: ${value}` : `Filter ${title}`}
+          aria-label={value ? `Filter ${title}: ${blank ? 'blank' : value}` : `Filter ${title}`}
           className={cx('ml-1 inline-flex items-center rounded px-1 py-0.5 align-middle', value ? 'bg-navy-50 text-navy-700' : 'text-gray-400 hover:text-navy-700')}
         >
           <FunnelIcon className="size-3.5" />
-          {value ? <span className="ml-0.5 max-w-24 truncate text-[10px]">{value}</span> : null}
+          {value ? <span className="ml-0.5 max-w-24 truncate text-[10px]">{blank ? 'Blank' : value}</span> : null}
         </button>
       )}
     >
@@ -314,24 +326,31 @@ export function TextColumnFilter({
       <input
         autoFocus
         value={draft}
+        disabled={draftBlank}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
-            onApply(draft.trim());
+            onApply(result());
             setOpen(false);
           }
         }}
         placeholder={placeholder}
-        className="h-9 w-full rounded-md border border-gray-200 px-2 text-sm"
+        className="h-9 w-full rounded-md border border-gray-200 px-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
       />
+      {blankLabel ? (
+        <div className="mt-2">
+          <Checkbox label={blankLabel} checked={draftBlank} onChange={setDraftBlank} />
+        </div>
+      ) : null}
       <Footer
         onClear={() => {
           setDraft('');
+          setDraftBlank(false);
           onApply('');
           setOpen(false);
         }}
         onApply={() => {
-          onApply(draft.trim());
+          onApply(result());
           setOpen(false);
         }}
       />

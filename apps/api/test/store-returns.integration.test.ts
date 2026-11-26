@@ -207,18 +207,24 @@ describe('store returns PostgreSQL integration', { skip: !connection, concurrenc
     );
   });
 
-  it('rejects a non-store location', async () => {
+  it('accepts an ordinary room but rejects an inactive location', async () => {
     const { assignment } = await assigned();
-    const [{ id: roomId }] = await db.query(
-      "INSERT INTO locations(code,name,site) VALUES($1,'Synthetic room','Synthetic site') RETURNING id",
-      [`${tag}-room-${randomUUID()}`],
+    const [{ id: closedId }] = await db.query(
+      "INSERT INTO locations(code,name,site,active) VALUES($1,'Synthetic closed room','Synthetic site',false) RETURNING id",
+      [`${tag}-closed-${randomUUID()}`],
     );
     await assert.rejects(
       store.receiveReturn(request(storeUser), assignment.id, {
         condition: 'Good',
-        locationId: roomId,
+        locationId: closedId,
       }),
       status(422),
     );
+    const [{ id: roomId }] = await db.query(
+      "INSERT INTO locations(code,name,site) VALUES($1,'Synthetic room','Synthetic site') RETURNING id",
+      [`${tag}-room-${randomUUID()}`],
+    );
+    const fresh = (await assigned()).assignment;
+    await store.receiveReturn(request(storeUser), fresh.id, { condition: 'Good', locationId: roomId });
   });
 });

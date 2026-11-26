@@ -174,14 +174,75 @@ export const found = <T>(value: T | undefined): T => {
   return value;
 };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** One id or several comma-separated ids (at most 100). */
+/** In a Held by / Department filter, "none" means "nobody holds it" / "no department". */
+export const NONE_FILTER = 'none';
+export const isIdOrNone = (p: string) => p === NONE_FILTER || UUID_RE.test(p);
+/** One id or several comma-separated ids (at most 100); "none" may be one of them. */
 const uuidList = z
   .string()
   .max(3800)
   .refine((v) => {
     const parts = filterList(v);
-    return parts.length > 0 && parts.length <= 100 && parts.every((p) => UUID_RE.test(p));
+    return parts.length > 0 && parts.length <= 100 && parts.every(isIdOrNone);
   }, 'Invalid id list');
+/** `column` is one of the ids, or empty when "none" is chosen too. */
+export function idOrNoneClause(column: string, list: string[], values: unknown[]) {
+  const ids = list.filter((p) => p !== NONE_FILTER);
+  const parts: string[] = [];
+  if (ids.length) {
+    values.push(ids);
+    parts.push(`${column}=ANY($${values.length}::uuid[])`);
+  }
+  if (list.includes(NONE_FILTER)) parts.push(`${column} IS NULL`);
+  return `(${parts.join(' OR ')})`;
+}
+/** A text column filter set to this matches assets where the field is not filled in. */
+export const BLANK_TEXT = '__blank__';
+export function blankClause(column: string) {
+  return `(${column} IS NULL OR btrim(${column}::text)='')`;
+}
+/** Brand is one of these (any letter case), or not recorded when "none" is chosen too. */
+export function brandClause(list: string[], values: unknown[]) {
+  const names = list.filter((p) => p !== NONE_FILTER).map((b) => b.toLowerCase());
+  const parts: string[] = [];
+  if (names.length) {
+    values.push(names);
+    parts.push(`lower(btrim(a.manufacturer))=ANY($${values.length}::text[])`);
+  }
+  if (list.includes(NONE_FILTER)) parts.push(blankClause('a.manufacturer'));
+  return `(${parts.join(' OR ')})`;
+}
+/** In one of these locations or anywhere inside them, or no location when "none" is chosen too. */
+export function locationClause(list: string[], values: unknown[]) {
+  const ids = list.filter((p) => p !== NONE_FILTER);
+  const parts: string[] = [];
+  if (ids.length) {
+    values.push(ids);
+    parts.push(`a.location_id IN (
+      WITH RECURSIVE location_subtree AS (
+        SELECT id FROM locations WHERE id=ANY($${values.length}::uuid[])
+        UNION ALL
+        SELECT child.id FROM locations child JOIN location_subtree parent ON child.parent_id=parent.id
+      )
+      SELECT id FROM location_subtree)`);
+  }
+  if (list.includes(NONE_FILTER)) parts.push('a.location_id IS NULL');
+  return `(${parts.join(' OR ')})`;
+}
+/** Held now by one of these people, or by nobody when "none" is chosen too. */
+export function holderClause(list: string[], values: unknown[]) {
+  const ids = list.filter((p) => p !== NONE_FILTER);
+  const parts: string[] = [];
+  if (ids.length) {
+    values.push(ids);
+    parts.push(
+      `EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL AND holder.user_id=ANY($${values.length}::uuid[]))`,
+    );
+  }
+  if (list.includes(NONE_FILTER))
+    parts.push('NOT EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL)');
+  return `(${parts.join(' OR ')})`;
+}
 /** Split a comma-separated filter value into distinct, trimmed parts. */
 export function filterList(value: string | undefined): string[] {
   return [...new Set((value ?? '').split(',').map((v) => v.trim()).filter(Boolean))].slice(0, 100);

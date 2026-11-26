@@ -192,9 +192,23 @@ export function AssetDetailZoho() {
             </Link>
           ) : null}
           {!mayCustody ? null : canTransfer(asset) ? (
-            <Link className={buttonClass()} to={`/assets/${id}/assign?transfer=1`}>
-              Transfer custody
-            </Link>
+            <>
+              <Link className={buttonClass()} to={`/assets/${id}/assign?transfer=1`}>
+                Transfer custody
+              </Link>
+              {/* Ends the current custody and puts the asset back in store (status In Store). */}
+              <button
+                type="button"
+                className={buttonClass('secondary')}
+                aria-expanded={returning}
+                onClick={() => {
+                  setReturning(!returning);
+                  setCustodySnapshot(assignment ? { id: assignment.id, version: assignment.version } : undefined);
+                }}
+              >
+                Return to store
+              </button>
+            </>
           ) : canAssign(asset) ? (
             <Link className={buttonClass()} to={`/assets/${id}/assign`}>
               Assign asset

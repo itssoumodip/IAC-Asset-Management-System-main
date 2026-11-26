@@ -39,6 +39,12 @@ import {
   camel,
   eligibleEmployee,
   filterList,
+  holderClause,
+  idOrNoneClause,
+  BLANK_TEXT,
+  blankClause,
+  brandClause,
+  locationClause,
   found,
   id,
   idempotent,
@@ -145,7 +151,6 @@ export class AssetDomain extends MasterDomain {
     for (const [key, column, cast] of [
       ['category', 'category', 'text'],
       ['assetType', 'asset_type', 'text'],
-      ['departmentId', 'department_id', 'uuid'],
       ['owningTeamId', 'owning_team_id', 'uuid'],
       ['condition', 'condition', 'text'],
       ['riskLevel', 'risk_level', 'text'],
@@ -157,12 +162,13 @@ export class AssetDomain extends MasterDomain {
         where.push(`a.${column}=ANY($${values.length}::${cast}[])`);
       }
     }
-    // Brand: the register spells brands inconsistently (HP / hp), so match ignoring case.
-    const brands = filterList(p.manufacturer).map((b) => b.toLowerCase());
-    if (brands.length) {
-      values.push(brands);
-      where.push(`lower(btrim(a.manufacturer))=ANY($${values.length}::text[])`);
-    }
+    // Department: the chosen ones, plus "none" for assets with no department.
+    const departments = filterList(p.departmentId);
+    if (departments.length) where.push(idOrNoneClause('a.department_id', departments, values));
+    // Brand: the register spells brands inconsistently (HP / hp), so match ignoring case;
+    // "none" = no brand recorded.
+    const brands = filterList(p.manufacturer);
+    if (brands.length) where.push(brandClause(brands, values));
     const statuses = filterList(p.status);
     if (statuses.length) {
       // Assigned and In Use are the same held state.
@@ -170,27 +176,10 @@ export class AssetDomain extends MasterDomain {
       values.push([...new Set(statuses)]);
       where.push(`a.status=ANY($${values.length}::text[])`);
     }
-    if (p.locationId) {
-      values.push(filterList(p.locationId));
-      where.push(
-        `a.location_id IN (
-          WITH RECURSIVE location_subtree AS (
-            SELECT id FROM locations WHERE id=ANY($${values.length}::uuid[])
-            UNION ALL
-            SELECT child.id FROM locations child
-            JOIN location_subtree parent ON child.parent_id=parent.id
-          )
-          SELECT id FROM location_subtree
-        )`,
-      );
-    }
-    // Everything one person currently holds.
-    if (p.holderId) {
-      values.push(filterList(p.holderId));
-      where.push(
-        `EXISTS(SELECT 1 FROM assignments holder WHERE holder.asset_id=a.id AND holder.ended_at IS NULL AND holder.user_id=ANY($${values.length}::uuid[]))`,
-      );
-    }
+    // The chosen locations and everything inside them; "none" = no location set.
+    if (p.locationId) where.push(locationClause(filterList(p.locationId), values));
+    // Everything these people currently hold; "none" = held by nobody.
+    if (p.holderId) where.push(holderClause(filterList(p.holderId), values));
     // Same rules as the dashboard counts, so a row's number matches the list it opens.
     const attention: Record<string, string> = {
       unconfirmed: `EXISTS(SELECT 1 FROM assignments ack WHERE ack.asset_id=a.id AND ack.ended_at IS NULL AND ack.acknowledgement='PENDING')`,
@@ -221,18 +210,30 @@ export class AssetDomain extends MasterDomain {
       values.push(`%${p.asset.replace(/[\\%_]/g, '\\$&')}%`);
       where.push(`(a.asset_code ILIKE $${values.length} OR a.description ILIKE $${values.length})`);
     }
-    if (p.model) ilike('a.model', p.model);
-    if (p.serialNumber) ilike('a.serial_number', p.serialNumber);
-    if (p.barcode) ilike('a.barcode', p.barcode);
-    if (p.warrantyExpiry) {
-      values.push(p.warrantyExpiry);
-      where.push(`a.warranty_expiry::text=$${values.length}`);
+    // Text column filters: "contains", or BLANK_TEXT for "not filled in".
+    for (const [key, column] of [
+      ['model', 'a.model'],
+      ['serialNumber', 'a.serial_number'],
+      ['barcode', 'a.barcode'],
+    ] as const) {
+      const value = p[key];
+      if (value === BLANK_TEXT) where.push(blankClause(column));
+      else if (value) ilike(column, value);
     }
-    if (p.purchaseDate) {
-      values.push(p.purchaseDate);
-      where.push(`a.purchase_date::text=$${values.length}`);
+    for (const [key, column] of [
+      ['warrantyExpiry', 'a.warranty_expiry'],
+      ['purchaseDate', 'a.purchase_date'],
+    ] as const) {
+      const value = p[key];
+      if (value === BLANK_TEXT) where.push(`${column} IS NULL`);
+      else if (value) {
+        values.push(value);
+        where.push(`${column}::text=$${values.length}`);
+      }
     }
-    if (p.purchaseCost && can(req.user, 'asset.view_private')) {
+    if (p.purchaseCost === BLANK_TEXT && can(req.user, 'asset.view_private')) {
+      where.push('a.purchase_cost IS NULL');
+    } else if (p.purchaseCost && can(req.user, 'asset.view_private')) {
       const amount = Number(p.purchaseCost);
       if (!Number.isFinite(amount) || amount < 0)
         throw new UnprocessableEntityException('Purchase cost filter must be a nonnegative amount');
@@ -437,7 +438,9 @@ export class AssetDomain extends MasterDomain {
       if (['Assigned', 'In Use'].includes(merged.status) && !custody)
         throw new ConflictException('Assigned or In Use status requires assignment workflow');
       if (custody && (terminal.has(merged.status) || merged.status === 'In Store'))
-        throw new ConflictException('Return custody before changing this status');
+        throw new ConflictException(
+          'This asset is held by someone. Use "Return to store" on the asset page first, then change the status.',
+        );
       const after = await patchObject(this.db, 'assets', assetId, changes, c);
       const kind =
         changes.locationId !== undefined && changes.locationId !== before.location_id
@@ -748,12 +751,13 @@ export class AssetDomain extends MasterDomain {
         (await this.db.query('SELECT * FROM assets WHERE id=$1 FOR UPDATE', [assetId], c))[0],
       );
       assertCan(req.user, 'asset.custody', asset.owning_team_id);
+      // Any active location: stock is kept in ordinary rooms too, not only Store/Rack levels.
       const [location] = await this.db.query(
-        "SELECT id FROM locations WHERE id=$1 AND active AND level IN ('STORE','RACK')",
+        'SELECT id FROM locations WHERE id=$1 AND active',
         [data.locationId],
         c,
       );
-      if (!location) throw new UnprocessableEntityException('Choose an active store or rack location');
+      if (!location) throw new UnprocessableEntityException('Choose an active location');
       const [assignment] = await this.db.query(
         'SELECT id FROM assignments WHERE asset_id=$1 AND ended_at IS NULL',
         [assetId],

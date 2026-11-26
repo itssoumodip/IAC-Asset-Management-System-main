@@ -8,6 +8,8 @@ import { useAction } from '../hooks';
 import { useSession } from '../session';
 import { can } from '../session';
 import type { AssignablePerson } from '../types';
+import { PersonPicker } from './PersonPicker';
+import { locationLabel, useReferences } from './References';
 import {
   Badge,
   Empty,
@@ -134,13 +136,24 @@ function StoreWorkspace() {
   const [receiveSearching, setReceiveSearching] = useState(false);
 
   const [issueAssetId, setIssueAssetId] = useState('');
-  const [issueUserId, setIssueUserId] = useState('');
+  const [issuePerson, setIssuePerson] = useState<AssignablePerson>();
+  const issueUserId = issuePerson?.id ?? '';
   const [issueReason, setIssueReason] = useState('');
   const [assetSearchResults, setAssetSearchResults] = useState<AssetBrief[]>([]);
 
   const storeLocations = (locations.data?.items ?? []).filter(
     (l) => l.level === 'STORE' || l.level === 'RACK',
   );
+  // Where stock can be put: every active location, Store/Rack ones first.
+  const refs = useReferences();
+  const placeOptions = [
+    { value: '', label: 'Select location' },
+    ...(refs.data?.locations ?? [])
+      .filter((l) => l.active)
+      .map((l) => ({ value: l.id, label: locationLabel(l), first: l.level === 'STORE' || l.level === 'RACK' }))
+      .sort((a, b) => Number(b.first) - Number(a.first) || a.label.localeCompare(b.label))
+      .map(({ value, label }) => ({ value, label })),
+  ];
 
   async function searchAssets(q: string) {
     const trimmed = q.trim();
@@ -209,7 +222,8 @@ function StoreWorkspace() {
       })
       .then(() => {
         setIssueAssetId('');
-        setIssueUserId('');
+        setIssuePerson(undefined);
+      setPeopleSearch('');
         setIssueReason('');
         void locations.refetch();
         void returns.refetch();
@@ -410,14 +424,11 @@ function StoreWorkspace() {
                 </div>
               ) : null}
               <Select
-                label="Store / rack"
+                label="Location"
                 htmlFor="receive-location"
                 value={receiveLocationId}
                 onChange={setReceiveLocationId}
-                options={[
-                  { value: '', label: 'Select location' },
-                  ...storeLocations.map((l) => ({ value: l.id, label: `${l.name || l.code} (${l.level})` })),
-                ]}
+                options={placeOptions}
                 required
               />
               <Field label="Reason" htmlFor="receive-reason">
@@ -460,33 +471,15 @@ function StoreWorkspace() {
                 ]}
                 required
               />
-              <Field label="Find person" htmlFor="issue-user-search">
-                <input
-                  id="issue-user-search"
-                  className={inputClass}
-                  type="search"
-                  value={peopleSearch}
-                  onChange={(event) => setPeopleSearch(event.target.value)}
-                  placeholder="Name, email or employee code"
-                  autoComplete="off"
-                />
-              </Field>
-              <Select
+              {/* One field: type to search, pick from the list under it (like Assign asset). */}
+              <PersonPicker
                 label="Person"
-                htmlFor="issue-user"
-                value={issueUserId}
-                onChange={setIssueUserId}
-                options={[
-                  {
-                    value: '',
-                    label: people.data?.items.length ? 'Select person' : peopleQ ? 'No one matches that search' : 'Select person',
-                  },
-                  ...(people.data?.items ?? []).map((p) => ({
-                    value: p.id,
-                    label: `${p.displayName} · ${p.email}${p.state === 'DIRECTORY' ? ' (no portal account)' : ''}`,
-                  })),
-                ]}
-                required
+                people={people.data?.items ?? []}
+                loading={people.isFetching}
+                search={peopleSearch}
+                onSearch={setPeopleSearch}
+                selected={issuePerson}
+                onSelect={setIssuePerson}
               />
               <Field label="Reason" htmlFor="issue-reason">
                 <input
@@ -633,14 +626,11 @@ function StoreWorkspace() {
                                 required
                               />
                               <Select
-                                label="Store location"
+                                label="Return to location"
                                 htmlFor={`return-location-${a.id}`}
                                 value={returnLocationId}
                                 onChange={setReturnLocationId}
-                                options={[
-                                  { value: '', label: 'Select location' },
-                                  ...storeLocations.map((l) => ({ value: l.id, label: `${l.name || l.code} (${l.level})` })),
-                                ]}
+                                options={placeOptions}
                                 required
                               />
                               <Field label="Note" htmlFor={`return-note-${a.id}`}>

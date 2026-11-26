@@ -76,6 +76,33 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     await assert.rejects(domain.assets({ user: admin } as any, { holderId: 'not-an-id' }));
   });
 
+  it('filters to assets held by nobody, or with no department, alone or with others', async () => {
+    const mine = { q: tag, limit: 50 };
+    const nobody = await domain.assets({ user: admin } as any, { ...mine, holderId: 'none' });
+    assert.ok(nobody.items.every((a: any) => !a.currentAssignment));
+    assert.ok(!nobody.items.some((a: any) => a.description?.startsWith(`${tag} laptop`)));
+    const either = await domain.assets({ user: admin } as any, { ...mine, holderId: `none,${holder}` });
+    assert.ok(either.items.filter((a: any) => a.description?.startsWith(`${tag} laptop`)).length === 2);
+    // The test laptops have no department.
+    const noDept = await domain.assets({ user: admin } as any, { holderId: holder, departmentId: 'none', limit: 50 });
+    assert.equal(noDept.items.length, 2);
+    const { buildAssetCsv } = await import('../src/export-jobs');
+    const csv = await buildAssetCsv(db, admin, { holderId: holder, departmentId: 'none' } as any);
+    assert.equal(csv.rowCount, 2);
+    await assert.rejects(domain.assets({ user: admin } as any, { holderId: 'nobody' }));
+    // The test laptops have no brand, location, model or serial yet, but do have a cost.
+    const theirs = async (extra: any) =>
+      (await domain.assets({ user: admin } as any, { holderId: holder, limit: 50, ...extra })).items.length;
+    assert.equal(await theirs({ manufacturer: 'none' }), 2);
+    assert.equal(await theirs({ manufacturer: 'none,Dell' }), 2);
+    assert.equal(await theirs({ locationId: 'none' }), 2);
+    assert.equal(await theirs({ model: '__blank__' }), 2);
+    assert.equal(await theirs({ serialNumber: '__blank__' }), 2);
+    assert.equal(await theirs({ warrantyExpiry: '__blank__' }), 2);
+    assert.equal(await theirs({ purchaseCost: '__blank__' }), 0);
+    assert.equal(await theirs({ purchaseDate: '__blank__' }), 0);
+  });
+
   it('sorts by newest Asset ID and recently added, paging without gaps or repeats', async () => {
     const sorted = (items: any[], key: (a: any) => string, desc: boolean) =>
       items.every((a, i) => i === 0 || (desc ? key(items[i - 1]) >= key(a) : key(items[i - 1]) <= key(a)));

@@ -225,13 +225,13 @@ export class StoreService {
       );
       if (row.ended_at) throw new ConflictException('Assignment already ended');
 
+      // Any active location: returned items may go back to an ordinary room, not only a Store/Rack.
       const [location] = await this.db.query(
-        "SELECT id FROM locations WHERE id=$1 AND level IN ('STORE','RACK') AND active",
+        'SELECT id FROM locations WHERE id=$1 AND active',
         [data.locationId],
         c,
       );
-      if (!location)
-        throw new UnprocessableEntityException('Choose an active store or rack location');
+      if (!location) throw new UnprocessableEntityException('Choose an active location');
 
       await validateAsset(
         this.db,

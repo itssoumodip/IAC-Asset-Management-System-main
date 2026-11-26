@@ -14,8 +14,11 @@ export function StoreReceiving({
   const action = useAction();
   const [locationId, setLocationId] = useState('');
   const [note, setNote] = useState('');
+  // Every active location, Store/Rack ones first (stock is also kept in ordinary rooms).
+  const isStore = (level?: string | null) => ['STORE', 'RACK'].includes(level ?? '');
   const options = (refs?.locations ?? [])
-    .filter((location) => location.active && ['STORE', 'RACK'].includes(location.level ?? ''))
+    .filter((location) => location.active)
+    .sort((a, b) => Number(isStore(b.level)) - Number(isStore(a.level)) || locationLabel(a).localeCompare(locationLabel(b)))
     .map((location) => ({ value: location.id, label: locationLabel(location) }));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
