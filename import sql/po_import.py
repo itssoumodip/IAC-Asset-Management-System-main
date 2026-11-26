@@ -137,6 +137,7 @@ CATEGORIES = {
         'type': lambda text: ('IT Hardware', 'Laptop'),
     },
     'desktops': {'type': lambda text: ('IT Hardware', 'Desktop')},
+    'security': {'type': lambda text: ('Security & ELV', 'Biometric Device')},
     'printers': {
         'want': re.compile(r'printer|scanner|fujitsu|mf2720|l14150|hl-?\s?[bl]\d{4}', re.I),
         # Heads, ink, toner and repairs are running costs, not printers.
@@ -195,10 +196,34 @@ DESKTOPS = [  # (po, line numbers, units, description, subcategory, people / pla
     ('IACPF/Office/099', [9], 1, 'BenQ PD2706QN 27" monitor', 'Monitor', [None]),
 ]
 
+# CCTV, biometric and door access: each device carries its own lock, bracket and installation
+# (the cost of putting it to use). PO 028 repeats PO 012 exactly and is left out until confirmed.
+SEC = 'Security & ELV'
+SECURITY = [  # (po, line numbers, units, description, subcategory, people / places, location code)
+    ('IACPF/Office/012', [1, 2, 3, 4], 1, 'TimeWatch biometric with EM lock 600 lbs (installed)', 'Biometric Device', ['Shared'], None),
+    ('IACPF/Office/074', [1], 1, 'Hikvision DVR 8-channel DS-7108NI-Q1/M', 'NVR / DVR', ['2nd Floor'], 'IAC-HO-2F'),
+    ('IACPF/Office/081', [1, 2, 3, 4, 5], 1, 'Hikvision NVR DS-7116NI-Q1/N with 2 TB Seagate disk, CP Plus 4U rack and Cat 6 cabling (installed)',
+     'NVR / DVR', ['Sirakol Community Center'], 'IAC-SITE-SIRAKOL'),
+    ('IACPF/Office/081', [6], 1, 'Hikvision camera DS-2CD1023G0E-I', 'CCTV Camera', ['Sirakol Community Center'], 'IAC-SITE-SIRAKOL'),
+    ('IACPF/Office/086', [1], 3, 'CP Plus IP dome camera 4MP (CP-UNC-DA41PL3C-L-Y)', 'CCTV Camera', ['Ground Floor'] * 3, 'IAC-HO-GF'),
+    ('IACPF/Office/086', [2], 2, 'CP Plus IP bullet camera 4MP (CP-UNC-TA41PL3C-L-Y)', 'CCTV Camera', ['Ground Floor'] * 2, 'IAC-HO-GF'),
+    ('IACPF/Office/098', [1, 2, 3, 4, 5, 6], 1, 'Face and fingerprint attendance system with electromagnetic door lock (installed)',
+     'Biometric Device', [None], None),
+    ('IACPF/Office/101', [1], 1, 'TimeWatch Bio 1 biometric', 'Biometric Device', ['Site, Sirakol'], 'IAC-SITE-SIRAKOL'),
+    ('IACPF/Office/104', [1, 2], 2, 'TimeWatch TrueFace 6000FP face and fingerprint device (installed)', 'Biometric Device',
+     ['Ground Floor'] * 2, 'IAC-HO-GF'),
+]
+
+def pick_security(pos):
+    return pick_bundles(pos, [(po, lines, units, desc, SEC, typ, places, loc) for po, lines, units, desc, typ, places, loc in SECURITY])
+
 def pick_desktops(pos):
+    return pick_bundles(pos, [(po, lines, units, desc, 'IT Hardware', typ, places, None) for po, lines, units, desc, typ, places in DESKTOPS])
+
+def pick_bundles(pos, entries):
     by_po = {p['po']: p for p in pos}
     out = []
-    for po, lines, units, desc, typ, places in DESKTOPS:
+    for po, lines, units, desc, cat, typ, places, location in entries:
         p = by_po[po]
         base_all = sum(l['qty'] * l['unit'] for l in p['lines'] if l['unit'])
         gst = (p['total'] / base_all) if p.get('total') and base_all else 1.18
@@ -212,15 +237,17 @@ def pick_desktops(pos):
             each = p['total'] / units / gst
         for k in range(units):
             out.append({
-                'category': 'IT Hardware', 'asset_type': typ, 'po': po, 'line': lines[0], 'unit_no': k + 1,
+                'category': cat, 'asset_type': typ, 'po': po, 'line': lines[0], 'unit_no': k + 1,
                 'date': p['date'], 'date_estimated': p.get('date_estimated', False), 'date_note': p.get('date_note'),
                 'vendor': p['vendor'], 'description': desc, 'person': places[k],
                 'price_ex_gst': round(each, 2), 'price_incl_gst': round(each * gst, 2), 'serial_on_po': None,
+                'location': location or '',
             })
     return out
 
 def pick(pos, category):
     if category == 'desktops': return pick_desktops(pos)
+    if category == 'security': return pick_security(pos)
     rule = CATEGORIES[category]
     out = []
     for p in pos:
@@ -357,7 +384,8 @@ def write_sql(category):
             str(n), q(action), q(r['asset_code'].strip() or None), q(short_description(r['description'])),
             q(serial), q(float(r['price_incl_gst'])), (f"DATE '{date}'" if date else 'NULL'), q(r['vendor'] or None),
             q(json.dumps(meta, ensure_ascii=False)) + '::jsonb', q(remark),
-            q(r.get('category') or default_cat), q(r.get('asset_type') or default_typ), q(location_for(r['person'])),
+            q(r.get('category') or default_cat), q(r.get('asset_type') or default_typ),
+            q(r.get('location') or location_for(r['person'])),
         ]) + ')')
     tag = f'po-{category}'
     L = [
