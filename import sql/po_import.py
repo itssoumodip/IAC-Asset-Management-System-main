@@ -138,6 +138,7 @@ CATEGORIES = {
     },
     'desktops': {'type': lambda text: ('IT Hardware', 'Desktop')},
     'security': {'type': lambda text: ('Security & ELV', 'Biometric Device')},
+    'network': {'type': lambda text: ('Security & ELV', 'Networking')},
     'printers': {
         'want': re.compile(r'printer|scanner|fujitsu|mf2720|l14150|hl-?\s?[bl]\d{4}', re.I),
         # Heads, ink, toner and repairs are running costs, not printers.
@@ -245,9 +246,23 @@ def pick_bundles(pos, entries):
             })
     return out
 
+# Network and UPS: switches and converters carry their share of the fibre splicing and
+# installation (the cost of putting them to use); each UPS is its own asset.
+NETWORK = [  # (po, line numbers, units, description, category, subcategory, places, location code)
+    ('IACPF/Office/103', [1, 2, 3, 4, 5], 4, 'PoE switch with installation and fibre splicing share', 'Security & ELV', 'Networking', ['Sirakol'] * 4, 'IAC-SITE-SIRAKOL'),
+    ('IACPF/Office/103', [2, 3, 4, 5], 6, 'Media converter with installation share', 'Security & ELV', 'Networking', ['Sirakol'] * 6, 'IAC-SITE-SIRAKOL'),
+    ('IACPF/Office/114', [1], 2, 'APC BR1000G-IN UPS', 'IT Hardware', 'UPS', ['Site CCTV'] * 2, 'IAC-SITE'),
+    ('IACPF/Office/127', [1], 1, 'Frontech UPS FT-2569 Force 725', 'IT Hardware', 'UPS', ['Site (Ayan System)'], 'IAC-SITE'),
+    ('IACPF/Office/120', [1], 1, 'GrandStream GWN7710R network controller', 'Security & ELV', 'Networking', ['Site Testing'], 'IAC-SITE'),
+]
+
+def pick_network(pos):
+    return pick_bundles(pos, [(po, lines, units, desc, cat, typ, places, loc) for po, lines, units, desc, cat, typ, places, loc in NETWORK])
+
 def pick(pos, category):
     if category == 'desktops': return pick_desktops(pos)
     if category == 'security': return pick_security(pos)
+    if category == 'network': return pick_network(pos)
     rule = CATEGORIES[category]
     out = []
     for p in pos:

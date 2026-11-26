@@ -1,0 +1,15 @@
+﻿category,asset_type,po,line,unit_no,date,date_estimated,date_note,vendor,description,person,price_ex_gst,price_incl_gst,serial_on_po,location,action,asset_code,confidence,why,asset_holder,asset_cost,asset_bought
+Security & ELV,Networking,IACPF/Office/103,1,1,2025-11-16,False,,Soma IT Solutions,PoE switch with installation and fibre splicing share,Sirakol,5775.0,5775.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,1,2,2025-11-16,False,,Soma IT Solutions,PoE switch with installation and fibre splicing share,Sirakol,5775.0,5775.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,1,3,2025-11-16,False,,Soma IT Solutions,PoE switch with installation and fibre splicing share,Sirakol,5775.0,5775.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,1,4,2025-11-16,False,,Soma IT Solutions,PoE switch with installation and fibre splicing share,Sirakol,5775.0,5775.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,2,1,2025-11-16,False,,Soma IT Solutions,Media converter with installation share,Sirakol,3050.0,3050.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,2,2,2025-11-16,False,,Soma IT Solutions,Media converter with installation share,Sirakol,3050.0,3050.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,2,3,2025-11-16,False,,Soma IT Solutions,Media converter with installation share,Sirakol,3050.0,3050.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,2,4,2025-11-16,False,,Soma IT Solutions,Media converter with installation share,Sirakol,3050.0,3050.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,2,5,2025-11-16,False,,Soma IT Solutions,Media converter with installation share,Sirakol,3050.0,3050.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+Security & ELV,Networking,IACPF/Office/103,2,6,2025-11-16,False,,Soma IT Solutions,Media converter with installation share,Sirakol,3050.0,3050.0,,IAC-SITE-SIRAKOL,new,,,no laptop in the software matches,,,
+IT Hardware,UPS,IACPF/Office/114,1,1,2026-03-31,False,,Optima Infotech,APC BR1000G-IN UPS,Site CCTV,11750.0,13865.0,,IAC-SITE,new,,,no laptop in the software matches,,,
+IT Hardware,UPS,IACPF/Office/114,1,2,2026-03-31,False,,Optima Infotech,APC BR1000G-IN UPS,Site CCTV,11750.0,13865.0,,IAC-SITE,new,,,no laptop in the software matches,,,
+IT Hardware,UPS,IACPF/Office/127,1,1,2026-09-22,False,,Optima Infotech,Frontech UPS FT-2569 Force 725,Site (Ayan System),1750.0,2065.0,,IAC-SITE,fill,IAC-IT-000096,70,same price; bought +0 days from PO,,2065,2026-09-22
+Security & ELV,Networking,IACPF/Office/120,1,1,2026-06-26,False,,Optima Infotech,GrandStream GWN7710R network controller,Site Testing,7750.0,9145.0,,IAC-SITE,new,,,no laptop in the software matches,,,
