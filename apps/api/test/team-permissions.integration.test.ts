@@ -203,18 +203,14 @@ describe('team permissions PostgreSQL integration', { skip: !connection, concurr
       }),
       status(403),
     );
-    await assert.rejects(
-      service.createAsset(request(itMember), {
-        ...input,
-        description: `${tag} member with cost`,
-        purchaseCost: '10.00',
-      }),
-      (error: any) => {
-        assert.equal(error.status, 403);
-        assert.equal(error.message, 'Finance fields are set by Finance');
-        return true;
-      },
-    );
+    // Team members may enter the finance details of their own team's assets (asset.edit_finance);
+    // approving them stays with Finance.
+    const withCost = await service.createAsset(request(itMember), {
+      ...input,
+      description: `${tag} member with cost`,
+      purchaseCost: '10.00',
+    });
+    assert.equal(withCost.purchaseCost, '10.00');
     const plain = await service.createAsset(request(itMember), {
       ...input,
       description: `${tag} member create`,

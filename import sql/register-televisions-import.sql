@@ -4,6 +4,9 @@
 -- Refuses to run twice.
 \set ON_ERROR_STOP on
 BEGIN;
+-- The database checks every category, subcategory, status, condition, location and department
+-- this file sets (migration 065); a missing or switched-off value stops the whole file.
+SET LOCAL iac.strict_links = 'on';
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM audit_events WHERE action = 'REGISTER_IMPORTED' AND changes->>'tag' = 'register-televisions') THEN
     RAISE EXCEPTION 'register-televisions was already imported.';
