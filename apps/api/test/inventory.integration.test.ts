@@ -151,6 +151,19 @@ describe('inventory HTTP integration', { skip: !connection, concurrency: false }
     assert.equal(out.body.summary.out, 1);
   });
 
+  it('counts each asset once and leaves removed assets out', async () => {
+    // Type B so far: 1 Assigned. Add one In Use (the status used today) and one removed In Store.
+    await make(refs.ASSET_TYPE2, IT_TEAM_ID, 'In Use');
+    const gone = await make(refs.ASSET_TYPE2, IT_TEAM_ID, 'In Store');
+    await db.query("UPDATE assets SET removed_at=now(), removed_by=$2, removed_reason='test' WHERE id=$1", [gone.id, admin.id]);
+    const r = row(await list(admin, `&owningTeamId=${IT_TEAM_ID}`), refs.ASSET_TYPE2);
+    assert.deepEqual(
+      { total: r.total_count, inStore: r.in_store_count, ready: r.ready_count, assigned: r.assigned_count, other: r.other_count },
+      { total: 2, inStore: 0, ready: 0, assigned: 2, other: 0 },
+    );
+    assert.equal(r.stock_status, 'Out of stock');
+  });
+
   it('filters by q, category, team and location (including children)', async () => {
     const q = (v: string) => call(admin, 'GET', `/inventory?q=${encodeURIComponent(v)}`);
     assert.equal((await q(refs.CATEGORY2)).body.items.length, 1);

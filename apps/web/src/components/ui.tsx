@@ -46,7 +46,9 @@ export const metaLabelClass =
 export const filterBarClass =
   'mb-5 flex flex-wrap items-end gap-3 [&>*]:min-w-36 [&>*]:flex-1 [&>form]:min-w-64 [&>form]:flex-[2]';
 /** Search input + button pair inside a filter bar. */
-export const searchFormClass = 'flex items-center gap-2 [&>input]:min-w-0 [&>input]:flex-1';
+// On phones the input takes its own row, with the buttons below it.
+export const searchFormClass =
+  'flex flex-wrap items-center gap-2 [&>input]:min-w-0 [&>input]:flex-1 [&>input]:basis-full sm:flex-nowrap sm:[&>input]:basis-auto';
 /** Scroll wrapper for a data table. */
 export const tableWrapClass = 'max-w-full overflow-x-auto';
 /** Styles a whole data table (header, cells, rows) from the <table> element. */

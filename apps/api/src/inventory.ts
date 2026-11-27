@@ -67,7 +67,8 @@ export class InventoryService {
     const scopedToOwn = !globalView && !input.owningTeamId && !input.allTeams;
 
     const values: any[] = [];
-    const where: string[] = [];
+    // Removed assets are off the register: never counted as stock.
+    const where: string[] = ['a.removed_at IS NULL'];
     const bind = (v: any) => {
       values.push(v);
       return `$${values.length}`;
@@ -94,7 +95,8 @@ export class InventoryService {
         count(*) FILTER (WHERE a.status = 'In Store')::int AS in_store_count,
         count(*) FILTER (WHERE a.status IN ('Assigned','In Use'))::int AS assigned_count,
         count(*) FILTER (WHERE a.status = 'Ready to Assign')::int AS ready_count,
-        count(*) FILTER (WHERE a.status NOT IN ('In Store', 'Assigned', 'Ready to Assign'))::int AS other_count,
+        -- Everything not counted above, so in store + ready + assigned + other = total.
+        count(*) FILTER (WHERE a.status NOT IN ('In Store', 'Assigned', 'In Use', 'Ready to Assign'))::int AS other_count,
         COALESCE(own.min_in_store, dflt.min_in_store, 0)::int AS min_in_store
       FROM assets a
       JOIN teams t ON t.id = a.owning_team_id

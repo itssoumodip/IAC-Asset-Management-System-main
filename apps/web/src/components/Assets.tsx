@@ -2457,11 +2457,20 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
               />
             </Field>
             {[
-              ['purchaseCost', 'Purchase cost (INR)'],
+              ['purchaseCost', 'Purchase cost incl. GST (INR)'],
               ['residualValue', 'Residual value (INR)'],
               ['invoiceNumber', 'Invoice number'],
             ].map(([name, label]) => (
-              <Field key={name} label={label} htmlFor={name}>
+              <Field
+                key={name}
+                label={label}
+                htmlFor={name}
+                hint={
+                  name === 'purchaseCost'
+                    ? 'The invoice total including GST, as in the finance fixed asset register (IAC cannot claim GST back).'
+                    : undefined
+                }
+              >
                 <input
                   id={name}
                   value={values[name] ?? ''}

@@ -98,12 +98,14 @@ function Popover({
 }) {
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [pos, setPos] = useState({ top: 0, left: 0, width });
   useLayoutEffect(() => {
     if (!open || !button.current) return;
     const r = button.current.getBoundingClientRect();
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
-    setPos({ top: r.bottom + 6, left });
+    // Never wider than the screen, and never past either edge (phones: full width less a margin).
+    const w = Math.min(width, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+    setPos({ top: r.bottom + 6, left, width: w });
   }, [open, width]);
   useEffect(() => {
     if (!open) return;
@@ -134,8 +136,8 @@ function Popover({
         <div
           ref={panel}
           role="dialog"
-          className="fixed z-50 max-w-[calc(100vw-16px)] rounded-lg border border-gray-200 bg-white p-3 text-left font-normal normal-case shadow-lg"
-          style={{ top: pos.top, left: pos.left, width }}
+          className="fixed z-50 max-h-[calc(100vh-24px)] max-w-[calc(100vw-16px)] overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 text-left font-normal normal-case whitespace-normal shadow-lg"
+          style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: `calc(100vh - ${Math.round(pos.top) + 12}px)` }}
         >
           {children}
         </div>

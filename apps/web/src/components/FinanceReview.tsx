@@ -321,7 +321,7 @@ const LABELS: Record<keyof FormValues, string> = {
   supplier: 'Supplier',
   invoiceNumber: 'Invoice number',
   purchaseDate: 'Purchase date (invoice date)',
-  purchaseCost: 'Purchase cost (INR, total)',
+  purchaseCost: 'Purchase cost (INR, total incl. GST)',
 };
 
 function ReviewForm({

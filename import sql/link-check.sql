@@ -6,8 +6,10 @@ WITH live AS (SELECT * FROM assets WHERE removed_at IS NULL),
 open_asg AS (SELECT * FROM assignments WHERE ended_at IS NULL),
 checks(n, area, problem, ids) AS (
   -- Custody
-  SELECT 1, 'Custody', 'In Use but nobody holds it',
+  -- Room equipment (TVs, CCTV, printers…) is In Use without a named holder; personal kit is not.
+  SELECT 1, 'Custody', 'In Use but nobody holds it (kit that needs a holder)',
     array_agg(a.asset_code ORDER BY a.asset_code) FROM live a
+    JOIN asset_type_policies p ON p.asset_type_code = a.asset_type AND p.requires_custodian
     WHERE a.status IN ('In Use','Assigned') AND NOT EXISTS (SELECT 1 FROM open_asg g WHERE g.asset_id = a.id)
   UNION ALL SELECT 2, 'Custody', 'Someone holds it but status is not In Use',
     array_agg(a.asset_code || ' (' || a.status || ')' ORDER BY a.asset_code) FROM live a

@@ -1190,9 +1190,14 @@ td:first-child {
     max-width: none;
     padding: 0;
     border: 0;
+    /* The desktop table never wraps; cards must, or long text runs into the next field. */
+    white-space: normal;
     overflow-wrap: anywhere;
     font-size: 13px;
     line-height: 1.45;
+  }
+  .asset-catalog-table tbody td * {
+    white-space: normal;
   }
   .asset-catalog-table tbody td::before {
     display: block;
