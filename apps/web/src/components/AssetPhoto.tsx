@@ -48,6 +48,297 @@ export function GenericLaptop() {
   );
 }
 
+interface ExtraPhoto {
+  id: string;
+  label: string;
+  dataUrl: string;
+  addedAt: string;
+  addedBy: string | null;
+}
+interface ExtraPhotos {
+  max: number;
+  labels: string[];
+  items: ExtraPhoto[];
+}
+const SAFE_JPEG = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
+
+function saveJpeg(name: string, dataUrl: string) {
+  const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+  downloadFile(name, new Blob([bytes], { type: 'image/jpeg' }));
+}
+
+/** More pictures of the asset (front, back, screen, serial label…), beside the main photo. */
+export function AssetMorePhotos({ asset, manage }: { asset: Asset; manage: boolean }) {
+  const query = useQuery({
+    queryKey: ['asset-photos', asset.id],
+    queryFn: ({ signal }) => api<ExtraPhotos>(`/assets/${asset.id}/photos`, { signal }),
+  });
+  const action = useAction();
+  const [open, setOpen] = useState<ExtraPhoto>();
+  const [draft, setDraft] = useState<string>();
+  const [label, setLabel] = useState('');
+  const [reason, setReason] = useState('');
+  const [preparing, setPreparing] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const [message, setMessage] = useState('');
+  const [removing, setRemoving] = useState<ExtraPhoto>();
+  const [removeReason, setRemoveReason] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const items = (query.data?.items ?? []).filter((p) => SAFE_JPEG.test(p.dataUrl));
+  const max = query.data?.max ?? 6;
+  const full = items.length >= max;
+  const busy = preparing || action.isPending;
+  // Suggest the first label not used yet.
+  const used = new Set(items.map((p) => p.label));
+  const suggested = (query.data?.labels ?? []).find((l) => !used.has(l)) ?? 'Other';
+
+  async function choose(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    setError(undefined);
+    setMessage('');
+    action.reset();
+    if (!file) return;
+    setPreparing(true);
+    try {
+      setDraft(await preparePhoto(file, ASSET_LIMITS));
+      setLabel((current) => current || suggested);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setPreparing(false);
+    }
+  }
+  function resetDraft() {
+    setDraft(undefined);
+    setLabel('');
+    setReason('');
+  }
+  async function add(event: FormEvent) {
+    event.preventDefault();
+    if (!draft || !label || !reason.trim() || busy) return;
+    setError(undefined);
+    try {
+      await action.mutateAsync({
+        path: `/assets/${asset.id}/photos`,
+        body: { dataUrl: draft, label, reason: reason.trim() },
+      });
+      resetDraft();
+      setMessage('Picture added.');
+    } catch {
+      // Shown below; the draft stays for another try.
+    }
+  }
+  async function remove(event: FormEvent) {
+    event.preventDefault();
+    if (!removing || !removeReason.trim() || busy) return;
+    try {
+      await action.mutateAsync({
+        path: `/assets/${asset.id}/photos/${removing.id}/remove`,
+        body: { reason: removeReason.trim() },
+      });
+      if (open?.id === removing.id) setOpen(undefined);
+      setRemoving(undefined);
+      setRemoveReason('');
+      setMessage('Picture removed.');
+    } catch {
+      // Shown below.
+    }
+  }
+
+  if (query.isPending) return <Loading label="Loading more pictures…" />;
+  if (query.error) return <ErrorNotice error={query.error} retry={() => void query.refetch()} />;
+  if (!items.length && !manage) return null;
+
+  return (
+    <section className="mt-6 border-t border-gray-200 pt-5" aria-labelledby={`more-photos-${asset.id}`}>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id={`more-photos-${asset.id}`} className="text-sm font-semibold text-navy-900">
+          More pictures
+        </h3>
+        <span className="text-xs text-gray-500">
+          {items.length} of {max} · front, back, screen, serial label and so on
+        </span>
+      </div>
+      {items.length ? (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {items.map((p) => (
+            <li key={p.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <button
+                type="button"
+                className="block w-full bg-gray-50"
+                onClick={() => setOpen(p)}
+                aria-label={`Open the ${p.label} picture`}
+              >
+                <img src={p.dataUrl} alt={`${p.label} of ${asset.assetCode}`} className="h-32 w-full object-contain" />
+              </button>
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium text-gray-800">{p.label}</span>
+                  <span className="block truncate text-[11px] text-gray-500">{displayDate(p.addedAt)}</span>
+                </span>
+                {manage ? (
+                  <button
+                    type="button"
+                    className="text-[11px] text-red-700 underline"
+                    disabled={busy}
+                    onClick={() => {
+                      setRemoving(p);
+                      setRemoveReason('');
+                    }}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-500">No more pictures yet.</p>
+      )}
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${open.label} picture`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setOpen(undefined)}
+        >
+          <div className="max-h-full max-w-3xl rounded-lg bg-white p-3" onClick={(e) => e.stopPropagation()}>
+            <img src={open.dataUrl} alt={`${open.label} of ${asset.assetCode}`} className="max-h-[75vh] w-auto" />
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-gray-700">
+                {open.label} · added {displayDate(open.addedAt)}
+                {open.addedBy ? ` by ${open.addedBy}` : ''}
+              </span>
+              <span className="flex gap-2">
+                <button
+                  type="button"
+                  className={buttonClass('secondary')}
+                  onClick={() => saveJpeg(`${asset.assetCode}-${open.label.toLowerCase().replace(/\s+/g, '-')}.jpg`, open.dataUrl)}
+                >
+                  Download
+                </button>
+                <button type="button" className={buttonClass()} onClick={() => setOpen(undefined)}>
+                  Close
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {removing ? (
+        <form className="form-stack subsection" onSubmit={remove}>
+          <Field label={`Why remove the ${removing.label} picture?`} htmlFor={`remove-photo-${removing.id}`}>
+            <textarea
+              id={`remove-photo-${removing.id}`}
+              value={removeReason}
+              onChange={(e) => setRemoveReason(e.target.value)}
+              required
+              maxLength={1000}
+            />
+          </Field>
+          <div className={actionsClass}>
+            <button type="submit" className={buttonClass('danger')} disabled={busy || !removeReason.trim()}>
+              {action.isPending ? 'Removing…' : 'Remove picture'}
+            </button>
+            <button type="button" className={buttonClass('secondary')} disabled={busy} onClick={() => setRemoving(undefined)}>
+              Keep it
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {manage && !full ? (
+        <form className="form-stack subsection" onSubmit={add}>
+          <div className="asset-photo-capture-actions">
+            <button
+              type="button"
+              className={buttonClass('secondary')}
+              disabled={busy}
+              onClick={() => cameraInput.current?.click()}
+            >
+              Take another picture
+            </button>
+            <input
+              ref={cameraInput}
+              className="asset-photo-camera-input"
+              type="file"
+              accept="image/jpeg,image/png"
+              capture="environment"
+              tabIndex={-1}
+              aria-label="Take another picture of this asset"
+              disabled={busy}
+              onChange={(e) => void choose(e)}
+            />
+            <span className="muted small-text">or choose a file:</span>
+            <input
+              ref={fileInput}
+              type="file"
+              className={fileInputClass}
+              accept="image/jpeg,image/png"
+              aria-label="Choose another picture of this asset"
+              disabled={busy}
+              onChange={(e) => void choose(e)}
+            />
+          </div>
+          {preparing ? <Loading label="Preparing picture…" /> : null}
+          {draft ? (
+            <>
+              <img src={draft} alt="New picture preview" className="h-40 w-auto rounded border border-gray-200" />
+              <Field label="Which side is this?" htmlFor={`extra-label-${asset.id}`}>
+                <select
+                  id={`extra-label-${asset.id}`}
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {(query.data?.labels ?? []).map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                      {used.has(l) ? ' (already added)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Reason" htmlFor={`extra-reason-${asset.id}`} hint="For example: condition check at handover.">
+                <textarea
+                  id={`extra-reason-${asset.id}`}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  required
+                  maxLength={1000}
+                />
+              </Field>
+              <div className={actionsClass}>
+                <button type="submit" className={buttonClass()} disabled={busy || !reason.trim() || !label}>
+                  {action.isPending ? 'Saving…' : 'Add picture'}
+                </button>
+                <button type="button" className={buttonClass('secondary')} disabled={busy} onClick={resetDraft}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : null}
+        </form>
+      ) : null}
+      {manage && full ? (
+        <p className="mt-3 text-xs text-gray-500">This asset has the most pictures allowed. Remove one to add another.</p>
+      ) : null}
+      <ErrorNotice error={error ?? action.error} />
+      {message ? (
+        <p className={noticeClass('success')} role="status">
+          {message}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean }) {
   const query = useQuery({
     queryKey: ['asset-photo', asset.id],
@@ -315,6 +606,7 @@ export function AssetPhoto({ asset, manage }: { asset: Asset; manage: boolean })
           ) : null}
         </form>
       ) : null}
+      <AssetMorePhotos asset={asset} manage={manage} />
     </Panel>
   );
 }

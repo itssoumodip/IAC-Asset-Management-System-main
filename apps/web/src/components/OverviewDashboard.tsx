@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { fyText, useDashboardYear } from './dashboard-year';
 import { api, queryString } from '../api';
 import { can, useSession } from '../session';
 import { formatInr, fyOptions } from '../admin-insights';
@@ -97,7 +98,7 @@ interface AdminData {
   /** When the figures were computed; totals are refreshed in the background. */
   asOf?: string;
 }
-type Filters = { fy: string; departmentId: string; category: string };
+type Filters = { fy: string; departmentId: string; category: string; yearOnly?: string };
 const noFilters: Filters = { fy: '', departmentId: '', category: '' };
 
 const plain = (n: number) => n.toLocaleString('en-IN');
@@ -311,7 +312,13 @@ function FilterSelect({
 export function OverviewDashboard() {
   const { user } = useSession();
   const now = new Date();
-  const [filters, setFilters] = useState<Filters>(noFilters);
+  const { fy, setFy, withYear } = useDashboardYear();
+  const [picked, setPicked] = useState({ departmentId: '', category: '' });
+  const filters: Filters = { ...picked, fy };
+  const setFilters = (next: Filters) => {
+    setPicked({ departmentId: next.departmentId, category: next.category });
+    if (next.fy !== fy) setFy(next.fy);
+  };
   const refs = useReferences();
   const summary = useQuery({
     queryKey: ['dashboard'],
@@ -321,9 +328,24 @@ export function OverviewDashboard() {
     queryKey: ['dashboard', 'executive'],
     queryFn: ({ signal }) => api<ExecutiveData>('/dashboard/executive', { signal }),
   });
-  const all = useAdminData(noFilters);
+  // With a year chosen, the headline figures count only assets bought in that year.
+  const all = useAdminData(fy ? { ...noFilters, fy, yearOnly: '1' } : noFilters);
   const spend = useAdminData(filters);
   const isAdmin = can(user, 'system.admin');
+  /** The asset catalog with the Spend filters (year, department, category) plus `extra`. */
+  function spendLink(extra: Record<string, string>) {
+    const params = new URLSearchParams();
+    if (filters.fy) params.set('fy', filters.fy);
+    if (filters.departmentId) params.set('departmentId', filters.departmentId);
+    if (filters.category) params.set('category', filters.category);
+    for (const [key, value] of Object.entries(extra)) params.set(key, value);
+    return `/assets?${params}`;
+  }
+  /** Spend lists departments by name; the catalog filters by id ("none" = no department). */
+  function departmentIdFor(name: string) {
+    if (name === 'No department') return 'none';
+    return refs.data?.departments.find((d) => d.name === name)?.id;
+  }
 
   const attention = exec.data?.needsAttention;
   const k = all.data?.kpis;
@@ -416,6 +438,14 @@ export function OverviewDashboard() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-navy-900">Overview</h1>
+          {fy ? (
+            <p className="mt-1 text-sm text-navy-700">
+              Showing assets bought in {fyText(fy)} (1 April {fy} to 31 March {Number(fy) + 1}).{' '}
+              <button type="button" className="text-navy-700 underline" onClick={() => setFy('')}>
+                Show all years
+              </button>
+            </p>
+          ) : null}
           {headline ? <p className="mt-1 text-sm text-gray-500">{headline}</p> : null}
           {all.data?.asOf ? (
             <p className="mt-1 text-xs text-gray-400">
@@ -423,7 +453,14 @@ export function OverviewDashboard() {
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          <FilterSelect
+            id="dash-year-top"
+            label="Financial year"
+            value={fy}
+            onChange={setFy}
+            options={[{ value: '', label: 'All years' }, ...fyOptions(now)]}
+          />
           {can(user, 'report.view') ? (
             <Link to="/warranty-expiry" className={buttonClass('secondary')}>
               Warranty &amp; AMC
@@ -456,20 +493,20 @@ export function OverviewDashboard() {
             <StatTile
               label="Total assets"
               value={plain(totalAssets)}
-              detail="In the register"
-              to="/assets"
+              detail={fy ? `Bought in ${fyText(fy)}` : 'In the register'}
+              to={withYear('/assets')}
             />
             <StatTile
               label="Assigned"
               value={plain(k?.assigned ?? 0)}
-              detail={`${k?.assignedPct ?? 0}% of all assets`}
-              to="/assets?status=Assigned"
+              detail={`${k?.assignedPct ?? 0}% of ${fy ? 'these' : 'all'} assets`}
+              to={withYear('/assets?status=In%20Use')}
             />
             <StatTile
               label="In store"
               value={plain(inStore)}
               detail="Ready to issue"
-              to="/assets?status=In%20Store"
+              to={withYear('/assets?status=In%20Store')}
             />
             <StatTile
               label="Open tickets"
@@ -512,14 +549,14 @@ export function OverviewDashboard() {
                 items={statuses.map((s) => ({
                   label: s.label,
                   value: s.count,
-                  to: `/assets?status=${encodeURIComponent(s.label)}`,
+                  to: withYear(`/assets?status=${encodeURIComponent(s.label)}`),
                 }))}
               />
             </Card>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card title="Assets by team">
+            <Card title={fy ? 'Assets by team, all years' : 'Assets by team'}>
               <BarList
                 valueLabel="Assets"
                 empty="No team-owned assets yet"
@@ -573,6 +610,9 @@ export function OverviewDashboard() {
                   Purchase cost of priced assets in INR
                   {spend.isFetching && spend.data ? ' · updating…' : ''}
                 </p>
+                <Link to={spendLink({})} className="mt-1 inline-block text-xs text-navy-700 no-underline hover:underline">
+                  {filters.fy ? `See all assets bought in FY ${filters.fy}-${String(Number(filters.fy) + 1).slice(-2)}` : 'See these assets in the catalog'} →
+                </Link>
               </div>
               <div className="flex flex-wrap gap-2">
                 <FilterSelect
@@ -617,16 +657,22 @@ export function OverviewDashboard() {
               )}
             >
               <Card title="By financial year">
+                {/* Each year opens its assets in the catalog; the chosen year stays highlighted. */}
                 <ColumnChart
                   valueLabel="Spend"
                   empty="No priced assets yet"
                   format={formatInr}
                   shortFormat={inrShort}
-                  items={(spend.data?.spendByYear ?? []).map((y) => ({
-                    label: y.label.replace('FY ', ''),
-                    value: y.spend,
-                    detail: `${y.label}: ${formatInr(y.spend)} · ${y.count} assets`,
-                  }))}
+                  items={(spend.data?.spendByYear ?? []).map((y) => {
+                    const year = y.label.match(/\d{4}/)?.[0] ?? '';
+                    return {
+                      label: y.label.replace('FY ', ''),
+                      value: y.spend,
+                      detail: `${y.label}: ${formatInr(y.spend)} · ${y.count} assets`,
+                      to: year ? spendLink({ fy: year }) : undefined,
+                      selected: !!year && filters.fy === year,
+                    };
+                  })}
                 />
               </Card>
               <Card title="By category">
@@ -637,6 +683,8 @@ export function OverviewDashboard() {
                   items={(spend.data?.spendByCategory ?? []).map((c) => ({
                     label: c.label,
                     value: c.spend,
+                    note: `${plain(c.count)} assets`,
+                    to: c.label === 'Other' ? undefined : spendLink({ category: c.label }),
                   }))}
                 />
               </Card>
@@ -645,10 +693,15 @@ export function OverviewDashboard() {
                   valueLabel="Spend"
                   empty="No priced assets yet"
                   format={inrShort}
-                  items={(spend.data?.spendByDepartment ?? []).map((d) => ({
-                    label: d.label,
-                    value: d.spend,
-                  }))}
+                  items={(spend.data?.spendByDepartment ?? []).map((d) => {
+                    const id = departmentIdFor(d.label);
+                    return {
+                      label: d.label,
+                      value: d.spend,
+                      note: `${plain(d.count)} assets`,
+                      to: id ? spendLink({ departmentId: id }) : undefined,
+                    };
+                  })}
                 />
               </Card>
             </div>

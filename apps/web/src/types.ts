@@ -21,6 +21,7 @@ export type Action =
   | 'asset.label'
   | 'asset.photo'
   | 'asset.finance_edit'
+  | 'asset.edit_finance'
   | 'depreciation.manage_methods'
   | 'asset.change_team'
   | 'team.manage_members'

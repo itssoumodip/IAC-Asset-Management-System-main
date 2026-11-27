@@ -10,14 +10,14 @@ export interface PolicyActor {
 }
 export type Action =
   | 'asset.view_all' | 'asset.view_private' | 'asset.create' | 'asset.edit' | 'asset.custody'
-  | 'asset.retire' | 'asset.import' | 'asset.label' | 'asset.photo' | 'asset.finance_edit'
+  | 'asset.retire' | 'asset.import' | 'asset.label' | 'asset.photo' | 'asset.finance_edit' | 'asset.edit_finance'
   | 'depreciation.manage_methods'
   | 'asset.change_team' | 'team.manage_members' | 'ticket.work' | 'announcement.send'
   | 'report.view' | 'system.admin'
   | 'store.operations' | 'verification.perform' | 'insurer.view' | 'procurement.view' | 'approvals.act';
 
 export const TEAM_SCOPED: ReadonlySet<Action> = new Set<Action>([
-  'asset.create', 'asset.edit', 'asset.custody', 'asset.retire', 'asset.import',
+  'asset.create', 'asset.edit', 'asset.edit_finance', 'asset.custody', 'asset.retire', 'asset.import',
   'asset.label', 'asset.photo', 'team.manage_members'
 ]);
 
@@ -95,7 +95,11 @@ const RULES: Record<Action, Rule> = {
   'asset.import': R(true, true, false),
   'asset.label': R(true, true, true),
   'asset.photo': R(true, true, true),
+  // Finance queue, approvals, depreciation and Finance review: Finance only.
   'asset.finance_edit': R(true, false, false, ['FINANCE']),
+  // Editing the finance fields (cost, dates, supplier...) of an asset: Finance, or a member of the
+  // asset's own team. Approval itself stays with Finance (asset.finance_edit).
+  'asset.edit_finance': R(true, true, true, ['FINANCE']),
   'depreciation.manage_methods': R(true, false, false, ['FINANCE']),
   'asset.change_team': R(true, false, false),
   'team.manage_members': R(true, true, false),

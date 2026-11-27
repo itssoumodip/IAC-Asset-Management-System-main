@@ -16,6 +16,8 @@ const filterInput = z
       .optional(),
     departmentId: uuid.optional(),
     category: text(100).optional(),
+    // '1' = count only assets bought in `fy` everywhere (the dashboard's year view), not just spend.
+    yearOnly: z.literal('1').optional(),
   })
   .strict();
 
@@ -49,7 +51,12 @@ export class AdminDashboardService {
     // many viewers within the window share one set of queries.
     const ttl = configuration().dashboardCacheSeconds * 1000;
     if (!ttl) return this.compute(filters);
-    const key = JSON.stringify([filters.fy ?? null, filters.departmentId ?? null, filters.category ?? null]);
+    const key = JSON.stringify([
+      filters.fy ?? null,
+      filters.departmentId ?? null,
+      filters.category ?? null,
+      filters.yearOnly ?? null,
+    ]);
     const hit = this.cache.get(key);
     if (hit && Date.now() - hit.at < ttl) return hit.value;
     const value = this.compute(filters);
@@ -75,7 +82,12 @@ export class AdminDashboardService {
       values.push(filters.category);
       where.push(`a.category=$${values.length}`);
     }
-    const scoped = filters.departmentId !== undefined || filters.category !== undefined;
+    const yearOnly = filters.yearOnly === '1' && filters.fy !== undefined;
+    if (yearOnly) {
+      values.push(filters.fy);
+      where.push(`extract(year FROM a.purchase_date - interval '3 months')::int=$${values.length}::int`);
+    }
+    const scoped = filters.departmentId !== undefined || filters.category !== undefined || yearOnly;
     const assetWhere = where.join(' AND ');
     // Financial year runs April to March; default to the current one for the KPI.
     const fyValues = [...values, filters.fy ?? null];

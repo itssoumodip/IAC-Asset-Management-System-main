@@ -8,6 +8,7 @@ import { can, useSession } from '../session';
 import type { Asset, AssignablePerson, InvoiceMeta } from '../types';
 import { fetchAllPages } from '../transfer-files';
 import { catalogHref, rememberCatalogSearch } from '../catalog-return';
+import { fyOptions } from '../admin-insights';
 import { AssetPhoto } from './AssetPhoto';
 import { AssetTags } from './AssetTags';
 import { PersonPicker } from './PersonPicker';
@@ -254,6 +255,8 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
     sort: params.get('sort') || undefined,
     removed: params.get('removed') === 'only' ? 'only' : undefined,
     attention: params.get('attention') || undefined,
+    // Financial years bought (2022 = FY 2022-23), e.g. from the dashboard's Spend charts.
+    fy: params.get('fy') || undefined,
   };
   const showAssign = !assignmentMode && can(user, 'asset.custody');
   const showCreate = can(user, 'asset.create');
@@ -377,6 +380,18 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
           .map((l) => ({ value: l.id, label: locationLabel(l) })),
       ],
       selected: sel('locationId'),
+    },
+    {
+      // Not a table column: shows as a chip (and in the phone Filters panel) when set.
+      key: 'fy',
+      title: 'Financial year',
+      options: [
+        ...fyOptions(),
+        ...sel('fy')
+          .filter((y) => !fyOptions().some((o) => o.value === y))
+          .map((y) => ({ value: y, label: `FY ${y}-${String(Number(y) + 1).slice(-2)}` })),
+      ],
+      selected: sel('fy'),
     },
     ...(manage
       ? [
@@ -708,7 +723,7 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             'q', 'asset', 'model', 'serialNumber', 'barcode', 'warrantyExpiry',
             'purchaseDate', 'purchaseCost', 'status', 'category', 'assetType',
             'manufacturer', 'condition', 'riskLevel', 'ownershipType', 'departmentId',
-            'holderId', 'locationId', 'owningTeamId',
+            'holderId', 'locationId', 'owningTeamId', 'fy',
           ].forEach((key) => next.delete(key));
           setParams(next);
         }}
@@ -1552,7 +1567,8 @@ function AssetEditForm({ asset }: { asset?: Asset }) {
       (selectedTeam?.code === 'PRJ' &&
         policy.teamIds.includes(teams.find((t) => t.code === 'ADM')?.id ?? '')),
   );
-  const canFinance = can(user, 'asset.finance_edit', teamId || undefined);
+  // Finance fields: Finance, or a member of this asset's team (approval stays with Finance).
+  const canFinance = can(user, 'asset.edit_finance', teamId || undefined);
   const canAssignCustody = can(user, 'asset.custody', teamId || undefined);
   const assignmentStatus = ['Assigned', 'In Use'].includes(values.status ?? '');
   const canChangeTeam = !!baseline && can(user, 'asset.change_team');

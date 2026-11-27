@@ -5,6 +5,8 @@ import { api } from '../api';
 import { formatInr } from '../admin-insights';
 import { BarList, Card, ColumnChart, DonutChart, StatTile } from './charts';
 import { ErrorNotice, Select } from './ui';
+import { fyText, useDashboardYear } from './dashboard-year';
+import { fyOptions } from '../admin-insights';
 
 interface Slice {
   label: string;
@@ -120,10 +122,17 @@ function savedTeam() {
 export function AssetInsights({ variant }: { variant: InsightsVariant }) {
   // '' = every team the viewer can see; remembered per browser.
   const [teamId, setTeamId] = useState(savedTeam);
+  // The financial year chosen on the dashboard ('' = all years); shared through the address.
+  const { fy, setFy } = useDashboardYear();
   const query = useQuery({
-    queryKey: ['dashboard', 'insights', teamId],
-    queryFn: ({ signal }) =>
-      api<InsightsData>(`/dashboard/insights${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ''}`, { signal }),
+    queryKey: ['dashboard', 'insights', teamId, fy],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams();
+      if (teamId) params.set('teamId', teamId);
+      if (fy) params.set('fy', fy);
+      const search = params.toString();
+      return api<InsightsData>(`/dashboard/insights${search ? `?${search}` : ''}`, { signal });
+    },
     staleTime: 60_000,
     placeholderData: (previous) => previous,
   });
@@ -143,12 +152,17 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
   }, [staleTeam]); // eslint-disable-line react-hooks/exhaustive-deps
   if (query.error) return <ErrorNotice error={query.error} retry={() => void query.refetch()} />;
   const d = query.data;
-  if (!d || staleTeam || (d.total === 0 && !teamId)) return null;
+  if (!d || staleTeam || (d.total === 0 && !teamId && !fy)) return null;
 
   const counts = (items: Slice[]) => items.map((s) => ({ label: s.label, value: s.count }));
-  // Chart links open the asset catalog with the same team chosen.
+  // Chart links open the asset catalog with the same team and financial year chosen.
   const assetsLink = (key: string, value: string) =>
-    `/assets?${new URLSearchParams({ [key]: value, ...(teamId ? { owningTeamId: teamId } : {}) })}`;
+    `/assets?${new URLSearchParams({
+      [key]: value,
+      ...(teamId ? { owningTeamId: teamId } : {}),
+      ...(fy ? { fy } : {}),
+    })}`;
+  const allLink = `/assets${teamId || fy ? `?${new URLSearchParams({ ...(teamId ? { owningTeamId: teamId } : {}), ...(fy ? { fy } : {}) })}` : ''}`;
   const teamName = d.teams.find((t) => t.id === teamId)?.name;
   const card = (key: ChartKey) => {
     switch (key) {
@@ -425,7 +439,18 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
           <h2 className="text-base font-medium text-gray-900">Asset insights</h2>
           <span className="text-xs text-gray-500">
             {teamName ? `${teamName} team’s assets` : 'Based on the assets you can see'}
+            {fy ? `, bought in ${fyText(fy)}` : ''}
           </span>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+        <div className="w-44">
+          <Select
+            label="Financial year"
+            htmlFor="insights-fy"
+            value={fy}
+            onChange={setFy}
+            options={[{ value: '', label: 'All years' }, ...fyOptions(new Date())]}
+          />
         </div>
         {d.teams.length > 1 ? (
           <div className="w-56">
@@ -441,11 +466,16 @@ export function AssetInsights({ variant }: { variant: InsightsVariant }) {
             />
           </div>
         ) : null}
+        </div>
       </div>
-      {d.total === 0 ? <p className="mb-4 text-sm text-gray-500">This team has no assets yet.</p> : null}
+      {d.total === 0 ? (
+        <p className="mb-4 text-sm text-gray-500">
+          {fy ? `No assets bought in ${fyText(fy)}${teamName ? ' for this team' : ''}.` : 'This team has no assets yet.'}
+        </p>
+      ) : null}
       {variant !== 'employee' ? (
         <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile label="Assets in use or in store" value={plain(d.live)} detail={`${plain(d.total)} on the register`} to="/assets" />
+          <StatTile label="Assets in use or in store" value={plain(d.live)} detail={`${plain(d.total)} ${fy ? `bought in ${fyText(fy)}` : 'on the register'}`} to={allLink} />
           <StatTile label="Held by people" value={plain(d.custody.held)} detail={d.multiHolders === 1 ? '1 person holds more than one' : `${plain(d.multiHolders)} people hold more than one`} />
           <StatTile label="Warranty ending in 90 days" value={plain(d.warranty.within30 + d.warranty.within90)} detail={`${plain(d.warranty.expired)} already expired`} />
           <StatTile

@@ -1,7 +1,16 @@
-import { Controller, ForbiddenException, Get, Inject, Injectable, NotFoundException, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, ForbiddenException, Get, Inject, Injectable, NotFoundException, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { Db } from './db';
-import { LIVE_ASSET, assetScope, parse, uuid } from './domain-helpers';
+import {
+  BLANK_TEXT,
+  LIVE_ASSET,
+  assetScope,
+  filterList,
+  idOrNoneClause,
+  isIdOrNone,
+  parse,
+  uuid,
+} from './domain-helpers';
 import { inrRates, toInr } from './exchange-rates';
 import { can } from './policy';
 import { AuthRequest, SessionGuard, type Actor } from './security';
@@ -19,6 +28,16 @@ const listQuery = z
   .object({
     q: z.string().trim().max(100).optional(),
     holding: z.enum(['any', 'assets', 'subscriptions']).optional(),
+    // Like the asset catalog: one value or several, comma-separated.
+    // Department ids, or "none" for people with no department.
+    departmentId: z.string().max(3800).optional(),
+    // current = still with IAC, left = has left.
+    status: z.string().max(40).optional(),
+    // Text in the designation, or __blank__ for none.
+    designation: z.string().trim().max(100).optional(),
+    // How many assets / subscriptions they hold: 0, 1, 2-4, 5+ (subscriptions: 0, 1+).
+    assets: z.string().max(40).optional(),
+    subscriptions: z.string().max(40).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
     offset: z.coerce.number().int().min(0).max(100000).optional(),
   })
@@ -45,21 +64,57 @@ export class PersonProfileService {
       const i = values.length;
       where.push(`(u.display_name ILIKE $${i} OR u.email ILIKE $${i} OR u.employee_code ILIKE $${i} OR u.designation ILIKE $${i})`);
     }
-    const limit = p.limit ?? 50;
-    const offset = p.offset ?? 0;
-    values.push(limit + 1, offset);
-    const rows = await this.db.query(
-      `SELECT * FROM (
-         SELECT u.id, u.display_name, u.email, u.designation, u.employee_code, (u.left_at IS NOT NULL) AS left_org,
+    const departments = filterList(p.departmentId);
+    if (departments.length) {
+      if (!departments.every(isIdOrNone)) throw new BadRequestException('Invalid department');
+      where.push(idOrNoneClause('u.department_id', departments, values));
+    }
+    const statuses = filterList(p.status);
+    if (statuses.some((s) => s !== 'current' && s !== 'left')) throw new BadRequestException('Invalid staff status');
+    if (statuses.length === 1) where.push(statuses[0] === 'current' ? 'u.left_at IS NULL' : 'u.left_at IS NOT NULL');
+    if (p.designation === BLANK_TEXT) where.push("nullif(btrim(u.designation),'') IS NULL");
+    else if (p.designation) {
+      values.push(`%${p.designation.replace(/[\\%_]/g, '\\$&')}%`);
+      where.push(`u.designation ILIKE $${values.length}`);
+    }
+    const base = `SELECT u.id, u.display_name, u.email, u.designation, u.employee_code, (u.left_at IS NOT NULL) AS left_org,
                 d.name AS department, EXISTS(SELECT 1 FROM user_photos p WHERE p.user_id = u.id) AS has_photo,
                 (SELECT count(*)::int FROM assignments g JOIN assets a ON a.id = g.asset_id
                   WHERE g.user_id = u.id AND g.ended_at IS NULL AND ${LIVE_ASSET} AND ${scope}) AS assets,
                 ${subs ? `(SELECT count(*)::int FROM subscription_assignments sa JOIN subscriptions s ON s.id = sa.subscription_id
                   WHERE sa.user_id = u.id AND sa.ended_at IS NULL AND s.status IN ('ACTIVE','TRIAL'))` : '0'} AS subscriptions
            FROM users u LEFT JOIN departments d ON d.id = u.department_id
-          WHERE ${where.join(' AND ')}
-       ) x
-       WHERE ${p.holding === 'assets' ? 'x.assets > 0' : p.holding === 'subscriptions' ? 'x.subscriptions > 0' : p.holding === 'any' ? '(x.assets > 0 OR x.subscriptions > 0)' : 'TRUE'}
+          WHERE ${where.join(' AND ')}`;
+    // Count buckets (fixed strings only, so they are safe to put in the SQL).
+    const BUCKETS: Record<string, string> = {
+      '0': '= 0', '1': '= 1', '2-4': 'BETWEEN 2 AND 4', '5+': '>= 5', '1+': '>= 1',
+    };
+    const bucketClause = (column: string, raw: string | undefined, allowed: string[]) => {
+      const list = filterList(raw);
+      if (list.some((b) => !allowed.includes(b))) throw new BadRequestException(`Invalid ${column} filter`);
+      return list.length ? `(${list.map((b) => `x.${column} ${BUCKETS[b]}`).join(' OR ')})` : 'TRUE';
+    };
+    const atLeast = `${bucketClause('assets', p.assets, ['0', '1', '2-4', '5+'])} AND ${bucketClause('subscriptions', p.subscriptions, ['0', '1+'])}`;
+    const holdingClause =
+      p.holding === 'assets' ? 'x.assets > 0'
+        : p.holding === 'subscriptions' ? 'x.subscriptions > 0'
+          : p.holding === 'any' ? '(x.assets > 0 OR x.subscriptions > 0)' : 'TRUE';
+    // How many people each tab would show with the other filters applied.
+    const [counts] = await this.db.query(
+      `SELECT count(*)::int AS "all",
+              count(*) FILTER (WHERE x.assets > 0 OR x.subscriptions > 0)::int AS "any",
+              count(*) FILTER (WHERE x.assets > 0)::int AS assets,
+              count(*) FILTER (WHERE x.subscriptions > 0)::int AS subscriptions,
+              coalesce(sum(x.assets), 0)::int AS "assetsHeld"
+         FROM (${base}) x WHERE ${atLeast}`,
+      values,
+    );
+    const limit = p.limit ?? 50;
+    const offset = p.offset ?? 0;
+    values.push(limit + 1, offset);
+    const rows = await this.db.query(
+      `SELECT * FROM (${base}) x
+       WHERE ${holdingClause} AND ${atLeast}
        ORDER BY (x.assets + x.subscriptions) DESC, x.display_name
        LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values,
@@ -87,6 +142,13 @@ export class PersonProfileService {
       ),
       nextOffset: rows.length > limit ? offset + limit : null,
       showsSubscriptions: subs && !hidden.has('subscriptions'),
+      counts: {
+        all: counts.all,
+        any: counts.any,
+        assets: hidden.has('assets') ? null : counts.assets,
+        subscriptions: subs && !hidden.has('subscriptions') ? counts.subscriptions : null,
+        assetsHeld: hidden.has('assets') ? null : counts.assetsHeld,
+      },
     };
   }
 

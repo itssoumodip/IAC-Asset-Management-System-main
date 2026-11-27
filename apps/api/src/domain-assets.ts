@@ -39,6 +39,7 @@ import {
   camel,
   eligibleEmployee,
   filterList,
+  financialYearClause,
   holderClause,
   idOrNoneClause,
   BLANK_TEXT,
@@ -124,7 +125,7 @@ function assertEditAllowed(actor: Actor, before: any, changes: Record<string, un
   // Approval and rejection carry an audit trail and reviewer; they must go through Finance review.
   if (changes.financePending !== undefined)
     throw new ConflictException('Use Finance review to approve or reject');
-  if (keys.some((k) => FINANCE_FIELDS.includes(k))) assertCan(actor, 'asset.finance_edit');
+  if (keys.some((k) => FINANCE_FIELDS.includes(k))) assertCan(actor, 'asset.edit_finance', before.owning_team_id);
   if (keys.some((k) => !FINANCE_FIELDS.includes(k)))
     assertCan(actor, 'asset.edit', before.owning_team_id);
   if (changes.owningTeamId !== undefined && changes.owningTeamId !== before.owning_team_id)
@@ -178,6 +179,9 @@ export class AssetDomain extends MasterDomain {
     }
     // The chosen locations and everything inside them; "none" = no location set.
     if (p.locationId) where.push(locationClause(filterList(p.locationId), values));
+    // Bought in these financial years (April to March), e.g. from the dashboard's Spend charts.
+    const years = filterList(p.fy);
+    if (years.length) where.push(financialYearClause(years, values));
     // Everything these people currently hold; "none" = held by nobody.
     if (p.holderId) where.push(holderClause(filterList(p.holderId), values));
     // Same rules as the dashboard counts, so a row's number matches the list it opens.
@@ -356,7 +360,7 @@ export class AssetDomain extends MasterDomain {
     assertCan(req.user, 'asset.create', data.owningTeamId);
     if (
       FINANCE_FIELDS.some((f) => (data as any)[f] != null) &&
-      !can(req.user, 'asset.finance_edit')
+      !can(req.user, 'asset.edit_finance', data.owningTeamId)
     )
       throw new ForbiddenException('Finance fields are set by Finance');
     if (['Assigned', 'In Use'].includes(data.status))

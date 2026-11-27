@@ -101,6 +101,13 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     assert.equal(await theirs({ warrantyExpiry: '__blank__' }), 2);
     assert.equal(await theirs({ purchaseCost: '__blank__' }), 0);
     assert.equal(await theirs({ purchaseDate: '__blank__' }), 0);
+    // Financial year (April to March): the laptops were bought today.
+    const today = new Date(Date.now() + 5.5 * 3600e3);
+    const fy = today.getUTCMonth() >= 3 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
+    assert.equal(await theirs({ fy: String(fy) }), 2);
+    assert.equal(await theirs({ fy: String(fy - 1) }), 0);
+    assert.equal(await theirs({ fy: `${fy - 1},${fy}` }), 2);
+    await assert.rejects(domain.assets({ user: admin } as any, { fy: 'last year' }));
   });
 
   it('sorts by newest Asset ID and recently added, paging without gaps or repeats', async () => {
@@ -212,5 +219,24 @@ describe('dashboard insights and holder filter', { skip: !connection, concurrenc
     const other = await insights.insights({ user: admin } as any, randomUUID());
     assert.equal(other.total, 0);
     await assert.rejects(insights.insights({ user: admin } as any, 'not-a-team'), (e: any) => e.status === 400);
+  });
+
+  it('narrows every chart to assets bought in one financial year', async () => {
+    const today = new Date(Date.now() + 5.5 * 3600e3);
+    const fy = String(today.getUTCMonth() >= 3 ? today.getUTCFullYear() : today.getUTCFullYear() - 1);
+    const year = await insights.insights({ user: admin } as any, undefined, fy);
+    assert.equal(year.fy, fy);
+    const [count] = await db.query(
+      `SELECT count(*)::int AS n FROM assets
+        WHERE removed_at IS NULL AND extract(year FROM purchase_date - interval '3 months')::int=$1`,
+      [Number(fy)],
+    );
+    assert.equal(year.total, count.n);
+    // Our holder's two laptops were bought today, so they are in this year and not the one before.
+    const inYear = await insights.holders({ user: admin } as any, undefined, fy);
+    assert.equal(inYear.find((h) => h.userId === holder)?.count, 2);
+    const before = await insights.holders({ user: admin } as any, undefined, String(Number(fy) - 1));
+    assert.equal(before.find((h) => h.userId === holder), undefined);
+    await assert.rejects(insights.insights({ user: admin } as any, undefined, 'last'), (e: any) => e.status === 400);
   });
 });

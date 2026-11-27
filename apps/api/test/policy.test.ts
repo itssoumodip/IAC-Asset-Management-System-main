@@ -10,12 +10,12 @@ const IT = '00000000-0000-4000-8000-000000000001';
 const ADM = '00000000-0000-4000-8000-000000000002';
 const ALL: Action[] = [
   'asset.view_all', 'asset.view_private', 'asset.create', 'asset.edit', 'asset.custody', 'asset.retire',
-  'asset.import', 'asset.label', 'asset.photo', 'asset.finance_edit', 'depreciation.manage_methods', 'asset.change_team',
+  'asset.import', 'asset.label', 'asset.photo', 'asset.finance_edit', 'asset.edit_finance', 'depreciation.manage_methods', 'asset.change_team',
   'team.manage_members', 'ticket.work', 'announcement.send', 'report.view', 'system.admin',
   'store.operations', 'verification.perform', 'insurer.view', 'procurement.view', 'approvals.act'
 ];
-const TEAM_ALL: Action[] = ['asset.create', 'asset.edit', 'asset.custody', 'asset.retire', 'asset.import', 'asset.label', 'asset.photo', 'team.manage_members'];
-const MEMBER_OWN: Action[] = ['asset.create', 'asset.edit', 'asset.custody', 'asset.label', 'asset.photo'];
+const TEAM_ALL: Action[] = ['asset.create', 'asset.edit', 'asset.edit_finance', 'asset.custody', 'asset.retire', 'asset.import', 'asset.label', 'asset.photo', 'team.manage_members'];
+const MEMBER_OWN: Action[] = ['asset.create', 'asset.edit', 'asset.edit_finance', 'asset.custody', 'asset.label', 'asset.photo'];
 const ANY_TEAM: Action[] = ['asset.view_all', 'asset.view_private', 'ticket.work', 'announcement.send'];
 
 const sa: PolicyActor = { roles: ['SUPER_ADMIN', 'EMPLOYEE'] };
@@ -30,7 +30,7 @@ const grants: Array<[string, PolicyActor, Set<Action>, Set<Action>]> = [
   ['super admin', sa, new Set(ALL), new Set(ALL)],
   ['IT lead', itLead, new Set<Action>([...TEAM_ALL, ...ANY_TEAM, 'approvals.act']), new Set<Action>([...ANY_TEAM, 'approvals.act'])],
   ['IT member', itMember, new Set([...MEMBER_OWN, ...ANY_TEAM]), new Set(ANY_TEAM)],
-  ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'depreciation.manage_methods', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'depreciation.manage_methods', 'report.view'])],
+  ['finance', finance, new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'asset.edit_finance', 'depreciation.manage_methods', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'asset.edit_finance', 'depreciation.manage_methods', 'report.view'])],
   ['executive', exec, new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view']), new Set<Action>(['asset.view_all', 'asset.view_private', 'report.view'])],
   ['employee', employee, new Set<Action>(), new Set<Action>()]
 ];
@@ -41,7 +41,9 @@ for (const [name, actor, own, other] of grants) {
     expectations.push([`${name} ${action} IT`, actor, action, IT, own.has(action)]);
     expectations.push([`${name} ${action} ADM`, actor, action, ADM, name === 'IT lead' || name === 'IT member' ? other.has(action) : own.has(action)]);
     // no teamId: team-scoped actions only for super admin
-    const noTeam = TEAM_ALL.includes(action) ? name === 'super admin' : own.has(action);
+    // Finance holds asset.edit_finance through its role, so it needs no team.
+    const roleGranted = action === 'asset.edit_finance' && name === 'finance';
+    const noTeam = roleGranted || (TEAM_ALL.includes(action) ? name === 'super admin' : own.has(action));
     expectations.push([`${name} ${action} no team`, actor, action, undefined, noTeam]);
   }
 }
@@ -108,7 +110,7 @@ test('capabilities is JSON-serialisable and splits global vs team', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(c)), c);
   assert.deepEqual(new Set(capabilities(sa).global), new Set(ALL));
   assert.deepEqual(capabilities(employee), { global: [], teams: {} });
-  assert.deepEqual(new Set(capabilities(finance).global), new Set(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'depreciation.manage_methods', 'report.view']));
+  assert.deepEqual(new Set(capabilities(finance).global), new Set(['asset.view_all', 'asset.view_private', 'asset.finance_edit', 'asset.edit_finance', 'depreciation.manage_methods', 'report.view']));
 });
 
 test('constants', () => {

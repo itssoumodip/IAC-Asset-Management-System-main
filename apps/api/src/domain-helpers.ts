@@ -229,6 +229,11 @@ export function locationClause(list: string[], values: unknown[]) {
   if (list.includes(NONE_FILTER)) parts.push('a.location_id IS NULL');
   return `(${parts.join(' OR ')})`;
 }
+/** Bought in one of these financial years (April to March, by starting year). */
+export function financialYearClause(years: string[], values: unknown[]) {
+  values.push(years.map(Number));
+  return `extract(year FROM a.purchase_date - interval '3 months')::int = ANY($${values.length}::int[])`;
+}
 /** Held now by one of these people, or by nobody when "none" is chosen too. */
 export function holderClause(list: string[], values: unknown[]) {
   const ids = list.filter((p) => p !== NONE_FILTER);
@@ -261,6 +266,12 @@ export function requestPage(query: any, fields: string[]) {
         warrantyExpiry: z.string().trim().max(20).optional(),
         purchaseDate: z.string().trim().max(20).optional(),
         purchaseCost: z.string().trim().max(30).optional(),
+        // Financial years (April to March) by starting year, one or several: 2022 = FY 2022-23.
+        fy: z
+          .string()
+          .max(200)
+          .refine((v) => filterList(v).every((y) => /^(19|20)\d\d$/.test(y)), 'Invalid financial year')
+          .optional(),
         // Asset filters accept one value or several, comma-separated (column checkbox filters).
         status: z.string().max(2000).optional(),
         category: z.string().max(2000).optional(),

@@ -218,7 +218,8 @@ export function ColumnChart({
   valueLabel = 'Value',
   labelHeader = 'Period',
 }: {
-  items: { label: string; value: number; detail?: string }[];
+  /** `to` makes a column a link; `selected` keeps it highlighted (the chosen period). */
+  items: { label: string; value: number; detail?: string; to?: string; selected?: boolean }[];
   format: (value: number) => string;
   shortFormat?: (value: number) => string;
   empty?: string;
@@ -228,24 +229,23 @@ export function ColumnChart({
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(0, ...items.map((i) => i.value));
   if (!items.length || max === 0) return <EmptyChart>{empty}</EmptyChart>;
+  const linked = items.some((i) => i.to);
   return (
     <>
       <div
         className="relative flex h-44 items-end gap-3 border-b border-gray-200 pt-6"
-        role="img"
-        aria-label={items.map((i) => `${i.label}: ${format(i.value)}`).join('; ')}
+        role={linked ? undefined : 'img'}
+        aria-label={linked ? undefined : items.map((i) => `${i.label}: ${format(i.value)}`).join('; ')}
       >
-        {items.map((item, index) => (
-          <div
-            key={item.label}
-            className="relative flex h-full flex-1 flex-col items-center justify-end"
-            onMouseEnter={() => setHover(index)}
-            onMouseLeave={() => setHover(null)}
-          >
+        {items.map((item, index) => {
+          const columnClass = 'relative flex h-full flex-1 flex-col items-center justify-end no-underline';
+          const hoverProps = { onMouseEnter: () => setHover(index), onMouseLeave: () => setHover(null) };
+          const body = (
+            <>
             <span
               className={cx(
                 'mb-1 text-[11px] tabular-nums',
-                hover === index || index === items.length - 1
+                hover === index || item.selected || index === items.length - 1
                   ? 'font-medium text-gray-700'
                   : 'text-gray-400',
               )}
@@ -255,7 +255,7 @@ export function ColumnChart({
             <span
               className={cx(
                 'w-full max-w-12 origin-bottom rounded-t-[4px] transition-colors',
-                hover === index ? 'bg-navy-700' : 'bg-chart-1',
+                hover === index || item.selected ? 'bg-navy-700' : 'bg-chart-1',
               )}
               data-grow="y"
               style={{ height: `${Math.max(2, (item.value / max) * 100)}%` }}
@@ -265,8 +265,24 @@ export function ColumnChart({
                 {item.detail}
               </span>
             ) : null}
-          </div>
-        ))}
+            </>
+          );
+          return item.to ? (
+            <Link
+              key={item.label}
+              to={item.to}
+              className={columnClass}
+              aria-label={`${item.label}: ${format(item.value)}. Open these assets`}
+              {...hoverProps}
+            >
+              {body}
+            </Link>
+          ) : (
+            <div key={item.label} className={columnClass} {...hoverProps}>
+              {body}
+            </div>
+          );
+        })}
       </div>
       <div className="mt-1.5 flex gap-3">
         {items.map((item) => (

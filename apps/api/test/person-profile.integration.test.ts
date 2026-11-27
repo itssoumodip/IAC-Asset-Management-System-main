@@ -100,4 +100,30 @@ describe('person pages and rupee totals', { skip: !connection, concurrency: fals
     assert.equal(row?.subscriptions, 1);
     await assert.rejects(people.list({ user: stranger } as any, {}), /permission/i);
   });
+
+  it('counts each tab and filters by department, staff status and assets held', async () => {
+    // Our five test people have no department; only the holder holds anything.
+    const all = await people.list({ user: admin } as any, { q: tag });
+    assert.deepEqual(
+      { all: all.counts.all, any: all.counts.any, assets: all.counts.assets, subscriptions: all.counts.subscriptions, held: all.counts.assetsHeld },
+      { all: 5, any: 1, assets: 1, subscriptions: 1, held: 1 },
+    );
+    assert.equal((await people.list({ user: admin } as any, { q: tag, departmentId: 'none' })).counts.all, 5);
+    const [dept] = await db.query('SELECT id FROM departments LIMIT 1');
+    if (dept) assert.equal((await people.list({ user: admin } as any, { q: tag, departmentId: dept.id })).counts.all, 0);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, status: 'left' })).counts.all, 0);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, status: 'current' })).counts.all, 5);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, status: 'current,left' })).counts.all, 5);
+    const many = await people.list({ user: admin } as any, { q: tag, assets: '2-4,5+' });
+    assert.equal(many.counts.all, 0);
+    assert.equal(many.items.length, 0);
+    const one = await people.list({ user: admin } as any, { q: tag, assets: '1', holding: 'assets' });
+    assert.deepEqual(one.items.map((x) => x.id), [holder.id]);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, assets: '0' })).counts.all, 4);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, subscriptions: '1+' })).counts.all, 1);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, designation: '__blank__' })).counts.all, 5);
+    assert.equal((await people.list({ user: admin } as any, { q: tag, departmentId: `none,${randomUUID()}` })).counts.all, 5);
+    await assert.rejects(people.list({ user: admin } as any, { departmentId: 'sales' }), (e: any) => e.status === 400);
+    await assert.rejects(people.list({ user: admin } as any, { assets: '7' }), (e: any) => e.status === 400);
+  });
 });

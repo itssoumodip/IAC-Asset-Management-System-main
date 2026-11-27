@@ -6,6 +6,20 @@ import { formatInr } from '../admin-insights';
 import { can, useSession } from '../session';
 import type { User } from '../types';
 import { StatTile } from './charts';
+import { useReferences } from './References';
+import {
+  BLANK_FILTER,
+  ColumnFilter,
+  FilterChips,
+  FiltersButton,
+  TextColumnFilter,
+  fromList,
+  toList,
+  type FilterGroup,
+} from './ColumnFilter';
+
+/** People-list filters kept in the address, like the asset catalog's. */
+const FILTER_KEYS = ['departmentId', 'status', 'designation', 'assets', 'subscriptions'];
 import { SubscriptionLogo, canViewSubscriptions } from './Subscriptions';
 import {
   Avatar,
@@ -106,6 +120,8 @@ export function PeopleDirectory() {
   const [search, setSearch] = useState(params.get('q') ?? '');
   const q = params.get('q') ?? '';
   const holding = params.get('holding') ?? 'any';
+  const designation = params.get('designation') ?? '';
+  const refs = useReferences();
   const [offset, setOffset] = useState(0);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -119,23 +135,89 @@ export function PeopleDirectory() {
     return () => clearTimeout(timer);
   }, [search]);
   const query = useQuery({
-    queryKey: ['people', q, holding, offset],
-    queryFn: ({ signal }) =>
-      api<{ items: PersonRow[]; nextOffset: number | null; showsSubscriptions: boolean }>(
-        `/people?limit=50&offset=${offset}${holding !== 'all' ? `&holding=${holding}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
-        { signal },
-      ),
+    queryKey: ['people', q, holding, ...FILTER_KEYS.map((k) => params.get(k) ?? ''), offset],
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams({ limit: '50', offset: String(offset) });
+      if (holding !== 'all') search.set('holding', holding);
+      if (q) search.set('q', q);
+      for (const key of FILTER_KEYS) {
+        const value = params.get(key);
+        if (value) search.set(key, value);
+      }
+      return api<{
+        items: PersonRow[];
+        nextOffset: number | null;
+        showsSubscriptions: boolean;
+        counts?: { all: number; any: number; assets: number | null; subscriptions: number | null; assetsHeld: number | null };
+      }>(`/people?${search}`, { signal });
+    },
     placeholderData: keepPreviousData,
   });
   const rows = query.data?.items ?? [];
   const subs = query.data?.showsSubscriptions;
-  const setHolding = (value: string) => {
+  const counts = query.data?.counts;
+  /** Sets one filter in the address ('' clears it) and goes back to the first page. */
+  const setFilter = (key: string, value: string, clearValue = '') => {
     const next = new URLSearchParams(params);
-    if (value === 'any') next.delete('holding');
-    else next.set('holding', value);
+    if (value === clearValue) next.delete(key);
+    else next.set(key, value);
     setParams(next, { replace: true });
     setOffset(0);
   };
+  const setHolding = (value: string) => setFilter('holding', value, 'any');
+  const setList = (key: string, values: string[]) => setFilter(key, fromList(values));
+  // The catalog's filter groups: each column's funnel, the phone Filters button and the chips.
+  const filterGroups: FilterGroup[] = [
+    {
+      key: 'status',
+      title: 'Staff',
+      options: [
+        { value: 'current', label: 'Current staff' },
+        { value: 'left', label: 'Has left' },
+      ],
+      selected: toList(params.get('status')),
+    },
+    {
+      key: 'departmentId',
+      title: 'Department',
+      options: [
+        { value: 'none', label: 'No department' },
+        ...(refs.data?.departments ?? [])
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((d) => ({ value: d.id, label: `${d.name}${d.active ? '' : ' (inactive)'}` })),
+      ],
+      selected: toList(params.get('departmentId')),
+    },
+    {
+      key: 'assets',
+      title: 'Assets',
+      options: [
+        { value: '0', label: 'None' },
+        { value: '1', label: '1' },
+        { value: '2-4', label: '2 to 4' },
+        { value: '5+', label: '5 or more' },
+      ],
+      selected: toList(params.get('assets')),
+    },
+    ...(subs
+      ? [
+          {
+            key: 'subscriptions',
+            title: 'Subscriptions',
+            options: [
+              { value: '0', label: 'None' },
+              { value: '1+', label: '1 or more' },
+            ],
+            selected: toList(params.get('subscriptions')),
+          },
+        ]
+      : []),
+  ];
+  const groupOf = (key: string) => filterGroups.find((g) => g.key === key) ?? { options: [], selected: [] };
+  const tabCount = (value: string) =>
+    counts ? (value === 'all' ? counts.all : value === 'any' ? counts.any : value === 'assets' ? counts.assets : counts.subscriptions) : null;
+  const shown = tabCount(holding);
 
   return (
     <>
@@ -155,6 +237,21 @@ export function PeopleDirectory() {
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search people"
           />
+          {/* Phones hide the table headers, so their filters live behind this button (as in the catalog). */}
+          <div className="flex-none md:hidden">
+            <FiltersButton
+              groups={filterGroups}
+              onApply={(next) => {
+                const search = new URLSearchParams(params);
+                for (const [key, values] of Object.entries(next)) {
+                  if (values.length) search.set(key, fromList(values));
+                  else search.delete(key);
+                }
+                setParams(search, { replace: true });
+                setOffset(0);
+              }}
+            />
+          </div>
           <div role="tablist" aria-label="Show" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
             {[
               ['any', 'Holding something'],
@@ -174,10 +271,47 @@ export function PeopleDirectory() {
                 )}
               >
                 {label}
+                {tabCount(value) != null ? (
+                  <span
+                    className={cx(
+                      'ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
+                      holding === value ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600',
+                    )}
+                  >
+                    {tabCount(value)!.toLocaleString('en-IN')}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
         </div>
+        <FilterChips
+          groups={[
+            ...filterGroups,
+            ...(designation
+              ? [{ key: 'designation', title: 'Designation', options: [{ value: designation, label: designation === BLANK_FILTER ? 'Blank' : designation }], selected: [designation] }]
+              : []),
+          ]}
+          onRemove={(key, value) => setList(key, toList(params.get(key)).filter((v) => v !== value))}
+          onClearAll={() => {
+            setSearch('');
+            const next = new URLSearchParams(params);
+            for (const key of ['q', ...FILTER_KEYS]) next.delete(key);
+            setParams(next, { replace: true });
+            setOffset(0);
+          }}
+        />
+        {shown != null ? (
+          <p className="mb-3 text-sm text-gray-500" aria-live="polite">
+            Total matching people: <span className="font-medium text-gray-900">{shown.toLocaleString('en-IN')}</span>
+            {counts?.assetsHeld != null ? (
+              <>
+                {' · '}Assets they hold: <span className="font-medium text-gray-900">{counts.assetsHeld.toLocaleString('en-IN')}</span>
+              </>
+            ) : null}
+            {' · '}Showing {rows.length.toLocaleString('en-IN')}
+          </p>
+        ) : null}
         {query.isPending ? (
           <Loading />
         ) : rows.length ? (
@@ -185,11 +319,28 @@ export function PeopleDirectory() {
             <table className={tableClass}>
               <thead>
                 <tr>
-                  <th>Person</th>
-                  <th>Designation</th>
-                  <th>Department</th>
-                  <th className="text-right">Assets</th>
-                  {subs ? <th className="text-right">Subscriptions</th> : null}
+                  <th>
+                    Person
+                    <ColumnFilter title="Staff" options={groupOf('status').options} selected={groupOf('status').selected} onApply={(v) => setList('status', v)} />
+                  </th>
+                  <th>
+                    Designation
+                    <TextColumnFilter title="Designation" value={designation} onApply={(v) => setFilter('designation', v)} placeholder="Part of a designation…" />
+                  </th>
+                  <th>
+                    Department
+                    <ColumnFilter title="Department" options={groupOf('departmentId').options} selected={groupOf('departmentId').selected} onApply={(v) => setList('departmentId', v)} />
+                  </th>
+                  <th className="text-right">
+                    Assets
+                    <ColumnFilter title="Assets" options={groupOf('assets').options} selected={groupOf('assets').selected} onApply={(v) => setList('assets', v)} />
+                  </th>
+                  {subs ? (
+                    <th className="text-right">
+                      Subscriptions
+                      <ColumnFilter title="Subscriptions" options={groupOf('subscriptions').options} selected={groupOf('subscriptions').selected} onApply={(v) => setList('subscriptions', v)} />
+                    </th>
+                  ) : null}
                   <th aria-label="Open" />
                 </tr>
               </thead>

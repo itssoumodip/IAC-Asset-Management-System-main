@@ -1,18 +1,25 @@
 import { BadRequestException, Controller, Get, Inject, Injectable, Query, Req, UseGuards } from '@nestjs/common';
 import { Db } from './db';
-import { assetScope } from './domain-helpers';
+import { assetScope, financialYearClause } from './domain-helpers';
 import { can } from './policy';
 import { AuthRequest, SessionGuard } from './security';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The viewer's asset scope, optionally narrowed to one owning team (the dashboard's team picker). */
-function scopeFor(req: AuthRequest, values: unknown[], teamId?: string) {
+/**
+ * The viewer's asset scope, optionally narrowed to one owning team (the dashboard's team picker)
+ * and to assets bought in one financial year (fy = its starting year, 2024 = FY 2024-25).
+ */
+function scopeFor(req: AuthRequest, values: unknown[], teamId?: string, fy?: string) {
   let scope = `${assetScope(req.user, values)} AND a.removed_at IS NULL`;
   if (teamId) {
     if (!UUID.test(teamId)) throw new BadRequestException('Invalid team');
     values.push(teamId);
     scope += ` AND a.owning_team_id = $${values.length}::uuid`;
+  }
+  if (fy) {
+    if (!/^(19|20)\d\d$/.test(fy)) throw new BadRequestException('Invalid financial year');
+    scope += ` AND ${financialYearClause([fy], values)}`;
   }
   return scope;
 }
@@ -26,9 +33,9 @@ function scopeFor(req: AuthRequest, values: unknown[], teamId?: string) {
 export class InsightsService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
-  async insights(req: AuthRequest, teamId?: string) {
+  async insights(req: AuthRequest, teamId?: string, fy?: string) {
     const values: unknown[] = [];
-    const scope = scopeFor(req, values, teamId);
+    const scope = scopeFor(req, values, teamId, fy);
     const money = can(req.user, 'asset.view_private');
     const [row] = await this.db.query(
       `WITH scoped AS (
@@ -119,7 +126,7 @@ export class InsightsService {
           ? { ...item, value: item.value ?? 0 }
           : { ...('id' in item ? { id: item.id } : {}), label: item.label, count: item.count },
       );
-    const holders = await this.holders(req, teamId);
+    const holders = await this.holders(req, teamId, fy);
     // Teams for the picker (never narrowed by it): every active team for people who see the whole
     // register, otherwise their own teams plus any team owning assets they can see. Teams with no
     // assets yet are listed too, with 0.
@@ -141,6 +148,7 @@ export class InsightsService {
     return {
       money,
       teamId: teamId ?? null,
+      fy: fy ?? null,
       teams,
       topHolders: holders.slice(0, 10),
       multiHolders: holders.filter((h) => h.count > 1).length,
@@ -181,9 +189,9 @@ export class InsightsService {
   }
 
   /** People who currently hold assets the viewer may see, most first (for charts and the filter). */
-  async holders(req: AuthRequest, teamId?: string) {
+  async holders(req: AuthRequest, teamId?: string, fy?: string) {
     const values: unknown[] = [];
-    const scope = scopeFor(req, values, teamId);
+    const scope = scopeFor(req, values, teamId, fy);
     const rows = await this.db.query(
       `SELECT u.id AS "userId", u.display_name AS name, d.name AS department, count(*)::int AS count
        FROM assets a
@@ -206,8 +214,8 @@ export class InsightsController {
   constructor(@Inject(InsightsService) private readonly service: InsightsService) {}
 
   @Get('insights')
-  insights(@Req() req: AuthRequest, @Query('teamId') teamId?: string) {
-    return this.service.insights(req, teamId || undefined);
+  insights(@Req() req: AuthRequest, @Query('teamId') teamId?: string, @Query('fy') fy?: string) {
+    return this.service.insights(req, teamId || undefined, fy || undefined);
   }
 
   @Get('holders')

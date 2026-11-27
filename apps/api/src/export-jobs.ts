@@ -22,6 +22,7 @@ import {
   assetScope,
   brandClause,
   filterList,
+  financialYearClause,
   holderClause,
   idOrNoneClause,
   locationClause,
@@ -47,6 +48,8 @@ const filtersInput = z
     owningTeamId: z.string().max(3800).optional(),
     holderId: z.string().max(3800).optional(),
     locationId: z.string().max(3800).optional(),
+    // Financial years by starting year (2022 = FY 2022-23), like the catalog.
+    fy: z.string().max(200).optional(),
     // The catalog sends its sort too; exports are always in Asset ID order.
     sort: z.enum(['code', 'code_desc', 'added', 'updated']).optional(),
   })
@@ -140,6 +143,8 @@ export async function buildAssetCsv(
   if (departments.length) where.push(idOrNoneClause('a.department_id', departments, values));
   const holders = filterList(filters.holderId);
   if (holders.length) where.push(holderClause(holders, values));
+  const years = filterList(filters.fy).filter((y) => /^(19|20)\d\d$/.test(y));
+  if (years.length) where.push(financialYearClause(years, values));
   if (filters.q) {
     values.push(`%${filters.q.replace(/[\\%_]/g, '\\$&')}%`);
     const n = values.length;

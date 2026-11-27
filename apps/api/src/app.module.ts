@@ -4,7 +4,12 @@ import { Db } from './db';
 import { AuthController, AuthService } from './auth';
 import { SessionGuard } from './security';
 import { DomainController, DomainService } from './domain';
-import { AssetPhotoController, AssetPhotoService } from './asset-photos';
+import {
+  AssetExtraPhotoController,
+  AssetExtraPhotoService,
+  AssetPhotoController,
+  AssetPhotoService,
+} from './asset-photos';
 import { ScanController, ScanService } from './scan';
 import { AssetIdentifierController, AssetIdentifierService } from './asset-identifiers';
 import { FieldPermissionController, FieldPermissionService } from './field-permissions';
@@ -52,6 +57,7 @@ import {
     FinanceController,
     DomainController,
     AssetPhotoController,
+    AssetExtraPhotoController,
     ScanController,
     LabelController,
     DataTransferController,
@@ -96,6 +102,7 @@ import {
     DomainService,
     FinanceService,
     AssetPhotoService,
+    AssetExtraPhotoService,
     ScanService,
     LabelService,
     DataTransferService,
