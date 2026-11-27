@@ -3,6 +3,7 @@ import {
   Controller,
   ConflictException,
   Delete,
+  ForbiddenException,
   Get,
   Inject,
   Injectable,
@@ -18,8 +19,8 @@ import { z } from 'zod';
 import { Db } from './db';
 import { withFieldPermissions } from './role-field';
 import { AuthRequest, SessionGuard, assertVersion } from './security';
-import { assertCan } from './policy';
-import { parse } from './domain-helpers';
+import { assertCan, can } from './policy';
+import { canSomewhere, parse } from './domain-helpers';
 
 export type CalculationType = 'SLM' | 'WDV' | 'NONE';
 const calculationType = z.enum(['SLM', 'WDV', 'NONE']);
@@ -61,7 +62,11 @@ export class DepreciationService {
   constructor(@Inject(Db) private readonly db: Db) {}
 
   async methods(req: AuthRequest) {
-    assertCan(req.user, 'asset.finance_edit');
+    // The list of methods (names and rates) is what the asset form's "Depreciation method" picker
+    // shows, so anyone who may fill in an asset's finance details may read it: Finance, and team
+    // members for their own team's assets. Changing methods stays with Finance (manage_methods).
+    if (!can(req.user, 'asset.finance_edit') && !canSomewhere(req.user, 'asset.edit_finance'))
+      throw new ForbiddenException('Insufficient permission');
     const rows = await this.db.query(`
       SELECT rv.code, rv.label, rv.active, rv.version,
              COALESCE(rule.calculation_type, 'WDV') AS "calculationType",

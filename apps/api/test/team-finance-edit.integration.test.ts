@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Db } from '../src/db';
 import { DomainService } from '../src/domain';
+import { DepreciationService } from '../src/depreciation';
+import { PeopleService } from '../src/people';
 import type { AuthRequest } from '../src/security';
 import { ADM_TEAM_ID, IT_TEAM_ID, joinTeam } from './team-fixtures';
 
@@ -72,6 +74,19 @@ describe('team members edit finance fields of their own team only', { skip: !con
     });
     assert.equal(Number(updated.purchaseCost), 1234);
     assert.equal(updated.supplier, 'Test supplier');
+  });
+
+  it('lets a team member load the asset form lists (depreciation methods, people to assign); not others', async () => {
+    const depreciation = new DepreciationService(db);
+    const people = new PeopleService(db);
+    assert.ok(Array.isArray((await depreciation.methods(request(itMember))).items));
+    assert.ok(Array.isArray((await people.assignableAnywhere(request(itMember), { limit: '5' })).items));
+    const [nobodyId] = [randomUUID()];
+    await db.query("INSERT INTO users(id,email,display_name,state) VALUES($1,$2,$3,'ACTIVE')", [nobodyId, `${tag}-${nobodyId}@example.org`, tag]);
+    await db.query("INSERT INTO user_roles(user_id, role_code) VALUES($1,'EMPLOYEE')", [nobodyId]);
+    const plain = { id: nobodyId, roles: ['EMPLOYEE'], teams: [] } as any;
+    await assert.rejects(depreciation.methods(request(plain)), (e: any) => e.status === 403);
+    await assert.rejects(people.assignableAnywhere(request(plain), {}), (e: any) => e.status === 403);
   });
 
   it('refuses a member of another team, and keeps finance approval with Finance', async () => {

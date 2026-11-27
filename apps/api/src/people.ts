@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Db } from './db';
-import { camel, id, parse } from './domain-helpers';
+import { camel, canSomewhere, id, parse } from './domain-helpers';
 import { assertCan, can } from './policy';
 import { AuthRequest, SessionGuard } from './security';
 
@@ -41,10 +41,14 @@ export class PeopleService {
     return this.search(input);
   }
 
-  /** Same search without an asset, for the Store "Issue to user" form. */
+  /**
+   * Same search without an asset: the Store "Issue to user" form and the new-asset form (no asset
+   * yet). Custody is team-scoped, so a team member who may record custody for any of their teams
+   * may search; the asset's own team is checked again when the custody is saved.
+   */
   async assignableAnywhere(req: AuthRequest, raw: unknown) {
     const input = parse(query, raw ?? {});
-    if (!can(req.user, 'store.operations') && !can(req.user, 'asset.custody'))
+    if (!can(req.user, 'store.operations') && !canSomewhere(req.user, 'asset.custody'))
       throw new ForbiddenException('Insufficient permission');
     return this.search(input);
   }
