@@ -15,6 +15,7 @@ import {
   inputClass,
   noticeClass,
   tableClass,
+  tableWrapClass,
 } from './ui';
 
 const ALL_ROLES: string[] = [
@@ -383,10 +384,11 @@ export function RoleFieldPermissions() {
               </div>
               <div className="grid gap-x-8 gap-y-6 xl:grid-cols-2">
                 {Object.entries(page.groups).map(([groupName, shortFields]) => (
-                  <section key={groupName}>
+                  <section key={groupName} className="min-w-0">
                     <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
                       {groupName}
                     </h3>
+                    <div className={tableWrapClass}>
                     <table className={tableClass}>
                       <thead>
                         <tr>
@@ -423,6 +425,7 @@ export function RoleFieldPermissions() {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </section>
                 ))}
               </div>

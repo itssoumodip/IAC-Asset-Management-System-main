@@ -86,7 +86,7 @@ export function SupportInsights() {
           <span className="font-semibold text-navy-900">{scopeLine}</span> · raised and fixed in {periodWord}; open
           counts are as of now.
         </p>
-        <div role="tablist" aria-label="Period" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+        <div role="tablist" aria-label="Period" className="inline-flex max-w-full flex-wrap rounded-lg border border-gray-200 bg-white p-1">
           {periods.map((p) => (
             <button
               key={p.value}

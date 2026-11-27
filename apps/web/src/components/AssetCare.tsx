@@ -449,7 +449,7 @@ export function WarrantyExpiry() {
       ) : (
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div role="tablist" aria-label="Cover type" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+            <div role="tablist" aria-label="Cover type" className="inline-flex max-w-full flex-wrap rounded-lg border border-gray-200 bg-white p-1">
               {(['warranty', 'amc'] as const).map((k) => (
                 <button
                   key={k}

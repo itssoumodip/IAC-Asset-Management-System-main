@@ -11,6 +11,7 @@ import type { Asset, Page } from '../types';
 import { useBrands, useHolders } from './Insights';
 import {
   ColumnFilter,
+  ColumnsMenu,
   FilterChips,
   FiltersButton,
   SortMenu,
@@ -26,7 +27,6 @@ import {
   PersonChip,
   cx,
   inputClass,
-  linkClass,
   ErrorNotice,
   Field,
   Loading,
@@ -469,34 +469,9 @@ export function LabelPrintPage() {
                 onChange={(checked) => update('labelPrinted', checked ? 'no' : '')}
               />
             </div>
-            <details className="relative !min-w-0 !flex-none">
-              <summary className={cx(buttonClass('secondary'), 'cursor-pointer list-none whitespace-nowrap')}>
-                Columns ({shown.length + 1})
-              </summary>
-              <div className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-                <div className="mb-2 flex justify-between border-b border-gray-100 pb-2 text-xs">
-                  <button type="button" className={linkClass} onClick={() => setColumns(labelColumns.map((c) => c.key))}>
-                    Select all
-                  </button>
-                  <button type="button" className={linkClass} onClick={() => setColumns(defaultLabelColumns)}>
-                    Reset
-                  </button>
-                </div>
-                {labelColumns.map((column) => (
-                  <div key={column.key} className="py-1.5">
-                    <Checkbox
-                      label={column.label}
-                      checked={columns.includes(column.key)}
-                      onChange={(checked) =>
-                        setColumns((current) =>
-                          checked ? [...current, column.key] : current.filter((k) => k !== column.key),
-                        )
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </details>
+            <div className="!min-w-0 !flex-none">
+              <ColumnsMenu columns={labelColumns} visible={columns} onChange={setColumns} defaults={defaultLabelColumns} extra={1} />
+            </div>
             {/* Phones hide the table headers, so their filters live behind this button. */}
             <div className="!min-w-0 !flex-none md:hidden">
               <FiltersButton groups={groups} onApply={applyFilters} />
@@ -628,7 +603,7 @@ export function LabelPrintPage() {
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium text-gray-700">Shape</span>
-              <div role="tablist" aria-label="Label shape" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+              <div role="tablist" aria-label="Label shape" className="inline-flex max-w-full flex-wrap rounded-lg border border-gray-200 bg-white p-1">
                 {(['rect', 'square'] as const).map((s) => (
                   <button
                     key={s}

@@ -423,6 +423,63 @@ export function FiltersButton({
   );
 }
 
+/**
+ * "Columns (n)" button: tick which table columns to show. Drawn as a floating card that always
+ * stays on screen (it used to hang off the left edge of phones when the button wrapped left).
+ */
+export function ColumnsMenu<K extends string>({
+  columns,
+  visible,
+  onChange,
+  defaults,
+  extra = 0,
+}: {
+  columns: readonly { key: K; label: string }[];
+  visible: K[];
+  onChange: (keys: K[]) => void;
+  /** What "Reset" goes back to. */
+  defaults: readonly K[];
+  /** Columns always shown and not in the list (e.g. the first column), counted in the button. */
+  extra?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = visible.filter((k) => columns.some((c) => c.key === k)).length + extra;
+  return (
+    <Popover
+      open={open}
+      setOpen={setOpen}
+      width={240}
+      trigger={({ onClick, ref }) => (
+        <button ref={ref} type="button" onClick={onClick} aria-expanded={open} className={cx(buttonClass('secondary'), 'whitespace-nowrap')}>
+          Columns ({count})
+        </button>
+      )}
+    >
+      <div className="mb-2 flex justify-between border-b border-gray-100 pb-2 text-xs">
+        <button type="button" className="font-medium text-navy-700" onClick={() => onChange(columns.map((c) => c.key))}>
+          Select all
+        </button>
+        <button type="button" className="font-medium text-navy-700" onClick={() => onChange([...defaults])}>
+          Reset
+        </button>
+      </div>
+      <div className="max-h-72 overflow-y-auto">
+        {columns.map((column) => (
+          <div key={column.key} className="py-1.5">
+            <Checkbox
+              label={column.label}
+              checked={visible.includes(column.key)}
+              onChange={(checked) =>
+                onChange(checked ? [...visible, column.key] : visible.filter((k) => k !== column.key))
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </Popover>
+  );
+}
+
 /** Removable chips for every active filter value. */
 export function FilterChips({
   groups,

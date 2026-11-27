@@ -8,12 +8,11 @@ import { can, useSession } from '../session';
 import type { AssignablePerson, User } from '../types';
 import { StatTile } from './charts';
 import { PersonPicker } from './PersonPicker';
-import { ColumnFilter, FilterChips, FiltersButton, SortMenu, fromList, toList, type FilterGroup } from './ColumnFilter';
+import { ColumnFilter, ColumnsMenu, FilterChips, FiltersButton, SortMenu, fromList, toList, type FilterGroup } from './ColumnFilter';
 import { canViewSubscriptions } from './Subscriptions';
 import {
   Avatar,
   Badge,
-  Checkbox,
   Empty,
   ErrorNotice,
   Field,
@@ -379,28 +378,7 @@ export function VendorList() {
               { value: 'recent', label: 'Recently added' },
             ]}
           />
-          <details className="relative">
-            <summary className={cx(buttonClass('secondary'), 'cursor-pointer list-none whitespace-nowrap')}>Columns ({shown.length + 1})</summary>
-            <div className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-              <div className="mb-2 flex justify-between border-b border-gray-100 pb-2 text-xs">
-                <button type="button" className="font-medium text-navy-700" onClick={() => setColumns(allowed.map((c) => c.key))}>
-                  Select all
-                </button>
-                <button type="button" className="font-medium text-navy-700" onClick={() => setColumns(defaultVendorColumns)}>
-                  Reset
-                </button>
-              </div>
-              {allowed.map((column) => (
-                <div key={column.key} className="py-1.5">
-                  <Checkbox
-                    label={column.label}
-                    checked={columns.includes(column.key)}
-                    onChange={(checked) => setColumns((current) => (checked ? [...current, column.key] : current.filter((k) => k !== column.key)))}
-                  />
-                </div>
-              ))}
-            </div>
-          </details>
+          <ColumnsMenu columns={allowed} visible={columns} onChange={setColumns} defaults={defaultVendorColumns} extra={1} />
           {/* Phones hide the table headers, so their filters live behind this button. */}
           <div className="md:hidden">
             <FiltersButton groups={groups} onApply={applyFilters} />

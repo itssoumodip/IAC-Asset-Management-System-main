@@ -50,7 +50,47 @@ export const filterBarClass =
 export const searchFormClass =
   'flex flex-wrap items-center gap-2 [&>input]:min-w-0 [&>input]:flex-1 [&>input]:basis-full sm:flex-nowrap sm:[&>input]:basis-auto';
 /** Scroll wrapper for a data table. */
-export const tableWrapClass = 'max-w-full overflow-x-auto';
+// card-table: on phones each row becomes a card (styles.css; labels filled in by App.tsx).
+export const tableWrapClass = 'max-w-full overflow-x-auto card-table';
+
+/**
+ * Gives every cell of a ".card-table" table the name of its column (data-label), so the phone
+ * card layout can show it. Runs once for the whole app and follows table updates. A cell that
+ * already has its own data-label (set by the page) keeps it.
+ */
+export function useCardTableLabels(root: HTMLElement | null) {
+  useEffect(() => {
+    if (!root) return;
+    const headingOf = (th: Element) => {
+      // The heading text only: not the filter button's count or the sort arrow inside it.
+      const own = Array.from(th.childNodes)
+        .filter((n) => n.nodeType === Node.TEXT_NODE)
+        .map((n) => n.textContent ?? '')
+        .join('')
+        .trim();
+      return own || (th.getAttribute('aria-label') === 'Open' ? '' : (th.textContent ?? '').trim());
+    };
+    const label = () => {
+      root.querySelectorAll('.card-table > table').forEach((table) => {
+        const headings = Array.from(table.querySelectorAll(':scope > thead > tr:last-child > th')).map(headingOf);
+        if (!headings.length) return;
+        table.querySelectorAll(':scope > tbody > tr').forEach((row) => {
+          Array.from(row.children).forEach((cell, i) => {
+            if (cell.hasAttribute('data-label') && !cell.hasAttribute('data-label-auto')) return;
+            const text = cell.hasAttribute('colspan') ? '' : (headings[i] ?? '');
+            if (cell.getAttribute('data-label') !== text) cell.setAttribute('data-label', text);
+            cell.setAttribute('data-label-auto', '');
+          });
+        });
+      });
+    };
+    label();
+    // childList only: setting the labels (attributes) does not wake it up again.
+    const observer = new MutationObserver(label);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [root]);
+}
 /** Styles a whole data table (header, cells, rows) from the <table> element. */
 export const tableClass = cx(
   'w-full min-w-0 border-collapse text-left text-sm',
@@ -554,7 +594,7 @@ export function Select({
   const listboxId = useId();
   // The list is drawn on top of the page (a portal), so tables and panels that hide overflow
   // cannot cut it off. It sits under the field, or above it when there is no room below.
-  const [place, setPlace] = useState<{ top?: number; bottom?: number; left?: number; right?: number; width: number; maxHeight: number }>();
+  const [place, setPlace] = useState<{ top?: number; bottom?: number; left?: number; right?: number; width: number; maxHeight: number; maxWidth: number }>();
   useLayoutEffect(() => {
     if (!isOpen) return;
     const update = () => {
@@ -568,6 +608,8 @@ export function Select({
         ...(menuAlign === 'end' ? { right: window.innerWidth - box.right } : { left: box.left }),
         width: box.width,
         maxHeight: room,
+        // Never past the screen edge on the side it grows towards (long options wrap instead).
+        maxWidth: Math.max(box.width, menuAlign === 'end' ? box.right - 8 : window.innerWidth - box.left - 8),
       });
     };
     update();
@@ -701,6 +743,7 @@ export function Select({
               right: place.right,
               minWidth: place.width,
               maxHeight: place.maxHeight,
+              maxWidth: `min(22rem, ${place.maxWidth}px)`,
             }}
             role="listbox"
           >

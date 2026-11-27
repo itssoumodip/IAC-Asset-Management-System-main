@@ -61,3 +61,6 @@ GRANT INSERT,UPDATE ON exchange_rates TO iac_runtime;
 -- Vendors: edited from the Vendors page; reference people are replaced as a set on save.
 GRANT INSERT,UPDATE ON vendors TO iac_runtime;
 GRANT INSERT,DELETE ON vendor_reference_people TO iac_runtime;
+-- More pictures of an asset (front, back, screen…, migration 064): added and removed from the
+-- asset page; each change is in the audit log.
+GRANT INSERT,DELETE ON asset_extra_photos TO iac_runtime;

@@ -252,7 +252,7 @@ export function PeopleDirectory() {
               }}
             />
           </div>
-          <div role="tablist" aria-label="Show" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+          <div role="tablist" aria-label="Show" className="inline-flex max-w-full flex-wrap rounded-lg border border-gray-200 bg-white p-1">
             {[
               ['any', 'Holding something'],
               ['assets', 'With assets'],

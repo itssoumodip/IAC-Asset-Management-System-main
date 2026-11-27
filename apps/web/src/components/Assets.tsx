@@ -15,6 +15,7 @@ import { PersonPicker } from './PersonPicker';
 import { useBrands, useHolders } from './Insights';
 import {
   ColumnFilter,
+  ColumnsMenu,
   FilterChips,
   FiltersButton,
   SortMenu,
@@ -667,42 +668,14 @@ export function AssetList({ assignmentMode = false }: { assignmentMode?: boolean
             />
           </form>
           {!assignmentMode ? (
-            <details className="relative ml-auto !min-w-0 !flex-none">
-              <summary className={cx(buttonClass('secondary'), 'cursor-pointer list-none whitespace-nowrap')}>
-                Columns ({visibleColumns.filter((key) => allowedCatalogColumns.some((column) => column.key === key)).length})
-              </summary>
-              <div className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-                <div className="mb-2 flex justify-between border-b border-gray-100 pb-2 text-xs">
-                  <button
-                    type="button"
-                    className={linkClass}
-                    onClick={() => setVisibleColumns(allowedCatalogColumns.map((column) => column.key))}
-                  >
-                    Select all
-                  </button>
-                  <button
-                    type="button"
-                    className={linkClass}
-                    onClick={() => setVisibleColumns(defaultCatalogColumns.filter((key) => allowedCatalogColumns.some((column) => column.key === key)))}
-                  >
-                    Reset
-                  </button>
-                </div>
-                {allowedCatalogColumns.map((column) => (
-                  <div key={column.key} className="py-1.5">
-                    <Checkbox
-                      label={column.label}
-                      checked={visibleColumns.includes(column.key)}
-                      onChange={(checked) =>
-                        setVisibleColumns((current) =>
-                          checked ? [...current, column.key] : current.filter((key) => key !== column.key),
-                        )
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </details>
+            <div className="ml-auto !min-w-0 !flex-none">
+              <ColumnsMenu
+                columns={allowedCatalogColumns}
+                visible={visibleColumns}
+                onChange={setVisibleColumns}
+                defaults={defaultCatalogColumns.filter((key) => allowedCatalogColumns.some((column) => column.key === key))}
+              />
+            </div>
           ) : null}
           {/* Phones hide the table headers, so their filters live behind this button. */}
           <div className="flex-none md:hidden">

@@ -72,6 +72,15 @@ test('runtime role can read application data but cannot erase inventory, mutate 
       ])
     ).rows;
     assert.equal(photoSize, 4);
+    // More pictures (migration 064): the asset page adds and removes them; never edits one.
+    const [{ id: extraPhotoId }] = (
+      await c.query(
+        `INSERT INTO asset_extra_photos(asset_id,label,content,sha256,created_by)
+         VALUES($1,'Back',decode('ffd8ff00','hex'),repeat('2',64),$2) RETURNING id`,
+        [photoAssetId, photoUserId],
+      )
+    ).rows;
+    await c.query('DELETE FROM asset_extra_photos WHERE id=$1', [extraPhotoId]);
     const [{ id: transferId }] = (
       await c.query(
         `INSERT INTO data_transfers(actor_id,module,source_filename,source_sha256,raw_rows,reason,preview)
@@ -113,6 +122,7 @@ test('runtime role can read application data but cannot erase inventory, mutate 
       'DELETE FROM invoices WHERE false',
       'DELETE FROM data_transfers WHERE false',
       'DELETE FROM asset_photos WHERE false',
+      "UPDATE asset_extra_photos SET label='Front' WHERE false",
       'DELETE FROM departments WHERE false',
       'DELETE FROM locations WHERE false',
       'DELETE FROM reference_values WHERE false',

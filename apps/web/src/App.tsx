@@ -25,7 +25,7 @@ import { MyAssets } from './components/MyAssets';
 import { Requests } from './components/Requests';
 import { Approvals } from './components/Approvals';
 import { Inventory } from './components/Inventory';
-import { Empty, ErrorNotice, Field, Loading, Avatar, buttonClass, cx } from './components/ui';
+import { Empty, ErrorNotice, Field, Loading, Avatar, buttonClass, cx, useCardTableLabels } from './components/ui';
 import { BrandMark } from './components/BrandMark';
 import { PageTransition } from './components/PageTransition';
 import { TeamMembers, TeamsAndProjects } from './components/TeamAdmin';
@@ -363,6 +363,9 @@ function Shell() {
   const catalogLink = useCatalogHref();
   if (!user) return null;
   const [menuOpen, setMenuOpen] = useState(false);
+  // Phone card layout for every table: label each cell with its column name.
+  const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
+  useCardTableLabels(mainEl);
   // Desktop only: hide the sidebar to give pages the full width. Remembered per browser.
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -635,7 +638,10 @@ function Shell() {
       </aside>
       <div
         className={cx(
-          'flex min-h-dvh flex-col transition-[padding] duration-200',
+          // min-w-0 + overflow-x-clip: one over-wide element can never make the whole page slide
+          // sideways on a phone (tables scroll inside their own box). clip, unlike hidden, keeps
+          // the sticky header working.
+          'flex min-h-dvh min-w-0 flex-col overflow-x-clip transition-[padding] duration-200',
           collapsed ? 'lg:pl-0' : 'lg:pl-64',
         )}
       >
@@ -717,10 +723,11 @@ function Shell() {
         </header>
         <ViewAsBanner />
         <main
+          ref={setMainEl}
           id="main"
           tabIndex={-1}
           className={cx(
-            'mx-auto w-full flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8',
+            'mx-auto w-full min-w-0 flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8',
             // Hidden sidebar means the user wants every pixel: drop the reading-width cap.
             collapsed ? 'max-w-none' : 'max-w-[1480px]',
           )}
