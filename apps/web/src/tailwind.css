@@ -161,3 +161,69 @@
   33.3% { z-index: 2; }
   66.6% { z-index: 1; }
 }
+
+/*
+  Phones: every data table becomes a list of cards (rows of tables wrapped in tableWrapClass).
+  Each row is a card; the first cell is its title; every other cell shows its column name above
+  the value (labels come from the column headings, see useCardTableLabels in ui.tsx).
+  Deliberately outside any layer: the table's desktop utility classes (cell borders, padding,
+  right-aligned numbers) must not leak into the cards.
+*/
+@media (max-width: 650px) {
+  .card-table { overflow: visible; }
+  .card-table > table,
+  .card-table > table > tbody { display: block; width: 100%; min-width: 0; }
+  .card-table > table > thead { display: none; }
+  .card-table > table > tbody { display: grid; gap: 12px; }
+  .card-table > table > tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    padding: 14px;
+    border: 1px solid var(--color-gray-200);
+    border-radius: 12px;
+    background: var(--color-white);
+  }
+  .card-table > table > tbody > tr:hover { background: var(--color-white); }
+  .card-table > table > tbody > tr > td {
+    display: block;
+    position: static;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--color-gray-800);
+  }
+  .card-table > table > tbody > tr > td * { white-space: normal; }
+  .card-table > table > tbody > tr > td::before {
+    display: block;
+    margin-bottom: 2px;
+    content: attr(data-label);
+    color: var(--color-gray-500);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  /* Title row: the first cell spans the card, with a light rule under it. */
+  .card-table > table > tbody > tr > td:first-child {
+    grid-column: 1 / -1;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-gray-100);
+  }
+  .card-table > table > tbody > tr > td:first-child::before { display: none; }
+  /* Unlabelled cells (buttons, notes) span the card and show no heading; buttons sit left. */
+  .card-table > table > tbody > tr > td[data-label=''],
+  .card-table > table > tbody > tr > td[colspan] { grid-column: 1 / -1; }
+  .card-table > table > tbody > tr > td[data-label='']::before { display: none; }
+  .card-table > table > tbody > tr > td[data-label=''] > :is(a, button, div) { justify-content: flex-start; }
+  /* A single-cell row (an empty-state message) is not a card. */
+  .card-table > table > tbody > tr:has(> td:only-child) { border: 0; padding: 0; background: transparent; }
+  .card-table > table > tbody > tr > td:only-child { border-bottom: 0; padding-bottom: 0; }
+}
